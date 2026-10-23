@@ -601,54 +601,72 @@ async function sendOwnerInvite() {
 
   if (!name || !email || !shopname) { showErr(err, 'Name, email, and shop name are required'); return; }
 
-  btn.disabled = true; btn.textContent = 'Creating…';
+  btn.disabled = true; btn.textContent = 'Creating shop…';
 
-  // 1. Create the shop
-  const { data: shop, error: shopErr } = await db.from('shops').insert({
-    name: shopname, business_type: biztype, location: location || null,
-  }).select().single();
+  try {
+    // 1. Create the shop
+    const { data: shop, error: shopErr } = await db.from('shops').insert({
+      name: shopname, business_type: biztype, location: location || null,
+    }).select().single();
 
-  if (shopErr) {
+    if (shopErr) throw new Error('Could not create shop: ' + shopErr.message);
+
+    // 2. Set monthly rate on the auto-created subscription if chosen
+    if (rate) {
+      await db.from('subscriptions').update({ monthly_rate: parseInt(rate) }).eq('shop_id', shop.id);
+    }
+
+    // 3. Record invite in DB
+    btn.textContent = 'Recording invite…';
+    const { error: invErr } = await db.from('invites').insert({
+      shop_id: shop.id, email, role: 'owner', invited_by: currentUser.id,
+    });
+    if (invErr) throw new Error('Invite record error: ' + invErr.message);
+
+    // 4. Send email via Edge Function (with 15s timeout)
+    btn.textContent = 'Sending email…';
+    const { data: { session } } = await db.auth.getSession();
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+
+    let emailOk = false, emailErr = '';
+    try {
+      const res = await fetch(`${EDGE_URL}/send-invite`, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+          'apikey': SUPABASE_KEY,
+        },
+        body: JSON.stringify({ email, shopId: shop.id, shopName: shopname }),
+      });
+      clearTimeout(timer);
+      const result = await res.json();
+      if (res.ok && !result.error) emailOk = true;
+      else emailErr = result.error || `HTTP ${res.status}`;
+    } catch (fetchErr) {
+      clearTimeout(timer);
+      emailErr = fetchErr.name === 'AbortError' ? 'Email timed out' : fetchErr.message;
+    }
+
     btn.disabled = false; btn.textContent = 'Send Invite';
-    showErr(err, 'Could not create shop: ' + shopErr.message); return;
+    closeModal();
+
+    if (emailOk) {
+      showToast(`✓ Invite sent to ${email} for "${shopname}"`);
+    } else {
+      // Shop + invite created, only email failed
+      showToast(`Shop created. Email failed (${emailErr}) — go to Supabase → Auth → Users → Invite user`, true);
+    }
+
+    await loadStats();
+    switchTab('shops');
+
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Send Invite';
+    showErr(err, e.message);
   }
-
-  // 2. Set monthly rate on the auto-created subscription if chosen
-  if (rate) {
-    await db.from('subscriptions').update({ monthly_rate: parseInt(rate) }).eq('shop_id', shop.id);
-  }
-
-  // 3. Record invite in DB
-  const { error: invErr } = await db.from('invites').insert({
-    shop_id: shop.id, email, role: 'owner', invited_by: currentUser.id,
-  });
-  if (invErr) { showErr(err, 'Invite record error: ' + invErr.message); btn.disabled=false; btn.textContent='Send Invite'; return; }
-
-  // 4. Send actual email via Edge Function
-  btn.textContent = 'Sending email…';
-  const { data: { session } } = await db.auth.getSession();
-  const res = await fetch(`${EDGE_URL}/send-invite`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${session.access_token}`,
-      'apikey': SUPABASE_KEY,
-    },
-    body: JSON.stringify({ email, shopId: shop.id, shopName: shopname }),
-  });
-
-  const result = await res.json();
-  btn.disabled = false; btn.textContent = 'Send Invite';
-
-  if (!res.ok || result.error) {
-    showErr(err, `Shop created but email failed: ${result.error}. Send invite manually from Supabase → Auth → Invite user.`);
-    return;
-  }
-
-  closeModal();
-  showToast(`✓ Invite sent to ${email} for "${shopname}"`);
-  await loadStats();
-  switchTab('shops');
 }
 
 // ── UTILITIES ──
