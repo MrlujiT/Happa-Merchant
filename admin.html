@@ -271,7 +271,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
 'use strict';
 
 const SUPABASE_URL = 'https://zxucpsdfcokkjtcgygna.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_4gPfb5f8RAI7IgwyRbOXAQ_FntyLQo_';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp4dWNwc2RmY29ra2p0Y2d5Z25hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI3NDc0NzUsImV4cCI6MjEwODMyMzQ3NX0.6JH4kLkge4D-8SCYLIGh7zmAvX0exJILThhOQ79BusA';
 const EDGE_URL = `${SUPABASE_URL}/functions/v1`;
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -603,13 +603,23 @@ async function sendOwnerInvite() {
 
   btn.disabled = true; btn.textContent = 'Creating shop…';
 
-  try {
-    // 1. Create the shop
-    const { data: shop, error: shopErr } = await db.from('shops').insert({
-      name: shopname, business_type: biztype, location: location || null,
-    }).select().single();
+  // Helper: wrap any promise with a timeout
+  function withTimeout(promise, ms, label) {
+    return Promise.race([
+      promise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error(`${label} timed out after ${ms/1000}s`)), ms))
+    ]);
+  }
 
+  try {
+    // 1. Create the shop — generate UUID client-side so we don't need .select() after insert
+    const shopId = crypto.randomUUID();
+    const { error: shopErr } = await withTimeout(
+      db.from('shops').insert({ id: shopId, name: shopname, business_type: biztype, location: location || null }),
+      12000, 'Shop creation'
+    );
     if (shopErr) throw new Error('Could not create shop: ' + shopErr.message);
+    const shop = { id: shopId, name: shopname };
 
     // 2. Set monthly rate on the auto-created subscription if chosen
     if (rate) {
