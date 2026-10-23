@@ -279,6 +279,34 @@ const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let currentUser    = null;
 let currentSession = null;
+
+// ── RAW POSTGREST HELPERS (bypasses supabase-js client for data queries) ──
+function apiHeaders(extras = {}) {
+  return {
+    'Authorization': `Bearer ${currentSession?.access_token ?? ''}`,
+    'apikey': SUPABASE_KEY,
+    'Accept': 'application/json',
+    ...extras,
+  };
+}
+async function apiGet(path) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers: apiHeaders() });
+  if (!res.ok) return [];
+  return res.json().catch(() => []);
+}
+async function apiCount(table, filter = '') {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=*${filter}`, {
+    method: 'HEAD', headers: apiHeaders({ 'Prefer': 'count=exact' }),
+  });
+  const cr = res.headers.get('content-range');
+  return cr ? (parseInt(cr.split('/')[1]) || 0) : 0;
+}
+async function apiDelete(table, id) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, {
+    method: 'DELETE', headers: apiHeaders(),
+  });
+  return res.ok;
+}
 let currentTab     = 'shops';
 let pendingDeleteId = null;
 
@@ -327,17 +355,17 @@ async function doLogout() { await db.auth.signOut(); show('page-auth'); }
 // ── STATS ──
 async function loadStats() {
   const today = new Date(); today.setHours(0,0,0,0);
-  const [{ count: shopsC }, { count: salesC }, { data: subs }] = await Promise.all([
-    db.from('shops').select('*', {count:'exact',head:true}),
-    db.from('sales').select('*', {count:'exact',head:true}).gte('recorded_at', today.toISOString()),
-    db.from('subscriptions').select('status'),
+  const [shopsC, salesC, subs] = await Promise.all([
+    apiCount('shops'),
+    apiCount('sales', `&recorded_at=gte.${today.toISOString()}`),
+    apiGet('subscriptions?select=status'),
   ]);
-  const trials  = subs?.filter(s=>s.status==='trial').length ?? 0;
-  const paying  = subs?.filter(s=>s.status==='active').length ?? 0;
-  document.getElementById('stat-shops').textContent  = shopsC ?? '—';
+  const trials = Array.isArray(subs) ? subs.filter(s=>s.status==='trial').length : 0;
+  const paying = Array.isArray(subs) ? subs.filter(s=>s.status==='active').length : 0;
+  document.getElementById('stat-shops').textContent  = shopsC;
   document.getElementById('stat-trial').textContent  = trials;
   document.getElementById('stat-paying').textContent = paying;
-  document.getElementById('stat-sales').textContent  = salesC ?? '—';
+  document.getElementById('stat-sales').textContent  = salesC;
 }
 
 // ── TABS ──
@@ -358,9 +386,7 @@ async function renderShops() {
   const el = document.getElementById('tab-content');
   el.innerHTML = '<div style="padding:20px;color:var(--txt2)"><span class="spin"></span>Loading…</div>';
 
-  const { data: shops } = await db.from('shops')
-    .select('*, shop_members(count), subscriptions(status,trial_end,monthly_rate)')
-    .order('created_at', {ascending:false});
+  const shops = await apiGet('shops?select=*,shop_members(count),subscriptions(status,trial_end,monthly_rate)&order=created_at.desc');
 
   if (!shops?.length) {
     el.innerHTML = `<div class="empty"><div class="empty-ico">🏪</div><p>No shops yet.<br>Invite a shop owner to get started.</p></div>`;
@@ -423,8 +449,8 @@ function cancelDelete(id) {
 }
 
 async function deleteShop(id) {
-  const { error } = await db.from('shops').delete().eq('id', id);
-  if (error) { showToast('Error: ' + error.message, true); return; }
+  const ok = await apiDelete('shops', id);
+  if (!ok) { showToast('Error removing shop', true); return; }
   showToast('Shop removed');
   await loadStats();
   renderShops();
@@ -435,9 +461,7 @@ async function renderBilling() {
   const el = document.getElementById('tab-content');
   el.innerHTML = '<div style="padding:20px;color:var(--txt2)"><span class="spin"></span>Loading…</div>';
 
-  const { data: subs } = await db.from('subscriptions')
-    .select('*, shops(name,location)')
-    .order('trial_end', {ascending:true});
+  const subs = await apiGet('subscriptions?select=*,shops(name,location)&order=trial_end.asc');
 
   if (!subs?.length) {
     el.innerHTML = `<div class="empty"><div class="empty-ico">💳</div><p>No subscription records yet.</p></div>`;
@@ -508,17 +532,15 @@ async function saveBilling() {
 
   btn.disabled = true; btn.textContent = 'Saving…';
 
-  const { error } = await db.from('subscriptions').update({
-    status,
-    monthly_rate: rate ? parseInt(rate) : null,
-    next_billing: nextDate || null,
-    notes: notes || null,
-    updated_at: new Date().toISOString(),
-  }).eq('id', subId);
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/subscriptions?id=eq.${subId}`, {
+    method: 'PATCH',
+    headers: { ...apiHeaders(), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+    body: JSON.stringify({ status, monthly_rate: rate ? parseInt(rate) : null, next_billing: nextDate || null, notes: notes || null, updated_at: new Date().toISOString() }),
+  });
 
   btn.disabled = false; btn.textContent = 'Save';
 
-  if (error) { showErr(err, error.message); return; }
+  if (!res.ok) { showErr(err, 'Save failed'); return; }
   closeModal();
   showToast('Billing updated');
   await loadStats();
@@ -530,7 +552,7 @@ async function renderInvites() {
   const el = document.getElementById('tab-content');
   el.innerHTML = '<div style="padding:20px;color:var(--txt2)"><span class="spin"></span>Loading…</div>';
 
-  const { data: invites } = await db.from('invites').select('*').eq('used', false).order('created_at', {ascending:false});
+  const invites = await apiGet('invites?select=*&used=eq.false&order=created_at.desc');
 
   if (!invites?.length) {
     el.innerHTML = `<div class="empty"><div class="empty-ico">📬</div><p>No pending invites.</p></div>`;
@@ -555,8 +577,8 @@ async function renderInvites() {
 }
 
 async function deleteInvite(id) {
-  const { error } = await db.from('invites').delete().eq('id', id);
-  if (error) { showToast('Error: ' + error.message, true); return; }
+  const ok = await apiDelete('invites', id);
+  if (!ok) { showToast('Error deleting invite', true); return; }
   showToast('Invite deleted');
   renderInvites();
 }
@@ -566,7 +588,7 @@ async function renderUsers() {
   const el = document.getElementById('tab-content');
   el.innerHTML = '<div style="padding:20px;color:var(--txt2)"><span class="spin"></span>Loading…</div>';
 
-  const { data: members } = await db.from('shop_members').select('*, shops(name)').order('joined_at', {ascending:false});
+  const members = await apiGet('shop_members?select=*,shops(name)&order=joined_at.desc');
 
   if (!members?.length) {
     el.innerHTML = `<div class="empty"><div class="empty-ico">👥</div><p>No users yet.</p></div>`;
