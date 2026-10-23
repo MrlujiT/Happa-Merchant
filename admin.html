@@ -601,45 +601,15 @@ async function sendOwnerInvite() {
 
   if (!name || !email || !shopname) { showErr(err, 'Name, email, and shop name are required'); return; }
 
-  btn.disabled = true; btn.textContent = 'Creating shop…';
-
-  // Helper: wrap any promise with a timeout
-  function withTimeout(promise, ms, label) {
-    return Promise.race([
-      promise,
-      new Promise((_, reject) => setTimeout(() => reject(new Error(`${label} timed out after ${ms/1000}s`)), ms))
-    ]);
-  }
+  btn.disabled = true; btn.textContent = 'Sending invite…';
 
   try {
-    // 1. Create the shop — generate UUID client-side so we don't need .select() after insert
-    const shopId = crypto.randomUUID();
-    const { error: shopErr } = await withTimeout(
-      db.from('shops').insert({ id: shopId, name: shopname, business_type: biztype, location: location || null }),
-      12000, 'Shop creation'
-    );
-    if (shopErr) throw new Error('Could not create shop: ' + shopErr.message);
-    const shop = { id: shopId, name: shopname };
-
-    // 2. Set monthly rate on the auto-created subscription if chosen
-    if (rate) {
-      await db.from('subscriptions').update({ monthly_rate: parseInt(rate) }).eq('shop_id', shop.id);
-    }
-
-    // 3. Record invite in DB
-    btn.textContent = 'Recording invite…';
-    const { error: invErr } = await db.from('invites').insert({
-      shop_id: shop.id, email, role: 'owner', invited_by: currentUser.id,
-    });
-    if (invErr) throw new Error('Invite record error: ' + invErr.message);
-
-    // 4. Send email via Edge Function (with 15s timeout)
-    btn.textContent = 'Sending email…';
+    // Everything runs server-side in the Edge Function (service role — no RLS issues)
     const { data: { session } } = await db.auth.getSession();
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 15000);
+    const timer = setTimeout(() => controller.abort(), 30000);
 
-    let emailOk = false, emailErr = '';
+    let result;
     try {
       const res = await fetch(`${EDGE_URL}/send-invite`, {
         method: 'POST',
@@ -649,25 +619,30 @@ async function sendOwnerInvite() {
           'Authorization': `Bearer ${session.access_token}`,
           'apikey': SUPABASE_KEY,
         },
-        body: JSON.stringify({ email, shopId: shop.id, shopName: shopname }),
+        body: JSON.stringify({
+          ownerName: name, email, shopName: shopname,
+          bizType: biztype, location: location || null,
+          monthlyRate: rate || null,
+        }),
       });
       clearTimeout(timer);
-      const result = await res.json();
-      if (res.ok && !result.error) emailOk = true;
-      else emailErr = result.error || `HTTP ${res.status}`;
+      result = await res.json();
+      if (!res.ok && !result.shopId) {
+        throw new Error(result.error || `Server error (HTTP ${res.status})`);
+      }
     } catch (fetchErr) {
       clearTimeout(timer);
-      emailErr = fetchErr.name === 'AbortError' ? 'Email timed out' : fetchErr.message;
+      throw new Error(fetchErr.name === 'AbortError' ? 'Request timed out after 30s' : fetchErr.message);
     }
 
     btn.disabled = false; btn.textContent = 'Send Invite';
     closeModal();
 
-    if (emailOk) {
+    if (result.success) {
       showToast(`✓ Invite sent to ${email} for "${shopname}"`);
     } else {
-      // Shop + invite created, only email failed
-      showToast(`Shop created. Email failed (${emailErr}) — go to Supabase → Auth → Users → Invite user`, true);
+      // Shop created, email failed
+      showToast(`Shop created. Email failed (${result.emailError}) — use Supabase → Auth → Users → Invite user`, true);
     }
 
     await loadStats();
