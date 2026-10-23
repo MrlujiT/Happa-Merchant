@@ -331,6 +331,8 @@ const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 /* ═══════════════════════════════
    STATE
 ═══════════════════════════════ */
+let currentSession = null;
+
 const S = {
   user: null, shop: null, member: null,
   products: [], customers: [],
@@ -338,6 +340,45 @@ const S = {
   spid: null, sqty: 1, smethod: 'cash',
   pendingPwdSetup: false,
 };
+
+/* ═══════════════════════════════
+   RAW API HELPERS
+   (bypass supabase-js .from() which hangs on this version)
+═══════════════════════════════ */
+function apiHeaders(extras = {}) {
+  return {
+    'Authorization': `Bearer ${currentSession?.access_token ?? ''}`,
+    'apikey': SUPABASE_KEY,
+    'Accept': 'application/json',
+    ...extras,
+  };
+}
+async function apiGet(path) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers: apiHeaders() });
+  if (!res.ok) return [];
+  return res.json().catch(() => []);
+}
+async function apiPost(table, body) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
+    method: 'POST',
+    headers: { ...apiHeaders(), 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    return { data: null, error: { message: err.message || err.details || `HTTP ${res.status}` } };
+  }
+  const data = await res.json().catch(() => null);
+  return { data: Array.isArray(data) ? data[0] : data, error: null };
+}
+async function apiPatch(table, filter, body) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${filter}`, {
+    method: 'PATCH',
+    headers: { ...apiHeaders(), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+    body: JSON.stringify(body),
+  });
+  return { error: res.ok ? null : { message: `HTTP ${res.status}` } };
+}
 
 /* ═══════════════════════════════
    INIT
@@ -349,8 +390,13 @@ const S = {
     S.pendingPwdSetup = true;
   }
 
-  const { data: { session } } = await db.auth.getSession();
+  // Race getSession against 3s — supabase-js@2.50.0 hangs on this call
+  const session = await Promise.race([
+    db.auth.getSession().then(r => r.data?.session ?? null).catch(() => null),
+    new Promise(r => setTimeout(() => r(null), 3000)),
+  ]);
   if (session) {
+    currentSession = session;
     S.user = session.user;
     if (S.pendingPwdSetup) { showPage('setpwd'); }
     else { await loadUserContext(); }
@@ -358,16 +404,9 @@ const S = {
     showPage('auth');
   }
 
-  db.auth.onAuthStateChange(async (event, session) => {
-    if (event === 'PASSWORD_RECOVERY') {
-      showPage('setpwd'); return;
-    }
-    if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-      S.user = session.user;
-      if (S.pendingPwdSetup) { showPage('setpwd'); return; }
-      await loadUserContext();
-    }
-    if (event === 'SIGNED_OUT') { S.user = null; showPage('auth'); }
+  db.auth.onAuthStateChange((event, session) => {
+    if (event === 'SIGNED_OUT') { currentSession = null; S.user = null; showPage('auth'); }
+    if (event === 'TOKEN_REFRESHED' && session) { currentSession = session; }
   });
 
   // Enter key on auth inputs
@@ -389,9 +428,15 @@ async function doLogin() {
   const err   = document.getElementById('auth-err');
   if (!email || !pwd) { showErr(err,'Enter your email and password'); return; }
   btn.disabled = true; btn.textContent = 'Signing in…';
-  const { error } = await db.auth.signInWithPassword({ email, password: pwd });
+  const { data, error } = await db.auth.signInWithPassword({ email, password: pwd });
   btn.disabled = false; btn.textContent = 'Sign In';
-  if (error) showErr(err, error.message);
+  if (error) { showErr(err, error.message); return; }
+  if (data?.session) {
+    currentSession = data.session;
+    S.user = data.session.user;
+    if (S.pendingPwdSetup) { showPage('setpwd'); return; }
+    await loadUserContext();
+  }
 }
 
 async function doSetPassword() {
@@ -402,16 +447,29 @@ async function doSetPassword() {
   if (p1.length < 8) { showErr(err,'Password must be at least 8 characters'); return; }
   if (p1 !== p2)     { showErr(err,"Passwords don't match"); return; }
   btn.disabled = true; btn.textContent = 'Saving…';
-  const { error } = await db.auth.updateUser({ password: p1 });
+  // Raw fetch — db.auth.updateUser() hangs on supabase-js@2.50.0
+  const pwRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+    method: 'PUT',
+    headers: { ...apiHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: p1 }),
+  });
   btn.disabled = false; btn.textContent = 'Set Password & Continue';
-  if (error) { showErr(err, error.message); return; }
+  if (!pwRes.ok) {
+    const e = await pwRes.json().catch(() => ({}));
+    showErr(err, e.message || 'Failed to update password'); return;
+  }
   S.pendingPwdSetup = false;
   window.history.replaceState(null, '', window.location.pathname);
   await loadUserContext();
 }
 
 async function doLogout() {
-  await db.auth.signOut();
+  try {
+    await fetch(`${SUPABASE_URL}/auth/v1/logout?scope=local`, {
+      method: 'POST', headers: apiHeaders(),
+    });
+  } catch(e) { /* ignore */ }
+  currentSession = null; S.user = null;
   showPage('auth');
 }
 
@@ -425,14 +483,10 @@ function showErr(el, msg) {
 ═══════════════════════════════ */
 async function loadUserContext() {
   showPage('loading');
-  const { data: mems } = await db.from('shop_members')
-    .select('*, shops(*)')
-    .eq('user_id', S.user.id)
-    .limit(1);
+  const mems = await apiGet(`shop_members?select=*,shops(*)&user_id=eq.${S.user.id}&limit=1`);
 
   if (!mems?.length) {
-    // Check if this user is a super-admin → redirect to admin panel
-    const { data: adm } = await db.from('admins').select('user_id').eq('user_id', S.user.id).limit(1);
+    const adm = await apiGet(`admins?select=user_id&user_id=eq.${S.user.id}&limit=1`);
     if (adm?.length) { window.location.href = '/admin.html'; return; }
     showPage('noshop'); return;
   }
@@ -458,13 +512,11 @@ async function loadUserContext() {
 }
 
 async function loadProducts() {
-  const { data } = await db.from('products').select('*').eq('shop_id', S.shop.id).eq('active', true).order('name');
-  S.products = data || [];
+  S.products = await apiGet(`products?shop_id=eq.${S.shop.id}&active=eq.true&order=name`);
 }
 
 async function loadCustomers() {
-  const { data } = await db.from('customers').select('*').eq('shop_id', S.shop.id).order('name');
-  S.customers = data || [];
+  S.customers = await apiGet(`customers?shop_id=eq.${S.shop.id}&order=name`);
 }
 
 /* ═══════════════════════════════
@@ -498,9 +550,9 @@ async function renderTab(tab) {
 ═══════════════════════════════ */
 async function renderHome(el) {
   const todayISO = todayStart();
-  const [{ data: todaySales }, { data: daily }] = await Promise.all([
-    db.from('sales').select('total,profit,payment_method').eq('shop_id', S.shop.id).gte('recorded_at', todayISO),
-    db.from('sales').select('total,recorded_at').eq('shop_id', S.shop.id).gte('recorded_at', sevenDaysAgo()),
+  const [todaySales, daily] = await Promise.all([
+    apiGet(`sales?shop_id=eq.${S.shop.id}&recorded_at=gte.${todayISO}&select=total,profit,payment_method`),
+    apiGet(`sales?shop_id=eq.${S.shop.id}&recorded_at=gte.${sevenDaysAgo()}&select=total,recorded_at`),
   ]);
 
   const rev   = sum(todaySales, 'total');
@@ -509,8 +561,7 @@ async function renderHome(el) {
   const avg   = txns ? Math.round(rev / txns) : 0;
   const low   = S.products.filter(p => p.stock <= p.low_stock_at);
 
-  const { data: recentAll } = await db.from('sales').select('*').eq('shop_id', S.shop.id)
-    .gte('recorded_at', todayISO).order('recorded_at', {ascending:false}).limit(5);
+  const recentAll = await apiGet(`sales?shop_id=eq.${S.shop.id}&recorded_at=gte.${todayISO}&order=recorded_at.desc&limit=5`);
 
   // 7-day chart
   const days = build7Days(daily || []);
@@ -564,8 +615,7 @@ async function renderHome(el) {
 async function renderSales(el) {
   const filter = S.salesFilter;
   let from = filter === 'today' ? todayStart() : filter === 'week' ? sevenDaysAgo() : '2000-01-01';
-  const { data: ss } = await db.from('sales').select('*').eq('shop_id', S.shop.id)
-    .gte('recorded_at', from).order('recorded_at', {ascending:false});
+  const ss = await apiGet(`sales?shop_id=eq.${S.shop.id}&recorded_at=gte.${from}&order=recorded_at.desc`);
 
   const rev  = sum(ss, 'total');
   const prof = sum(ss, 'profit');
@@ -624,9 +674,7 @@ async function renderStock(el) {
    DEBTS TAB
 ═══════════════════════════════ */
 async function renderDebts(el) {
-  const { data: debts } = await db.from('debts').select('*, customers(name,phone)')
-    .eq('shop_id', S.shop.id).in('status', ['outstanding','partial','overdue'])
-    .order('due_date', {ascending:true});
+  const debts = await apiGet(`debts?shop_id=eq.${S.shop.id}&status=in.(outstanding,partial,overdue)&order=due_date&select=*,customers(name,phone)`);
 
   const total = sum(debts, 'balance');
 
@@ -815,8 +863,7 @@ async function confirmSale() {
   if (S.smethod === 'mpesa') {
     const code = (document.getElementById('mpesa-code')?.value||'').trim().toUpperCase();
     if (!code) { showToast('M-Pesa code is required', true); return; }
-    // Check duplicate code
-    const { data: dup } = await db.from('sales').select('id').eq('shop_id', S.shop.id).eq('mpesa_code', code).limit(1);
+    const dup = await apiGet(`sales?shop_id=eq.${S.shop.id}&mpesa_code=eq.${code}&select=id&limit=1`);
     if (dup?.length) { showToast('This M-Pesa code is already recorded', true); return; }
   }
 
@@ -832,7 +879,7 @@ async function confirmSale() {
   if (custName !== 'Walk-in') {
     let cust = S.customers.find(c => c.name.toLowerCase() === custName.toLowerCase());
     if (!cust) {
-      const { data: nc } = await db.from('customers').insert({shop_id:S.shop.id, name:custName}).select().single();
+      const { data: nc } = await apiPost('customers', { shop_id: S.shop.id, name: custName });
       cust = nc;
       if (cust) S.customers.push(cust);
     }
@@ -852,7 +899,7 @@ async function confirmSale() {
     recorded_by: S.user.id,
   };
 
-  const { data: newSale, error } = await db.from('sales').insert(sale).select().single();
+  const { data: newSale, error } = await apiPost('sales', sale);
 
   if (error) {
     showToast('Error saving sale: ' + error.message, true);
@@ -860,20 +907,18 @@ async function confirmSale() {
     return;
   }
 
-  // Deduct stock
-  await db.from('products').update({ stock: Math.max(0, p.stock - S.sqty) }).eq('id', p.id);
+  await apiPatch('products', `id=eq.${p.id}`, { stock: Math.max(0, p.stock - S.sqty) });
   const local = S.products.find(x=>x.id===p.id);
   if (local) local.stock = Math.max(0, local.stock - S.sqty);
 
-  // Create debt record if needed
-  if (S.smethod === 'debt' && custId) {
-    await db.from('debts').insert({
+  if (S.smethod === 'debt' && custId && newSale) {
+    await apiPost('debts', {
       shop_id: S.shop.id, customer_id: custId, sale_id: newSale.id,
       original_amt: sale.total, balance: sale.total,
       due_date: dueDate, status: 'outstanding',
     });
-    // Update customer outstanding
-    await db.from('customers').update({ outstanding: (S.customers.find(c=>c.id===custId)?.outstanding||0) + sale.total }).eq('id', custId);
+    const localCust = S.customers.find(c=>c.id===custId);
+    await apiPatch('customers', `id=eq.${custId}`, { outstanding: (localCust?.outstanding||0) + sale.total });
   }
 
   closeSaleSheet();
@@ -924,7 +969,7 @@ async function recordDebtPayment(debtId, originalBalance) {
   const newBalance = Math.max(0, originalBalance - amt);
   const newStatus  = newBalance === 0 ? 'paid' : 'partial';
 
-  const { error } = await db.from('debt_payments').insert({
+  const { error } = await apiPost('debt_payments', {
     debt_id: debtId, shop_id: S.shop.id, amount: amt,
     payment_method: useMpesa ? 'mpesa' : 'cash', mpesa_code: mpesaCode,
     recorded_by: S.user.id,
@@ -932,7 +977,7 @@ async function recordDebtPayment(debtId, originalBalance) {
 
   if (error) { showToast('Error: ' + error.message, true); return; }
 
-  await db.from('debts').update({ balance: newBalance, status: newStatus, updated_at: new Date().toISOString() }).eq('id', debtId);
+  await apiPatch('debts', `id=eq.${debtId}`, { balance: newBalance, status: newStatus, updated_at: new Date().toISOString() });
 
   closeSaleSheet();
   showToast(newBalance === 0 ? `✓ Debt cleared — ${kes(amt)} received` : `✓ ${kes(amt)} received — ${kes(newBalance)} remaining`);
@@ -984,13 +1029,13 @@ async function saveProduct() {
     showToast('Fill in all required fields', true); return;
   }
 
-  const { data, error } = await db.from('products').insert({
+  const { data, error } = await apiPost('products', {
     shop_id: S.shop.id, name, emoji, buy_price: buy, sell_price: sell,
     stock, low_stock_at: low, unit, active: true,
-  }).select().single();
+  });
 
   if (error) { showToast('Error: ' + error.message, true); return; }
-  S.products.push(data);
+  if (data) S.products.push(data);
   closeSaleSheet();
   showToast(`✓ ${name} added to inventory`);
   showTab('stock');
@@ -1022,9 +1067,7 @@ async function sendCashierInvite() {
   const email = document.getElementById('inv-email')?.value?.trim();
   if (!name || !email) { showToast('Fill in name and email', true); return; }
 
-  // Store invite record; actual Supabase invite requires admin API
-  // For now: record the intent and show instructions
-  const { error } = await db.from('invites').insert({
+  const { error } = await apiPost('invites', {
     shop_id: S.shop.id, email, role: 'cashier', invited_by: S.user.id,
   });
 
