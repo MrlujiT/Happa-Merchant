@@ -277,19 +277,20 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const EDGE_URL = `${SUPABASE_URL}/functions/v1`;
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-let currentUser = null;
-let currentTab  = 'shops';
+let currentUser    = null;
+let currentSession = null;
+let currentTab     = 'shops';
 let pendingDeleteId = null;
 
 // ── INIT ──
 (async function init() {
   const { data: { session } } = await db.auth.getSession();
-  if (session) { currentUser = session.user; await checkAdminAndLoad(); }
+  if (session) { currentUser = session.user; currentSession = session; await checkAdminAndLoad(); }
   else show('page-auth');
 
   db.auth.onAuthStateChange(async (event, session) => {
-    if (event === 'SIGNED_IN')  { currentUser = session.user; await checkAdminAndLoad(); }
-    if (event === 'SIGNED_OUT') { currentUser = null; show('page-auth'); }
+    if (event === 'SIGNED_IN')  { currentUser = session.user; currentSession = session; await checkAdminAndLoad(); }
+    if (event === 'SIGNED_OUT') { currentUser = null; currentSession = null; show('page-auth'); }
   });
 
   document.getElementById('auth-email').addEventListener('keydown', e=>{ if(e.key==='Enter') document.getElementById('auth-pwd').focus(); });
@@ -318,7 +319,7 @@ async function doLogin() {
   const { data, error } = await db.auth.signInWithPassword({ email, password: pwd });
   btn.disabled = false; btn.textContent = 'Sign In';
   if (error) { showErr(err, error.message); return; }
-  if (data?.session) { currentUser = data.session.user; await checkAdminAndLoad(); }
+  if (data?.session) { currentUser = data.session.user; currentSession = data.session; await checkAdminAndLoad(); }
 }
 
 async function doLogout() { await db.auth.signOut(); show('page-auth'); }
@@ -606,8 +607,9 @@ async function sendOwnerInvite() {
   btn.disabled = true; btn.textContent = 'Sending invite…';
 
   try {
-    // Everything runs server-side in the Edge Function (service role — no RLS issues)
-    const { data: { session } } = await db.auth.getSession();
+    // Use cached session — avoids hanging getSession() call
+    const session = currentSession;
+    if (!session) throw new Error('Session expired — please sign in again');
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 30000);
 
