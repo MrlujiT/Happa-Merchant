@@ -4,8 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Happa Merchant">
-<meta name="theme-color" content="#101724">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Happa">
+<meta name="theme-color" content="#CC0000">
+<meta name="description" content="Njia smart ya ku-run bizna">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/happa-logo.jpg">
 <title>Happa Merchant</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.50.0/dist/umd/supabase.min.js"></script>
@@ -30,7 +34,8 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 
 /* ── AUTH PAGE ── */
 .auth-wrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px max(20px,env(safe-area-inset-right,0px)) 32px max(20px,env(safe-area-inset-left,0px))}
-.auth-logo{width:64px;height:64px;background:var(--acc);border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:#08122A;margin-bottom:16px}
+.auth-logo{width:100px;height:100px;border-radius:50%;overflow:hidden;margin-bottom:12px;box-shadow:0 8px 32px rgba(204,0,0,.4)}
+.auth-logo img{width:100%;height:100%;object-fit:cover}
 .auth-title{font-size:24px;font-weight:800;margin-bottom:4px;text-align:center}
 .auth-sub{font-size:14px;color:var(--txt2);text-align:center;margin-bottom:32px}
 .auth-card{background:var(--surf);border:1px solid var(--bdr);border-radius:16px;padding:24px;width:100%}
@@ -222,9 +227,14 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
   <!-- ── AUTH PAGE ── -->
   <div class="page on" id="page-auth">
     <div class="auth-wrap">
-      <div class="auth-logo">HM</div>
+      <div class="auth-logo"><img src="/happa-logo.jpg" alt="Happa"></div>
       <div class="auth-title">Happa Merchant</div>
-      <div class="auth-sub">Business intelligence for your shop</div>
+      <div class="auth-sub">Njia smart ya ku-run bizna</div>
+      <div id="install-bar" style="display:none;margin-bottom:16px;width:100%;max-width:400px">
+        <button id="install-btn" onclick="installApp()" style="width:100%;padding:10px;background:#CC0000;color:#fff;border:none;border-radius:10px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">
+          📲 Install Happa on your phone
+        </button>
+      </div>
       <div class="auth-card">
         <div class="fg"><label class="fl">Email Address</label>
           <input class="fi" id="auth-email" type="email" placeholder="you@example.com" autocomplete="email"></div>
@@ -272,7 +282,7 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
   <div class="page" id="page-app" style="flex-direction:column">
     <header class="hdr">
       <div class="hdr-brand">
-        <div class="hdr-logo" id="hdr-logo-el">HM</div>
+        <div class="hdr-logo" id="hdr-logo-el"><img src="/happa-logo.jpg" alt="H"></div>
         <div>
           <div class="hdr-name" id="hdr-shop-name">My Shop</div>
           <div class="hdr-role" id="hdr-role-badge">Owner</div>
@@ -1125,6 +1135,30 @@ function isToday(d) {
 // Close sheets on overlay click
 document.getElementById('sale-overlay').addEventListener('click', function(e){ if(e.target===this) closeSaleSheet(); });
 document.getElementById('conf-overlay').addEventListener('click', function(e){ if(e.target===this) closeConf(); });
+
+// ── SERVICE WORKER + INSTALL PROMPT ──
+let _installPrompt = null;
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(() => {});
+}
+
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  _installPrompt = e;
+  document.getElementById('install-bar').style.display = 'block';
+});
+
+window.addEventListener('appinstalled', () => {
+  document.getElementById('install-bar').style.display = 'none';
+  _installPrompt = null;
+});
+
+function installApp() {
+  if (!_installPrompt) return;
+  _installPrompt.prompt();
+  _installPrompt.userChoice.then(() => { _installPrompt = null; });
+}
 </script>
 </body>
 </html>

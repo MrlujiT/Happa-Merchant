@@ -1,0 +1,26 @@
+{
+  "name": "Happa Merchant",
+  "short_name": "Happa",
+  "description": "Njia smart ya ku-run bizna",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#080D1A",
+  "theme_color": "#CC0000",
+  "icons": [
+    {
+      "src": "/happa-logo.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/happa-logo.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "finance", "productivity"],
+  "lang": "sw"
+}
