@@ -271,14 +271,24 @@ tr:hover td{background:rgba(255,255,255,.02)}
 <div class="overlay" id="share-overlay">
   <div class="modal">
     <h2>✓ Shop Created</h2>
-    <div class="modal-sub" id="share-subtitle">Share this link with the owner to set up their account.</div>
-    <div style="background:rgba(0,0,0,.2);border:1px solid var(--bdr);border-radius:10px;padding:10px 12px;margin:14px 0;display:flex;align-items:center;gap:8px">
-      <input id="share-link-input" type="text" readonly style="flex:1;background:transparent;border:none;color:var(--txt);font-size:11px;outline:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-      <button class="act-btn primary" onclick="copyInviteLink()">Copy</button>
+    <div class="modal-sub" id="share-subtitle">Share these login details with the owner.</div>
+    <div style="background:rgba(0,0,0,.2);border:1px solid var(--bdr);border-radius:10px;padding:12px 14px;margin:14px 0;display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:11px;color:var(--txt3);width:68px;flex-shrink:0">Login URL</span>
+        <span id="share-url" style="font-size:11px;color:var(--txt);flex:1">https://happa-merchant.netlify.app</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:11px;color:var(--txt3);width:68px;flex-shrink:0">Email</span>
+        <span id="share-email-val" style="font-size:11px;color:var(--txt);flex:1;word-break:break-all"></span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:11px;color:var(--txt3);width:68px;flex-shrink:0">Password</span>
+        <span id="share-pwd-val" style="font-size:13px;font-weight:700;color:var(--acc,#F59E0B);flex:1;letter-spacing:.5px"></span>
+      </div>
     </div>
     <div id="share-copy-msg" style="color:#4ade80;font-size:12px;display:none;margin-bottom:8px">✓ Copied!</div>
-    <button onclick="whatsappInvite()" style="width:100%;padding:12px;background:#25D366;color:#fff;font-weight:700;border:none;border-radius:10px;cursor:pointer;font-size:14px;margin-bottom:10px">📱 Share via WhatsApp</button>
-    <div id="share-email-note" style="font-size:12px;color:var(--txt3);margin-bottom:14px"></div>
+    <button onclick="copyCredentials()" style="width:100%;padding:10px;background:rgba(255,255,255,.08);color:var(--txt);font-weight:600;border:1px solid var(--bdr);border-radius:10px;cursor:pointer;font-size:13px;margin-bottom:8px">📋 Copy Login Details</button>
+    <button onclick="whatsappInvite()" style="width:100%;padding:12px;background:#25D366;color:#fff;font-weight:700;border:none;border-radius:10px;cursor:pointer;font-size:14px;margin-bottom:14px">📱 Share via WhatsApp</button>
     <div class="modal-acts"><button class="btn-p" onclick="closeModal()">Done</button></div>
   </div>
 </div>
@@ -692,12 +702,12 @@ async function sendOwnerInvite() {
     btn.disabled = false; btn.textContent = 'Send Invite';
     closeModal();
 
-    if (result.inviteLink) {
-      showShareModal(email, shopname, result.inviteLink, result.emailError);
+    if (result.tempPassword) {
+      showShareModal(result.email || email, shopname, result.tempPassword, result.loginUrl || 'https://happa-merchant.netlify.app');
     } else if (result.success) {
-      showToast(`✓ Invite sent to ${email} for "${shopname}"`);
+      showToast(`✓ Shop created for "${shopname}"`);
     } else {
-      showToast(`Shop created but something went wrong — ${result.emailError || 'check Supabase logs'}`, true);
+      showToast(`Shop created but something went wrong — check Supabase logs`, true);
     }
 
     await loadStats();
@@ -710,33 +720,37 @@ async function sendOwnerInvite() {
 }
 
 // ── SHARE INVITE ──
-let _shareLink = ''; let _shareName = ''; let _shareEmail = '';
-function showShareModal(email, shopName, inviteLink, emailError) {
-  _shareLink = inviteLink || ''; _shareName = shopName; _shareEmail = email;
-  document.getElementById('share-link-input').value = inviteLink || '';
-  document.getElementById('share-subtitle').textContent = `Shop "${shopName}" is ready for ${email}`;
-  const note = document.getElementById('share-email-note');
-  if (emailError) {
-    note.textContent = `⚠ Email couldn't be sent automatically. Use the link above to invite them via WhatsApp or SMS.`;
-    note.style.color = 'var(--acc, #F59E0B)';
-  } else {
-    note.textContent = `✓ Invite email sent. You can also share the link directly.`;
-    note.style.color = '#4ade80';
-  }
+let _sharePwd = ''; let _shareName = ''; let _shareEmail = ''; let _shareLoginUrl = '';
+function showShareModal(email, shopName, tempPassword, loginUrl) {
+  _sharePwd = tempPassword || ''; _shareName = shopName;
+  _shareEmail = email; _shareLoginUrl = loginUrl || 'https://happa-merchant.netlify.app';
+  document.getElementById('share-subtitle').textContent = `"${shopName}" is ready — share these login details with ${email}`;
+  document.getElementById('share-email-val').textContent = email;
+  document.getElementById('share-pwd-val').textContent = tempPassword;
   document.getElementById('share-copy-msg').style.display = 'none';
   document.getElementById('share-overlay').classList.add('on');
 }
-function copyInviteLink() {
-  if (!_shareLink) return;
-  navigator.clipboard.writeText(_shareLink).then(() => {
+function copyCredentials() {
+  const text = `Happa Merchant Login\nURL: ${_shareLoginUrl}\nEmail: ${_shareEmail}\nPassword: ${_sharePwd}`;
+  navigator.clipboard.writeText(text).then(() => {
     const m = document.getElementById('share-copy-msg');
     m.style.display = 'block'; setTimeout(() => m.style.display = 'none', 2000);
   }).catch(() => {
-    const inp = document.getElementById('share-link-input'); inp.select(); document.execCommand('copy');
+    const el = document.createElement('textarea');
+    el.value = text; document.body.appendChild(el); el.select();
+    document.execCommand('copy'); document.body.removeChild(el);
+    const m = document.getElementById('share-copy-msg');
+    m.style.display = 'block'; setTimeout(() => m.style.display = 'none', 2000);
   });
 }
 function whatsappInvite() {
-  const msg = encodeURIComponent(`Hi! You've been invited to set up *${_shareName}* on Happa Merchant.\n\nTap the link to create your account:\n${_shareLink}`);
+  const msg = encodeURIComponent(
+    `Hi! 🛍️ Your shop *${_shareName}* is ready on Happa Merchant.\n\n` +
+    `Login here: ${_shareLoginUrl}\n` +
+    `📧 Email: ${_shareEmail}\n` +
+    `🔑 Password: ${_sharePwd}\n\n` +
+    `Please change your password after first login.`
+  );
   window.open(`https://wa.me/?text=${msg}`, '_blank');
 }
 
