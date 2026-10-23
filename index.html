@@ -500,8 +500,11 @@ async function loadUserContext() {
   const mems = await apiGet(`shop_members?select=*,shops(*)&user_id=eq.${S.user.id}&limit=1`);
 
   if (!mems?.length) {
-    const adm = await apiGet(`admins?select=user_id&user_id=eq.${S.user.id}&limit=1`);
-    if (adm?.length) { window.location.href = '/admin.html'; return; }
+    const forceMerchant = new URLSearchParams(window.location.search).get('merchant') === '1';
+    if (!forceMerchant) {
+      const adm = await apiGet(`admins?select=user_id&user_id=eq.${S.user.id}&limit=1`);
+      if (adm?.length) { window.location.href = '/admin.html'; return; }
+    }
     showPage('noshop'); return;
   }
 
