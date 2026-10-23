@@ -432,9 +432,9 @@ async function loadUserContext() {
 
   // Update header
   document.getElementById('hdr-shop-name').textContent = S.shop.name;
-  document.getElementById('hdr-role-badge').textContent = S.member.role === 'owner' ? '👑 Owner' : '🧾 Cashier';
+  document.getElementById('hdr-role-badge').textContent = S.member.role === 'owner' ? '👑 Owner' : '🧾 Staff';
 
-  // Cashier-only nav
+  // Staff-only nav
   if (S.member.role === 'cashier') {
     document.getElementById('bottom-nav').innerHTML = `
       <button class="ni on" data-tab="home"><span class="ni-ico">🏠</span><span class="ni-lbl">Home</span></button>
@@ -675,7 +675,7 @@ function renderMore(el) {
           <span style="color:var(--txt3)">›</span></div>`:''}
         ${isOwner?`<div class="more-item" onclick="showInviteSheet()">
           <div class="more-ico" style="background:var(--grn-d)">👤</div>
-          <div class="more-inf"><div class="more-nm">Invite Cashier</div><div class="more-mt">Give a staff member access</div></div>
+          <div class="more-inf"><div class="more-nm">Add Staff</div><div class="more-mt">Give a staff member access</div></div>
           <span style="color:var(--txt3)">›</span></div>`:''}
         <div class="more-item" onclick="showConf('Sign Out','Sign out of your account?',doLogout)">
           <div class="more-ico" style="background:var(--red-d)">🚪</div>
@@ -992,12 +992,12 @@ async function saveProduct() {
 function showInviteSheet() {
   document.getElementById('sale-sheet').innerHTML = `
     <div class="sh-hand"></div>
-    <div class="sh-hdr"><h2>Invite Cashier</h2></div>
+    <div class="sh-hdr"><h2>Add Staff</h2></div>
     <div class="sh-body">
       <p style="font-size:13px;color:var(--txt2);margin-bottom:16px;line-height:1.6">
-        Your cashier will receive a link to set up their account. They'll only see sales and recent transactions.
+        Your staff member will receive a link to set up their account. They'll only see sales and recent transactions.
       </p>
-      <div class="fg-s"><label class="fl">Cashier's Name *</label>
+      <div class="fg-s"><label class="fl">Staff Member's Name *</label>
         <input type="text" id="inv-name" class="fi" placeholder="e.g. John Kariuki"></div>
       <div class="fg-s"><label class="fl">Their Email Address *</label>
         <input type="email" id="inv-email" class="fi" placeholder="johnk@email.com"></div>

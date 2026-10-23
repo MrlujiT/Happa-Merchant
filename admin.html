@@ -13,16 +13,15 @@
   --acc:#F5A623;--acc-d:rgba(245,166,35,.14);
   --grn:#22C55E;--grn-d:rgba(34,197,94,.13);
   --red:#EF4444;--red-d:rgba(239,68,68,.12);
-  --blu:#3B82F6;
+  --blu:#3B82F6;--pur:#A855F7;
   --txt:#EEF2FF;--txt2:#8B9EC0;--txt3:#4B5E7A;
   color-scheme:dark;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);color:var(--txt)}
+#app{max-width:720px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column}
 
-#app{max-width:680px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column}
-
-/* ── AUTH ── */
+/* AUTH */
 .auth-wrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 20px}
 .auth-logo{width:64px;height:64px;background:var(--acc);border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:#08122A;margin-bottom:16px}
 .auth-title{font-size:22px;font-weight:800;margin-bottom:4px}
@@ -39,7 +38,7 @@ select.fi{cursor:pointer}
 .btn-p:disabled{opacity:.5;cursor:default}
 .err-msg{font-size:12px;color:var(--red);margin-top:10px;display:none;text-align:center}
 
-/* ── HEADER ── */
+/* HEADER */
 .hdr{background:var(--surf);border-bottom:1px solid var(--bdr);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
 .hdr-brand{display:flex;align-items:center;gap:10px}
 .hdr-logo{width:36px;height:36px;background:var(--acc);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#08122A}
@@ -48,42 +47,54 @@ select.fi{cursor:pointer}
 .btn-s{padding:8px 16px;background:var(--surf2);border:1px solid var(--bdr);border-radius:9px;color:var(--txt2);font-family:inherit;font-size:13px;cursor:pointer;transition:background .15s}
 .btn-s:hover{background:var(--bdr)}
 
-/* ── MAIN ── */
+/* MAIN */
 .main{padding:24px;flex:1}
-.page-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.page-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;gap:10px;flex-wrap:wrap}
 .page-ttl{font-size:20px;font-weight:800}
-.btn-acc{padding:9px 18px;background:var(--acc);color:#08122A;border:none;border-radius:9px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;transition:opacity .15s}
+.btn-acc{padding:9px 18px;background:var(--acc);color:#08122A;border:none;border-radius:9px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;transition:opacity .15s;white-space:nowrap}
 .btn-acc:hover{opacity:.9}
 
-/* ── STATS ── */
-.stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:24px}
+/* STATS */
+.stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:24px}
 .sc{background:var(--surf);border:1px solid var(--bdr);border-radius:12px;padding:14px}
 .sc-lbl{font-size:11px;color:var(--txt2);margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em}
 .sc-val{font-size:26px;font-weight:800;font-variant-numeric:tabular-nums}
 .sc-sub{font-size:11px;color:var(--txt3);margin-top:2px}
 
-/* ── TABS ── */
-.tabs{display:flex;gap:4px;border-bottom:1px solid var(--bdr);margin-bottom:20px}
-.tab{padding:10px 16px;font-family:inherit;font-size:13px;font-weight:600;color:var(--txt3);background:transparent;border:none;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s}
+/* TABS */
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--bdr);margin-bottom:20px;overflow-x:auto}
+.tab{padding:10px 16px;font-family:inherit;font-size:13px;font-weight:600;color:var(--txt3);background:transparent;border:none;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s;white-space:nowrap}
 .tab.on{color:var(--acc);border-bottom-color:var(--acc)}
 
-/* ── TABLE ── */
+/* TABLE */
 .table-wrap{overflow-x:auto;border-radius:14px;border:1px solid var(--bdr)}
 table{width:100%;border-collapse:collapse;font-size:13px}
 th{background:var(--surf2);padding:10px 14px;text-align:left;font-size:10px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
 td{padding:12px 14px;border-top:1px solid var(--bdr);vertical-align:middle}
-tr:hover td{background:var(--surf2)}
+tr:hover td{background:rgba(255,255,255,.02)}
 .chip{display:inline-block;padding:2px 8px;border-radius:5px;font-size:10px;font-weight:700}
 .chip-g{background:var(--grn-d);color:var(--grn)}
 .chip-a{background:var(--acc-d);color:var(--acc)}
 .chip-r{background:var(--red-d);color:var(--red)}
 .chip-b{background:rgba(59,130,246,.14);color:var(--blu)}
-.act-btn{padding:5px 10px;border-radius:7px;font-family:inherit;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--bdr);background:var(--surf2);color:var(--txt2);transition:background .15s}
+.chip-p{background:rgba(168,85,247,.14);color:var(--pur)}
+.act-btn{padding:5px 10px;border-radius:7px;font-family:inherit;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--bdr);background:var(--surf2);color:var(--txt2);transition:background .15s;margin-right:4px}
+.act-btn:last-child{margin-right:0}
 .act-btn:hover{background:var(--bdr)}
-.act-btn.danger{border-color:var(--red-d);color:var(--red)}
-.act-btn.primary{border-color:var(--acc-d);color:var(--acc)}
+.act-btn.danger{border-color:rgba(239,68,68,.3);color:var(--red)}
+.act-btn.danger:hover{background:var(--red-d)}
+.act-btn.primary{border-color:rgba(245,166,35,.3);color:var(--acc)}
+.act-btn.primary:hover{background:var(--acc-d)}
 
-/* ── MODAL ── */
+/* CONFIRM INLINE */
+.confirm-row{display:none;align-items:center;gap:8px;margin-top:6px;padding:8px 10px;background:var(--red-d);border:1px solid rgba(239,68,68,.2);border-radius:8px}
+.confirm-row.on{display:flex}
+.confirm-row span{font-size:11px;color:var(--red);flex:1}
+.confirm-row button{padding:4px 10px;border-radius:6px;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;border:none}
+.confirm-yes{background:var(--red);color:#fff}
+.confirm-no{background:var(--surf2);color:var(--txt2);border:1px solid var(--bdr) !important}
+
+/* MODAL */
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;display:none;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(6px)}
 .overlay.on{display:flex}
 .modal{background:var(--surf);border:1px solid var(--bdr);border-radius:18px;padding:28px;width:100%;max-width:440px;max-height:90vh;overflow-y:auto}
@@ -93,19 +104,32 @@ tr:hover td{background:var(--surf2)}
 .btn-g{background:transparent;border:1px solid var(--bdr);color:var(--txt2);border-radius:10px;padding:11px;font-family:inherit;font-size:14px;cursor:pointer;transition:background .15s}
 .btn-g:hover{background:var(--surf2)}
 
-/* ── TOAST ── */
-.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#0D2B1A;border:1px solid var(--grn);color:var(--grn);padding:10px 18px;border-radius:12px;font-size:13px;font-weight:700;z-index:300;opacity:0;transition:opacity .3s;white-space:nowrap;pointer-events:none}
+/* TOAST */
+.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#0D2B1A;border:1px solid var(--grn);color:var(--grn);padding:10px 18px;border-radius:12px;font-size:13px;font-weight:700;z-index:300;opacity:0;transition:opacity .3s;white-space:nowrap;pointer-events:none;max-width:90vw;text-align:center}
 .toast.err{background:#2B0D0D;border-color:var(--red);color:var(--red)}
 .toast.on{opacity:1}
 
-/* ── EMPTY ── */
+/* EMPTY */
 .empty{padding:40px 20px;text-align:center;color:var(--txt2)}
 .empty-ico{font-size:36px;margin-bottom:12px}
 .empty p{font-size:13px;line-height:1.7}
 
-/* ── LOADER ── */
-.spin{display:inline-block;width:20px;height:20px;border:2px solid var(--bdr);border-top-color:var(--acc);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:8px}
+/* LOADER */
+.spin{display:inline-block;width:18px;height:18px;border:2px solid var(--bdr);border-top-color:var(--acc);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px}
 @keyframes spin{to{transform:rotate(360deg)}}
+
+/* BILLING CARD */
+.billing-grid{display:grid;grid-template-columns:1fr;gap:10px}
+.bill-card{background:var(--surf);border:1px solid var(--bdr);border-radius:12px;padding:16px}
+.bill-card-hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px}
+.bill-shop{font-size:14px;font-weight:700}
+.bill-loc{font-size:11px;color:var(--txt3);margin-top:2px}
+.bill-meta{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.bill-stat{background:var(--surf2);border-radius:8px;padding:8px 12px;font-size:11px;color:var(--txt2)}
+.bill-stat strong{display:block;font-size:16px;font-weight:800;color:var(--txt);font-variant-numeric:tabular-nums}
+.bill-actions{display:flex;gap:8px;flex-wrap:wrap}
+.progress-bar{height:4px;background:var(--surf2);border-radius:2px;margin-top:8px}
+.progress-fill{height:4px;border-radius:2px;transition:width .3s}
 
 @media(max-width:600px){
   .stat-row{grid-template-columns:1fr 1fr}
@@ -154,13 +178,15 @@ tr:hover td{background:var(--surf2)}
       </div>
 
       <div class="stat-row" id="stats-row">
-        <div class="sc"><div class="sc-lbl">Shops</div><div class="sc-val" id="stat-shops">—</div></div>
-        <div class="sc"><div class="sc-lbl">Users</div><div class="sc-val" id="stat-users">—</div></div>
-        <div class="sc"><div class="sc-lbl">Sales Today</div><div class="sc-val" id="stat-sales">—</div></div>
+        <div class="sc"><div class="sc-lbl">Shops</div><div class="sc-val" id="stat-shops">—</div><div class="sc-sub">total</div></div>
+        <div class="sc"><div class="sc-lbl">On Trial</div><div class="sc-val" id="stat-trial">—</div><div class="sc-sub">active trials</div></div>
+        <div class="sc"><div class="sc-lbl">Paying</div><div class="sc-val" id="stat-paying">—</div><div class="sc-sub">active subs</div></div>
+        <div class="sc"><div class="sc-lbl">Sales Today</div><div class="sc-val" id="stat-sales">—</div><div class="sc-sub">transactions</div></div>
       </div>
 
       <div class="tabs">
         <button class="tab on" onclick="switchTab('shops')">Shops</button>
+        <button class="tab" onclick="switchTab('billing')">Billing</button>
         <button class="tab" onclick="switchTab('invites')">Pending Invites</button>
         <button class="tab" onclick="switchTab('users')">All Users</button>
       </div>
@@ -175,7 +201,7 @@ tr:hover td{background:var(--surf2)}
 <div class="overlay" id="invite-overlay">
   <div class="modal">
     <h2>Invite Shop Owner</h2>
-    <div class="modal-sub">They'll get an email with a link to set up their account and shop.</div>
+    <div class="modal-sub">An email invite will be sent. They set their password, then land straight into their shop.</div>
     <div class="fg"><label class="fl">Owner's Name *</label>
       <input class="fi" id="inv-name" type="text" placeholder="e.g. Mama Njeri"></div>
     <div class="fg"><label class="fl">Email Address *</label>
@@ -190,6 +216,14 @@ tr:hover td{background:var(--surf2)}
       </select></div>
     <div class="fg"><label class="fl">Location (optional)</label>
       <input class="fi" id="inv-location" type="text" placeholder="e.g. Ngara, Nairobi"></div>
+    <div class="fg"><label class="fl">Monthly Rate (KES)</label>
+      <select class="fi" id="inv-rate">
+        <option value="">90-day free trial (set rate later)</option>
+        <option value="149">KES 149/month</option>
+        <option value="249">KES 249/month</option>
+        <option value="349">KES 349/month</option>
+        <option value="499">KES 499/month</option>
+      </select></div>
     <div class="err-msg" id="inv-err"></div>
     <div class="modal-acts">
       <button class="btn-g" onclick="closeModal()">Cancel</button>
@@ -198,27 +232,35 @@ tr:hover td{background:var(--surf2)}
   </div>
 </div>
 
-<!-- CREATE SHOP MANUALLY MODAL -->
-<div class="overlay" id="shop-overlay">
+<!-- BILLING EDIT MODAL -->
+<div class="overlay" id="billing-overlay">
   <div class="modal">
-    <h2>Create Shop Manually</h2>
-    <div class="modal-sub">Create a shop and assign it to an existing user, or create a standalone shop.</div>
-    <div class="fg"><label class="fl">Shop Name *</label>
-      <input class="fi" id="sh-name" type="text" placeholder="e.g. Mama Njeri's Mart"></div>
-    <div class="fg"><label class="fl">Business Type</label>
-      <select class="fi" id="sh-type">
-        <option value="goods">Goods</option>
-        <option value="services">Services</option>
-        <option value="mixed">Mixed</option>
+    <h2 id="bill-modal-title">Update Billing</h2>
+    <div class="modal-sub" id="bill-modal-sub">Manage subscription status and rate for this shop.</div>
+    <input type="hidden" id="bill-sub-id">
+    <div class="fg"><label class="fl">Status</label>
+      <select class="fi" id="bill-status">
+        <option value="trial">Trial</option>
+        <option value="active">Active (paying)</option>
+        <option value="suspended">Suspended</option>
+        <option value="cancelled">Cancelled</option>
       </select></div>
-    <div class="fg"><label class="fl">Location</label>
-      <input class="fi" id="sh-location" type="text" placeholder="e.g. Ngara"></div>
-    <div class="fg"><label class="fl">M-Pesa Till (optional)</label>
-      <input class="fi" id="sh-till" type="text" placeholder="e.g. 123456"></div>
-    <div class="err-msg" id="sh-err"></div>
+    <div class="fg"><label class="fl">Monthly Rate (KES)</label>
+      <select class="fi" id="bill-rate">
+        <option value="">Not set</option>
+        <option value="149">KES 149</option>
+        <option value="249">KES 249</option>
+        <option value="349">KES 349</option>
+        <option value="499">KES 499</option>
+      </select></div>
+    <div class="fg"><label class="fl">Next Billing Date</label>
+      <input class="fi" id="bill-next" type="date"></div>
+    <div class="fg"><label class="fl">Notes</label>
+      <input class="fi" id="bill-notes" type="text" placeholder="e.g. Owner paid via M-Pesa"></div>
+    <div class="err-msg" id="bill-err"></div>
     <div class="modal-acts">
       <button class="btn-g" onclick="closeModal()">Cancel</button>
-      <button class="btn-p" id="sh-btn" onclick="createShop()" style="margin-top:0">Create Shop</button>
+      <button class="btn-p" id="bill-btn" onclick="saveBilling()" style="margin-top:0">Save</button>
     </div>
   </div>
 </div>
@@ -230,10 +272,12 @@ tr:hover td{background:var(--surf2)}
 
 const SUPABASE_URL = 'https://zxucpsdfcokkjtcgygna.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_4gPfb5f8RAI7IgwyRbOXAQ_FntyLQo_';
+const EDGE_URL = `${SUPABASE_URL}/functions/v1`;
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let currentUser = null;
-let currentTab = 'shops';
+let currentTab  = 'shops';
+let pendingDeleteId = null;
 
 // ── INIT ──
 (async function init() {
@@ -242,7 +286,7 @@ let currentTab = 'shops';
   else show('page-auth');
 
   db.auth.onAuthStateChange(async (event, session) => {
-    if (event === 'SIGNED_IN') { currentUser = session.user; await checkAdminAndLoad(); }
+    if (event === 'SIGNED_IN')  { currentUser = session.user; await checkAdminAndLoad(); }
     if (event === 'SIGNED_OUT') { currentUser = null; show('page-auth'); }
   });
 
@@ -251,7 +295,6 @@ let currentTab = 'shops';
 })();
 
 async function checkAdminAndLoad() {
-  // Only allow njautheinvestmentsconsultant@gmail.com
   if (currentUser.email !== 'njautheinvestmentsconsultant@gmail.com') {
     showToast('Access denied — admin only', true);
     await db.auth.signOut(); return;
@@ -275,34 +318,33 @@ async function doLogin() {
   if (error) showErr(err, error.message);
 }
 
-async function doLogout() {
-  await db.auth.signOut();
-  show('page-auth');
-}
+async function doLogout() { await db.auth.signOut(); show('page-auth'); }
 
 // ── STATS ──
 async function loadStats() {
   const today = new Date(); today.setHours(0,0,0,0);
-
-  const [{ count: shopsC }, { count: usersC }, { count: salesC }] = await Promise.all([
+  const [{ count: shopsC }, { count: salesC }, { data: subs }] = await Promise.all([
     db.from('shops').select('*', {count:'exact',head:true}),
-    db.from('shop_members').select('*', {count:'exact',head:true}),
     db.from('sales').select('*', {count:'exact',head:true}).gte('recorded_at', today.toISOString()),
+    db.from('subscriptions').select('status'),
   ]);
-
-  document.getElementById('stat-shops').textContent = shopsC ?? '—';
-  document.getElementById('stat-users').textContent = usersC ?? '—';
-  document.getElementById('stat-sales').textContent = salesC ?? '—';
+  const trials  = subs?.filter(s=>s.status==='trial').length ?? 0;
+  const paying  = subs?.filter(s=>s.status==='active').length ?? 0;
+  document.getElementById('stat-shops').textContent  = shopsC ?? '—';
+  document.getElementById('stat-trial').textContent  = trials;
+  document.getElementById('stat-paying').textContent = paying;
+  document.getElementById('stat-sales').textContent  = salesC ?? '—';
 }
 
 // ── TABS ──
 function switchTab(tab) {
   currentTab = tab;
   document.querySelectorAll('.tab').forEach((t,i) => {
-    const labels = ['shops','invites','users'];
+    const labels = ['shops','billing','invites','users'];
     t.classList.toggle('on', labels[i] === tab);
   });
   if (tab === 'shops')   renderShops();
+  if (tab === 'billing') renderBilling();
   if (tab === 'invites') renderInvites();
   if (tab === 'users')   renderUsers();
 }
@@ -312,7 +354,9 @@ async function renderShops() {
   const el = document.getElementById('tab-content');
   el.innerHTML = '<div style="padding:20px;color:var(--txt2)"><span class="spin"></span>Loading…</div>';
 
-  const { data: shops } = await db.from('shops').select('*, shop_members(count)').order('created_at', {ascending:false});
+  const { data: shops } = await db.from('shops')
+    .select('*, shop_members(count), subscriptions(status,trial_end,monthly_rate)')
+    .order('created_at', {ascending:false});
 
   if (!shops?.length) {
     el.innerHTML = `<div class="empty"><div class="empty-ico">🏪</div><p>No shops yet.<br>Invite a shop owner to get started.</p></div>`;
@@ -321,31 +365,160 @@ async function renderShops() {
 
   el.innerHTML = `<div class="table-wrap"><table>
     <thead><tr>
-      <th>Shop</th><th>Type</th><th>Location</th><th>Members</th><th>Created</th><th>Actions</th>
+      <th>Shop</th><th>Type</th><th>Location</th><th>Members</th><th>Sub</th><th>Actions</th>
     </tr></thead>
-    <tbody>${shops.map(s => `
-      <tr>
+    <tbody id="shops-tbody">${shops.map(s => {
+      const sub    = s.subscriptions?.[0];
+      const status = sub?.status || 'trial';
+      const daysLeft = sub?.trial_end ? Math.max(0, Math.ceil((new Date(sub.trial_end) - new Date()) / 86400000)) : null;
+      const subLabel = status === 'active'
+        ? `KES ${sub?.monthly_rate ?? '?'}/mo`
+        : status === 'trial'
+        ? (daysLeft !== null ? `${daysLeft}d left` : 'Trial')
+        : status;
+      const subChip = status === 'active' ? 'chip-g'
+        : status === 'trial' ? 'chip-a'
+        : 'chip-r';
+      return `<tr id="row-${s.id}">
         <td><strong>${s.name}</strong></td>
         <td><span class="chip ${s.business_type==='goods'?'chip-g':s.business_type==='services'?'chip-b':'chip-a'}">${s.business_type}</span></td>
         <td style="color:var(--txt2)">${s.location||'—'}</td>
         <td>${s.shop_members?.[0]?.count||0}</td>
-        <td style="color:var(--txt3)">${new Date(s.created_at).toLocaleDateString('en-KE',{day:'numeric',month:'short',year:'2-digit'})}</td>
-        <td><button class="act-btn" onclick="viewShop('${s.id}')">View</button></td>
-      </tr>`).join('')}
+        <td><span class="chip ${subChip}">${subLabel}</span></td>
+        <td>
+          <button class="act-btn danger" onclick="confirmDeleteShop('${s.id}','${s.name.replace(/'/g,"\\'")}')">Remove</button>
+        </td>
+      </tr>
+      <tr id="confirm-${s.id}" style="display:none">
+        <td colspan="6">
+          <div class="confirm-row on">
+            <span>⚠️ Remove <strong>${s.name}</strong>? All data, sales, and staff will be deleted permanently.</span>
+            <button class="confirm-yes" onclick="deleteShop('${s.id}')">Yes, Remove</button>
+            <button class="confirm-no" onclick="cancelDelete('${s.id}')">Cancel</button>
+          </div>
+        </td>
+      </tr>`;
+    }).join('')}
     </tbody>
   </table></div>
   <div style="margin-top:12px;text-align:right">
-    <button class="act-btn primary" onclick="showShopModal()">+ Create Shop Manually</button>
+    <button class="act-btn primary" onclick="showInviteModal()">+ Invite Shop Owner</button>
   </div>`;
 }
 
-async function viewShop(shopId) {
-  const { data: shop } = await db.from('shops').select('*').eq('id', shopId).single();
-  const { data: members } = await db.from('shop_members').select('*').eq('shop_id', shopId);
-  const { data: products } = await db.from('products').select('id').eq('shop_id', shopId);
-  const { count: salesCount } = await db.from('sales').select('*', {count:'exact',head:true}).eq('shop_id', shopId);
+function confirmDeleteShop(id, name) {
+  // Hide any other open confirmations
+  document.querySelectorAll('[id^="confirm-"]').forEach(r => r.style.display = 'none');
+  const row = document.getElementById(`confirm-${id}`);
+  if (row) row.style.display = '';
+}
 
-  showToast(`${shop.name}: ${members?.length||0} members, ${products?.length||0} products, ${salesCount||0} total sales`);
+function cancelDelete(id) {
+  const row = document.getElementById(`confirm-${id}`);
+  if (row) row.style.display = 'none';
+}
+
+async function deleteShop(id) {
+  const { error } = await db.from('shops').delete().eq('id', id);
+  if (error) { showToast('Error: ' + error.message, true); return; }
+  showToast('Shop removed');
+  await loadStats();
+  renderShops();
+}
+
+// ── BILLING TAB ──
+async function renderBilling() {
+  const el = document.getElementById('tab-content');
+  el.innerHTML = '<div style="padding:20px;color:var(--txt2)"><span class="spin"></span>Loading…</div>';
+
+  const { data: subs } = await db.from('subscriptions')
+    .select('*, shops(name,location)')
+    .order('trial_end', {ascending:true});
+
+  if (!subs?.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-ico">💳</div><p>No subscription records yet.</p></div>`;
+    return;
+  }
+
+  const now = new Date();
+  const rows = subs.map(s => {
+    const shop     = s.shops;
+    const trialEnd = new Date(s.trial_end);
+    const daysLeft = Math.max(0, Math.ceil((trialEnd - now) / 86400000));
+    const totalDays= 90;
+    const usedDays = Math.max(0, totalDays - daysLeft);
+    const pct      = Math.min(100, Math.round((usedDays / totalDays) * 100));
+    const barColor = daysLeft < 14 ? 'var(--red)' : daysLeft < 30 ? 'var(--acc)' : 'var(--grn)';
+
+    const statusChip = s.status === 'active'
+      ? '<span class="chip chip-g">Active</span>'
+      : s.status === 'trial'
+      ? `<span class="chip chip-a">Trial</span>`
+      : s.status === 'suspended'
+      ? '<span class="chip chip-r">Suspended</span>'
+      : '<span class="chip chip-p">Cancelled</span>';
+
+    return `<div class="bill-card">
+      <div class="bill-card-hdr">
+        <div>
+          <div class="bill-shop">${shop?.name || '—'}</div>
+          <div class="bill-loc">${shop?.location || 'No location'}</div>
+        </div>
+        ${statusChip}
+      </div>
+      <div class="bill-meta">
+        <div class="bill-stat"><strong>${daysLeft}d</strong>trial left</div>
+        <div class="bill-stat"><strong>${s.monthly_rate ? 'KES '+s.monthly_rate : '—'}</strong>monthly rate</div>
+        <div class="bill-stat"><strong>${s.next_billing ? new Date(s.next_billing).toLocaleDateString('en-KE',{day:'numeric',month:'short'}) : '—'}</strong>next billing</div>
+      </div>
+      ${s.status === 'trial' ? `<div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${barColor}"></div></div>` : ''}
+      ${s.notes ? `<div style="font-size:11px;color:var(--txt3);margin-top:8px">📝 ${s.notes}</div>` : ''}
+      <div class="bill-actions" style="margin-top:12px">
+        <button class="act-btn primary" onclick="openBillingModal('${s.id}','${(shop?.name||'').replace(/'/g,"\\'")}','${s.status}',${s.monthly_rate||'null'},'${s.next_billing||''}','${(s.notes||'').replace(/'/g,"\\'")}')">Edit Billing</button>
+      </div>
+    </div>`;
+  });
+
+  el.innerHTML = `<div class="billing-grid">${rows.join('')}</div>`;
+}
+
+function openBillingModal(subId, shopName, status, rate, nextBilling, notes) {
+  document.getElementById('bill-modal-title').textContent = shopName;
+  document.getElementById('bill-modal-sub').textContent = 'Manage subscription for ' + shopName;
+  document.getElementById('bill-sub-id').value = subId;
+  document.getElementById('bill-status').value = status;
+  document.getElementById('bill-rate').value = rate || '';
+  document.getElementById('bill-next').value = nextBilling || '';
+  document.getElementById('bill-notes').value = notes || '';
+  document.getElementById('billing-overlay').classList.add('on');
+}
+
+async function saveBilling() {
+  const subId     = document.getElementById('bill-sub-id').value;
+  const status    = document.getElementById('bill-status').value;
+  const rate      = document.getElementById('bill-rate').value;
+  const nextDate  = document.getElementById('bill-next').value;
+  const notes     = document.getElementById('bill-notes').value.trim();
+  const btn       = document.getElementById('bill-btn');
+  const err       = document.getElementById('bill-err');
+
+  btn.disabled = true; btn.textContent = 'Saving…';
+
+  const { error } = await db.from('subscriptions').update({
+    status,
+    monthly_rate: rate ? parseInt(rate) : null,
+    next_billing: nextDate || null,
+    notes: notes || null,
+    updated_at: new Date().toISOString(),
+  }).eq('id', subId);
+
+  btn.disabled = false; btn.textContent = 'Save';
+
+  if (error) { showErr(err, error.message); return; }
+  closeModal();
+  showToast('Billing updated');
+  await loadStats();
+  renderBilling();
 }
 
 // ── INVITES TAB ──
@@ -356,14 +529,12 @@ async function renderInvites() {
   const { data: invites } = await db.from('invites').select('*').eq('used', false).order('created_at', {ascending:false});
 
   if (!invites?.length) {
-    el.innerHTML = `<div class="empty"><div class="empty-ico">📬</div><p>No pending invites.<br>All invites have been used or none sent yet.</p></div>`;
+    el.innerHTML = `<div class="empty"><div class="empty-ico">📬</div><p>No pending invites.</p></div>`;
     return;
   }
 
   el.innerHTML = `<div class="table-wrap"><table>
-    <thead><tr>
-      <th>Email</th><th>Role</th><th>Sent</th><th>Expires</th><th>Status</th><th>Actions</th>
-    </tr></thead>
+    <thead><tr><th>Email</th><th>Role</th><th>Sent</th><th>Expires</th><th>Status</th><th>Actions</th></tr></thead>
     <tbody>${invites.map(inv => {
       const expired = new Date(inv.expires_at) < new Date();
       return `<tr>
@@ -391,7 +562,7 @@ async function renderUsers() {
   const el = document.getElementById('tab-content');
   el.innerHTML = '<div style="padding:20px;color:var(--txt2)"><span class="spin"></span>Loading…</div>';
 
-  const { data: members } = await db.from('shop_members').select('*, shops(name)').order('invited_at', {ascending:false});
+  const { data: members } = await db.from('shop_members').select('*, shops(name)').order('joined_at', {ascending:false});
 
   if (!members?.length) {
     el.innerHTML = `<div class="empty"><div class="empty-ico">👥</div><p>No users yet.</p></div>`;
@@ -399,9 +570,7 @@ async function renderUsers() {
   }
 
   el.innerHTML = `<div class="table-wrap"><table>
-    <thead><tr>
-      <th>Name</th><th>Role</th><th>Shop</th><th>Phone</th><th>Joined</th>
-    </tr></thead>
+    <thead><tr><th>Name</th><th>Role</th><th>Shop</th><th>Phone</th><th>Joined</th></tr></thead>
     <tbody>${members.map(m => `
       <tr>
         <td><strong>${m.name}</strong></td>
@@ -425,6 +594,7 @@ async function sendOwnerInvite() {
   const shopname = document.getElementById('inv-shopname').value.trim();
   const biztype  = document.getElementById('inv-biztype').value;
   const location = document.getElementById('inv-location').value.trim();
+  const rate     = document.getElementById('inv-rate').value;
   const err      = document.getElementById('inv-err');
   const btn      = document.getElementById('inv-btn');
 
@@ -442,60 +612,40 @@ async function sendOwnerInvite() {
     showErr(err, 'Could not create shop: ' + shopErr.message); return;
   }
 
-  // 2. Record invite
+  // 2. Set monthly rate on the auto-created subscription if chosen
+  if (rate) {
+    await db.from('subscriptions').update({ monthly_rate: parseInt(rate) }).eq('shop_id', shop.id);
+  }
+
+  // 3. Record invite in DB
   const { error: invErr } = await db.from('invites').insert({
     shop_id: shop.id, email, role: 'owner', invited_by: currentUser.id,
   });
+  if (invErr) { showErr(err, 'Invite record error: ' + invErr.message); btn.disabled=false; btn.textContent='Send Invite'; return; }
 
-  btn.disabled = false; btn.textContent = 'Send Invite';
-
-  if (invErr) { showErr(err, 'Invite record error: ' + invErr.message); return; }
-
-  // 3. NOTE: Supabase admin invite email requires service-role key.
-  //    The invite record is created. To send the actual email invite:
-  //    use the Supabase dashboard → Authentication → Invite user,
-  //    OR use the service-role key in a secure backend/Edge Function.
-
-  closeModal();
-  showToast(`✓ Shop "${shopname}" created for ${name}`);
-  showToast('⚠️ Go to Supabase → Auth → Invite user to send the login email', true);
-  setTimeout(() => {
-    showToast(`Shop ID: ${shop.id.slice(0,8)}… — copy it to link after invite`);
-  }, 2500);
-
-  await loadStats();
-  switchTab('shops');
-}
-
-// ── CREATE SHOP ──
-function showShopModal() {
-  document.getElementById('shop-overlay').classList.add('on');
-}
-
-async function createShop() {
-  const name     = document.getElementById('sh-name').value.trim();
-  const biztype  = document.getElementById('sh-type').value;
-  const location = document.getElementById('sh-location').value.trim();
-  const till     = document.getElementById('sh-till').value.trim();
-  const err      = document.getElementById('sh-err');
-  const btn      = document.getElementById('sh-btn');
-
-  if (!name) { showErr(err, 'Shop name is required'); return; }
-
-  btn.disabled = true; btn.textContent = 'Creating…';
-
-  const { error } = await db.from('shops').insert({
-    name, business_type: biztype,
-    location: location || null,
-    mpesa_till: till || null,
+  // 4. Send actual email via Edge Function
+  btn.textContent = 'Sending email…';
+  const { data: { session } } = await db.auth.getSession();
+  const res = await fetch(`${EDGE_URL}/send-invite`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.access_token}`,
+      'apikey': SUPABASE_KEY,
+    },
+    body: JSON.stringify({ email, shopId: shop.id, shopName: shopname }),
   });
 
-  btn.disabled = false; btn.textContent = 'Create Shop';
+  const result = await res.json();
+  btn.disabled = false; btn.textContent = 'Send Invite';
 
-  if (error) { showErr(err, error.message); return; }
+  if (!res.ok || result.error) {
+    showErr(err, `Shop created but email failed: ${result.error}. Send invite manually from Supabase → Auth → Invite user.`);
+    return;
+  }
 
   closeModal();
-  showToast(`✓ Shop "${name}" created`);
+  showToast(`✓ Invite sent to ${email} for "${shopname}"`);
   await loadStats();
   switchTab('shops');
 }
@@ -510,7 +660,7 @@ function show(id) {
 
 function showErr(el, msg) {
   el.textContent = msg; el.style.display = 'block';
-  setTimeout(()=>el.style.display='none', 6000);
+  setTimeout(()=>el.style.display='none', 8000);
 }
 
 function closeModal() {
@@ -523,10 +673,9 @@ function showToast(msg, isErr) {
   t.textContent = msg;
   t.className = 'toast on' + (isErr ? ' err' : '');
   clearTimeout(_toastTimer);
-  _toastTimer = setTimeout(() => t.classList.remove('on'), 4000);
+  _toastTimer = setTimeout(() => t.classList.remove('on'), 4500);
 }
 
-// Close overlays on backdrop click
 document.querySelectorAll('.overlay').forEach(o => {
   o.addEventListener('click', e => { if (e.target === o) closeModal(); });
 });
