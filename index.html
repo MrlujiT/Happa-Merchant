@@ -419,7 +419,12 @@ async function loadUserContext() {
     .eq('user_id', S.user.id)
     .limit(1);
 
-  if (!mems?.length) { showPage('noshop'); return; }
+  if (!mems?.length) {
+    // Check if this user is a super-admin → redirect to admin panel
+    const { data: adm } = await db.from('admins').select('user_id').eq('user_id', S.user.id).limit(1);
+    if (adm?.length) { window.location.href = '/admin.html'; return; }
+    showPage('noshop'); return;
+  }
 
   S.member = mems[0];
   S.shop   = mems[0].shops;
