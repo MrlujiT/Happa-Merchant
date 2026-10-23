@@ -313,9 +313,10 @@ async function doLogin() {
   const err   = document.getElementById('auth-err');
   if (!email || !pwd) { showErr(err, 'Enter your email and password'); return; }
   btn.disabled = true; btn.textContent = 'Signing in…';
-  const { error } = await db.auth.signInWithPassword({ email, password: pwd });
+  const { data, error } = await db.auth.signInWithPassword({ email, password: pwd });
   btn.disabled = false; btn.textContent = 'Sign In';
-  if (error) showErr(err, error.message);
+  if (error) { showErr(err, error.message); return; }
+  if (data?.session) { currentUser = data.session.user; await checkAdminAndLoad(); }
 }
 
 async function doLogout() { await db.auth.signOut(); show('page-auth'); }
