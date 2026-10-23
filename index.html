@@ -177,6 +177,8 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 .tot-val{font-size:24px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--acc)}
 .btn-g{background:transparent;border:1px solid var(--bdr);color:var(--txt2);border-radius:12px;padding:12px;font-family:inherit;font-size:14px;cursor:pointer;width:100%;margin-top:8px;transition:background .15s}
 .btn-g:hover{background:var(--surf2)}
+.btn-sm{background:var(--surf2);border:1px solid var(--bdr);color:var(--txt);border-radius:8px;padding:6px 14px;font-family:inherit;font-size:12px;cursor:pointer;transition:background .15s}
+.btn-sm:hover{background:var(--bdr)}
 
 /* ── TOAST ── */
 .toast{position:fixed;top:calc(env(safe-area-inset-top,0px) + 64px);left:50%;transform:translateX(-50%);background:#0D2B1A;border:1px solid var(--grn);color:var(--grn);padding:11px 18px;border-radius:12px;font-size:13px;font-weight:700;z-index:300;opacity:0;transition:opacity .3s;white-space:nowrap;pointer-events:none;max-width:90%}
@@ -209,6 +211,17 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 .conf-msg{font-size:13px;color:var(--txt2);margin-bottom:18px;line-height:1.5}
 .conf-acts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 
+/* ── CART ITEM ── */
+.cart-item{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bdr)}
+.cart-item:last-child{border-bottom:none}
+.cart-em{font-size:20px;width:32px;text-align:center;flex-shrink:0}
+.cart-inf{flex:1;min-width:0}
+.cart-nm{font-size:13px;font-weight:600}
+.cart-pr{font-size:11px;color:var(--txt2)}
+.cart-ctl{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.cart-ctl button{width:28px;height:28px;border-radius:8px;border:1px solid var(--bdr);background:var(--surf2);color:var(--txt);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit;transition:background .15s}
+.cart-ctl button:hover{background:var(--bdr)}
+.cart-ctl span{width:24px;text-align:center;font-size:14px;font-weight:700;font-variant-numeric:tabular-nums}
 /* ── BAR CHART ── */
 .bar-wrap{display:flex;align-items:flex-end;gap:5px;height:96px;margin-top:4px}
 .bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px}
@@ -335,9 +348,10 @@ let currentSession = null;
 
 const S = {
   user: null, shop: null, member: null,
-  products: [], customers: [],
+  products: [], customers: [], suppliers: [],
+  cart: [], // [{product, qty}, ...]
   tab: 'home', salesFilter: 'today',
-  spid: null, sqty: 1, smethod: 'cash',
+  smethod: 'cash',
   pendingPwdSetup: false,
 };
 
@@ -723,18 +737,39 @@ function renderMore(el) {
         <div style="font-size:12px;color:var(--txt2);margin-top:4px">${S.shop.location||''}</div>
         ${S.shop.mpesa_till?`<div style="font-size:11px;color:var(--txt3);margin-top:3px">M-Pesa Till: ${S.shop.mpesa_till}</div>`:''}
         <div style="font-size:11px;color:var(--txt2);margin-top:6px">${S.user?.email}</div>
+        ${isOwner?`<button class="btn-sm" onclick="showEditShopSheet()" style="margin-top:10px">✏️ Edit Details</button>`:''}
       </div>
 
-      <div class="sec-ttl" style="margin-bottom:10px">Account</div>
+      ${isOwner?`<div class="sec-ttl" style="margin-bottom:10px">Business Tools</div>
       <div class="clist">
-        ${isOwner?`<div class="more-item" onclick="showAddProductSheet()">
+        <div class="more-item" onclick="showAddProductSheet()">
           <div class="more-ico" style="background:var(--acc-d)">📦</div>
           <div class="more-inf"><div class="more-nm">Add Product</div><div class="more-mt">Add a new item to your inventory</div></div>
-          <span style="color:var(--txt3)">›</span></div>`:''}
+          <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showExpenses()">
+          <div class="more-ico" style="background:#7c3aed22">💸</div>
+          <div class="more-inf"><div class="more-nm">Expenses</div><div class="more-mt">Track business costs</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showSuppliers()">
+          <div class="more-ico" style="background:#0891b222">🚚</div>
+          <div class="more-inf"><div class="more-nm">Suppliers</div><div class="more-mt">Manage your suppliers</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showTopClients()">
+          <div class="more-ico" style="background:#d9770622">🏆</div>
+          <div class="more-inf"><div class="more-nm">Top Clients</div><div class="more-mt">Your best customers</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+      </div>`:''}
+
+      <div class="sec-ttl" style="margin-bottom:10px;margin-top:14px">Team</div>
+      <div class="clist">
         ${isOwner?`<div class="more-item" onclick="showInviteSheet()">
           <div class="more-ico" style="background:var(--grn-d)">👤</div>
           <div class="more-inf"><div class="more-nm">Add Staff</div><div class="more-mt">Give a staff member access</div></div>
           <span style="color:var(--txt3)">›</span></div>`:''}
+      </div>
+
+      <div class="sec-ttl" style="margin-bottom:10px;margin-top:14px">Account</div>
+      <div class="clist">
         <div class="more-item" onclick="showConf('Sign Out','Sign out of your account?',doLogout)">
           <div class="more-ico" style="background:var(--red-d)">🚪</div>
           <div class="more-inf"><div class="more-nm">Sign Out</div><div class="more-mt">${S.user?.email}</div></div>
@@ -745,7 +780,7 @@ function renderMore(el) {
       <div class="clist">
         <div class="more-item" style="cursor:default">
           <div class="more-ico" style="background:var(--acc-d)">ℹ️</div>
-          <div class="more-inf"><div class="more-nm">Happa Merchant v1.0</div><div class="more-mt">Business intelligence for small shops</div></div>
+          <div class="more-inf"><div class="more-nm">Happa Merchant v1.1</div><div class="more-mt">Business intelligence for small shops</div></div>
         </div>
       </div>
     </div>
@@ -753,176 +788,201 @@ function renderMore(el) {
 }
 
 /* ═══════════════════════════════
-   RECORD SALE SHEET
+   RECORD SALE — MULTI-ITEM CART
 ═══════════════════════════════ */
 function openSaleSheet() {
-  S.spid = null; S.sqty = 1; S.smethod = 'cash';
+  S.cart = []; S.smethod = 'cash';
   renderSaleSheet();
   document.getElementById('sale-overlay').classList.add('on');
 }
 
+function addToCart(pid) {
+  const p = S.products.find(x=>x.id===pid);
+  if (!p) return;
+  const ex = S.cart.find(x=>x.product.id===pid);
+  if (ex) ex.qty++; else S.cart.push({product:p, qty:1});
+  renderSaleSheet();
+}
+
+function removeFromCart(pid) {
+  S.cart = S.cart.filter(x=>x.product.id!==pid);
+  renderSaleSheet();
+}
+
+function cartQty(pid, delta) {
+  const item = S.cart.find(x=>x.product.id===pid);
+  if (!item) return;
+  item.qty = Math.max(1, item.qty + delta);
+  renderSaleSheet();
+}
+
+function getCartTotal()  { return S.cart.reduce((a,x)=>a+x.product.sell_price*x.qty, 0); }
+function getCartProfit() { return S.cart.reduce((a,x)=>a+(x.product.sell_price-x.product.buy_price)*x.qty, 0); }
+
 function renderSaleSheet() {
   let pg = '';
   S.products.forEach(p => {
+    const inCart = S.cart.find(x=>x.product.id===p.id);
     const low = p.stock <= p.low_stock_at;
-    pg += `<div class="pc ${S.spid===p.id?'sel':''}" onclick="selProduct('${p.id}')" data-pid="${p.id}">
+    pg += `<div class="pc ${inCart?'sel':''}" onclick="addToCart('${p.id}')">
       <div class="pc-em">${p.emoji||'📦'}</div>
       <div class="pc-nm">${p.name.split(' ').slice(0,2).join(' ')}</div>
-      <div class="pc-pr">${kes(p.sell_price)}${low?'<br><span style="font-size:9px;color:var(--red)">Low</span>':''}</div>
+      <div class="pc-pr">${kes(p.sell_price)}</div>
+      <div style="font-size:9px;margin-top:1px">${inCart?`<span style="color:var(--acc);font-weight:800">×${inCart.qty} added</span>`:low?`<span style="color:var(--red)">Low stock</span>`:'<span style="color:transparent">·</span>'}</div>
     </div>`;
   });
 
-  const prod = S.products.find(p=>p.id===S.spid);
-  const tot  = prod ? prod.sell_price * S.sqty : 0;
-  const prof = prod ? (prod.sell_price - prod.buy_price) * S.sqty : 0;
+  let cartHtml = '';
+  if (S.cart.length > 0) {
+    const total  = getCartTotal();
+    const profit = getCartProfit();
+    cartHtml = `<div class="fg-s"><label class="fl">Cart (${S.cart.length} item${S.cart.length!==1?'s':''})</label>
+      <div style="background:var(--surf2);border-radius:12px;padding:4px 12px">`;
+    S.cart.forEach(item => {
+      const p = item.product;
+      cartHtml += `<div class="cart-item">
+        <div class="cart-em">${p.emoji||'📦'}</div>
+        <div class="cart-inf">
+          <div class="cart-nm">${p.name}</div>
+          <div class="cart-pr">${kes(p.sell_price)} · Subtotal ${kes(p.sell_price*item.qty)}</div>
+        </div>
+        <div class="cart-ctl">
+          <button onclick="cartQty('${p.id}',-1)">−</button>
+          <span>${item.qty}</span>
+          <button onclick="cartQty('${p.id}',1)">+</button>
+          <button onclick="removeFromCart('${p.id}')" style="color:var(--red);margin-left:2px">✕</button>
+        </div>
+      </div>`;
+    });
+    cartHtml += `</div></div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+      <div><label class="fl">Customer (optional)</label>
+        <input type="text" id="cust-inp" class="fi" placeholder="Walk-in" list="cust-list" autocomplete="off">
+        <datalist id="cust-list">${S.customers.map(c=>`<option value="${c.name}">`).join('')}</datalist>
+      </div>
+      <div></div>
+    </div>
+
+    <label class="fl">Payment Method</label>
+    <div class="method-row">
+      <button class="method-btn ${S.smethod==='cash'?'sel':''}" onclick="setMethod('cash')"><span class="m-ico">💵</span>Cash</button>
+      <button class="method-btn ${S.smethod==='mpesa'?'sel':''}" onclick="setMethod('mpesa')"><span class="m-ico">📱</span>M-Pesa</button>
+      <button class="method-btn ${S.smethod==='debt'?'sel':''}" onclick="setMethod('debt')"><span class="m-ico">📋</span>Debt</button>
+    </div>
+
+    <div id="mpesa-field" style="display:${S.smethod==='mpesa'?'block':'none'};margin-bottom:14px">
+      <label class="fl">M-Pesa Confirmation Code *</label>
+      <input type="text" id="mpesa-code" class="fi" placeholder="e.g. SJK4L9M2QP" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()">
+    </div>
+    <div id="debt-field" style="display:${S.smethod==='debt'?'block':'none'};margin-bottom:14px">
+      <label class="fl">Due Date</label>
+      <input type="date" id="debt-due" class="fi" value="${dateInDays(30)}">
+    </div>
+
+    <div class="tot-box">
+      <div class="tot-row"><span class="tot-lbl">Total</span><span class="tot-val">${kes(total)}</span></div>
+      <div style="font-size:11px;color:var(--grn);margin-top:4px">Profit: ${kes(profit)}</div>
+    </div>
+    <button class="btn-p" onclick="confirmSale()">Confirm Sale ✓</button>`;
+  }
 
   document.getElementById('sale-sheet').innerHTML = `
     <div class="sh-hand"></div>
-    <div class="sh-hdr"><h2>Record a Sale</h2></div>
+    <div class="sh-hdr"><h2>Record a Sale${S.cart.length>0?` <span style="font-size:14px;color:var(--acc)">(${S.cart.length})</span>`:''}</h2></div>
     <div class="sh-body">
-      <div class="fg-s"><label class="fl">Select Product</label>
-        <div class="pg">${pg || '<p style="color:var(--txt2);font-size:13px">No products yet — add them from More.</p>'}</div>
+      <div class="fg-s"><label class="fl">Tap items to add</label>
+        <div class="pg">${pg||'<p style="color:var(--txt2);font-size:13px">No products yet — add from More.</p>'}</div>
       </div>
-
-      <div id="sale-details" style="display:${S.spid?'block':'none'}">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
-          <div><label class="fl">Quantity</label>
-            <div class="qty-wrap">
-              <button class="qty-btn" onclick="chgQty(-1)">−</button>
-              <input type="number" id="qty-inp" class="fi qty-inp" value="${S.sqty}" min="1" max="999" oninput="S.sqty=Math.max(1,parseInt(this.value)||1);updSaleTotal()">
-              <button class="qty-btn" onclick="chgQty(1)">+</button>
-            </div>
-          </div>
-          <div><label class="fl">Customer</label>
-            <input type="text" id="cust-inp" class="fi" placeholder="Walk-in" list="cust-list">
-            <datalist id="cust-list">${S.customers.map(c=>`<option value="${c.name}">`).join('')}</datalist>
-          </div>
-        </div>
-
-        <label class="fl">Payment Method</label>
-        <div class="method-row">
-          <button class="method-btn ${S.smethod==='cash'?'sel':''}" onclick="setMethod('cash')"><span class="m-ico">💵</span>Cash</button>
-          <button class="method-btn ${S.smethod==='mpesa'?'sel':''}" onclick="setMethod('mpesa')"><span class="m-ico">📱</span>M-Pesa</button>
-          <button class="method-btn ${S.smethod==='debt'?'sel':''}" onclick="setMethod('debt')"><span class="m-ico">📋</span>Debt</button>
-        </div>
-
-        <div id="mpesa-field" style="display:${S.smethod==='mpesa'?'block':'none'};margin-bottom:14px">
-          <label class="fl">M-Pesa Confirmation Code *</label>
-          <input type="text" id="mpesa-code" class="fi" placeholder="e.g. SJK4L9M2QP" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()">
-        </div>
-        <div id="debt-field" style="display:${S.smethod==='debt'?'block':'none'};margin-bottom:14px">
-          <label class="fl">Due Date</label>
-          <input type="date" id="debt-due" class="fi" value="${dateInDays(30)}">
-        </div>
-
-        <div class="tot-box">
-          <div class="tot-row"><span class="tot-lbl">Total</span><span class="tot-val" id="sale-tot-val">${kes(tot)}</span></div>
-          <div style="font-size:11px;color:var(--grn);margin-top:4px" id="sale-prof-val">Profit: ${kes(prof)}</div>
-        </div>
-        <button class="btn-p" onclick="confirmSale()">Confirm Sale ✓</button>
-      </div>
+      ${cartHtml}
       <button class="btn-g" onclick="closeSaleSheet()">Cancel</button>
     </div>`;
-}
-
-function selProduct(id) {
-  S.spid = id; S.sqty = 1;
-  renderSaleSheet();
-  document.getElementById('sale-details').style.display = 'block';
-}
-
-function chgQty(d) {
-  S.sqty = Math.max(1, S.sqty + d);
-  const inp = document.getElementById('qty-inp');
-  if (inp) inp.value = S.sqty;
-  updSaleTotal();
-}
-
-function updSaleTotal() {
-  const p = S.products.find(x => x.id === S.spid);
-  if (!p) return;
-  const tv = document.getElementById('sale-tot-val');
-  const pv = document.getElementById('sale-prof-val');
-  if (tv) tv.textContent = kes(p.sell_price * S.sqty);
-  if (pv) pv.textContent = `Profit: ${kes((p.sell_price - p.buy_price) * S.sqty)}`;
 }
 
 function setMethod(m) {
   S.smethod = m;
   document.querySelectorAll('.method-btn').forEach(b => b.classList.toggle('sel', b.textContent.toLowerCase().includes(m==='cash'?'cash':m==='mpesa'?'pesa':'debt')));
-  document.getElementById('mpesa-field').style.display = m === 'mpesa' ? 'block' : 'none';
-  document.getElementById('debt-field').style.display  = m === 'debt'  ? 'block' : 'none';
+  const mf = document.getElementById('mpesa-field');
+  const df = document.getElementById('debt-field');
+  if (mf) mf.style.display = m === 'mpesa' ? 'block' : 'none';
+  if (df) df.style.display  = m === 'debt'  ? 'block' : 'none';
 }
 
 async function confirmSale() {
-  const p = S.products.find(x => x.id === S.spid);
-  if (!p) { showToast('Select a product first', true); return; }
+  if (S.cart.length === 0) { showToast('Add at least one item', true); return; }
 
-  const custName = (document.getElementById('cust-inp')?.value||'').trim()||'Walk-in';
-
-  if (S.smethod === 'mpesa') {
-    const code = (document.getElementById('mpesa-code')?.value||'').trim().toUpperCase();
-    if (!code) { showToast('M-Pesa code is required', true); return; }
-    const dup = await apiGet(`sales?shop_id=eq.${S.shop.id}&mpesa_code=eq.${code}&select=id&limit=1`);
-    if (dup?.length) { showToast('This M-Pesa code is already recorded', true); return; }
-  }
+  const custName = (document.getElementById('cust-inp')?.value||'').trim() || 'Walk-in';
 
   if (S.smethod === 'debt' && custName === 'Walk-in') {
     showToast('Enter customer name for debt sales', true); return;
   }
 
+  const mpesaCode = S.smethod === 'mpesa' ? (document.getElementById('mpesa-code')?.value||'').trim().toUpperCase() : null;
+  if (S.smethod === 'mpesa' && !mpesaCode) { showToast('M-Pesa code is required', true); return; }
+
+  if (S.smethod === 'mpesa') {
+    const dup = await apiGet(`sales?shop_id=eq.${S.shop.id}&mpesa_code=eq.${mpesaCode}&select=id&limit=1`);
+    if (dup?.length) { showToast('This M-Pesa code is already recorded', true); return; }
+  }
+
+  const dueDate = S.smethod === 'debt' ? (document.getElementById('debt-due')?.value||null) : null;
   const btn = document.querySelector('#sale-sheet .btn-p');
   if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
 
-  // Upsert customer if named
+  // Upsert customer
   let custId = null;
   if (custName !== 'Walk-in') {
     let cust = S.customers.find(c => c.name.toLowerCase() === custName.toLowerCase());
     if (!cust) {
       const { data: nc } = await apiPost('customers', { shop_id: S.shop.id, name: custName });
-      cust = nc;
-      if (cust) S.customers.push(cust);
+      cust = nc; if (cust) S.customers.push(cust);
     }
     custId = cust?.id || null;
   }
 
-  const mpesaCode = S.smethod === 'mpesa' ? (document.getElementById('mpesa-code')?.value||'').trim().toUpperCase() : null;
-  const dueDate   = S.smethod === 'debt'  ? (document.getElementById('debt-due')?.value||null) : null;
-
-  const sale = {
-    shop_id: S.shop.id,
-    product_id: p.id, product_name: p.name, product_emoji: p.emoji||'📦',
-    qty: S.sqty, unit_price: p.sell_price, buy_price: p.buy_price,
-    total: p.sell_price * S.sqty, profit: (p.sell_price - p.buy_price) * S.sqty,
-    payment_method: S.smethod, mpesa_code: mpesaCode,
-    customer_id: custId, customer_name: custName,
-    recorded_by: S.user.id,
-  };
-
-  const { data: newSale, error } = await apiPost('sales', sale);
-
-  if (error) {
-    showToast('Error saving sale: ' + error.message, true);
-    if (btn) { btn.disabled = false; btn.textContent = 'Confirm Sale ✓'; }
-    return;
+  // Insert one sale row per cart item
+  let totalDebtAmt = 0, lastSaleId = null, savedCount = 0;
+  for (const item of S.cart) {
+    const p = item.product;
+    const saleTotal  = p.sell_price * item.qty;
+    const saleProfit = (p.sell_price - p.buy_price) * item.qty;
+    const saleObj = {
+      shop_id: S.shop.id, product_id: p.id, product_name: p.name, product_emoji: p.emoji||'📦',
+      qty: item.qty, unit_price: p.sell_price, buy_price: p.buy_price,
+      total: saleTotal, profit: saleProfit,
+      payment_method: S.smethod,
+      mpesa_code: savedCount === 0 ? mpesaCode : null,
+      customer_id: custId, customer_name: custName,
+      recorded_by: S.user.id,
+    };
+    const { data: ns, error } = await apiPost('sales', saleObj);
+    if (error) {
+      showToast('Error saving sale: ' + error.message, true);
+      if (btn) { btn.disabled = false; btn.textContent = 'Confirm Sale ✓'; }
+      return;
+    }
+    await apiPatch('products', `id=eq.${p.id}`, { stock: Math.max(0, p.stock - item.qty) });
+    const local = S.products.find(x=>x.id===p.id);
+    if (local) local.stock = Math.max(0, local.stock - item.qty);
+    if (S.smethod === 'debt') { totalDebtAmt += saleTotal; lastSaleId = ns?.id; }
+    savedCount++;
   }
 
-  await apiPatch('products', `id=eq.${p.id}`, { stock: Math.max(0, p.stock - S.sqty) });
-  const local = S.products.find(x=>x.id===p.id);
-  if (local) local.stock = Math.max(0, local.stock - S.sqty);
-
-  if (S.smethod === 'debt' && custId && newSale) {
+  // Create single debt record for entire transaction
+  if (S.smethod === 'debt' && custId && totalDebtAmt > 0) {
     await apiPost('debts', {
-      shop_id: S.shop.id, customer_id: custId, sale_id: newSale.id,
-      original_amt: sale.total, balance: sale.total,
+      shop_id: S.shop.id, customer_id: custId, sale_id: lastSaleId,
+      original_amt: totalDebtAmt, balance: totalDebtAmt,
       due_date: dueDate, status: 'outstanding',
     });
-    const localCust = S.customers.find(c=>c.id===custId);
-    await apiPatch('customers', `id=eq.${custId}`, { outstanding: (localCust?.outstanding||0) + sale.total });
+    const lc = S.customers.find(c=>c.id===custId);
+    await apiPatch('customers', `id=eq.${custId}`, { outstanding: (lc?.outstanding||0) + totalDebtAmt });
   }
 
+  const cartTot = getCartTotal();
   closeSaleSheet();
-  showToast(`✓ ${p.name} ×${S.sqty} — ${kes(sale.total)}`);
+  S.cart = [];
+  showToast(`✓ ${savedCount} item${savedCount!==1?'s':''} sold — ${kes(cartTot)}`);
   showTab(S.tab);
 }
 
@@ -1202,6 +1262,275 @@ function installApp() {
   _installPrompt.prompt();
   _installPrompt.userChoice.then(() => { _installPrompt = null; });
 }
+
+/* ═══════════════════════════════
+   EDIT SHOP DETAILS
+═══════════════════════════════ */
+function showEditShopSheet() {
+  const sh = S.shop;
+  pushSheet(`
+    <div class="sh-hand"></div>
+    <div class="sh-hdr"><h2>Edit Shop Details</h2></div>
+    <div class="sh-body">
+      <div class="fg-s"><label class="fl">Shop Name</label>
+        <input type="text" id="edit-shop-name" class="fi" value="${esc(sh.name||'')}" placeholder="Shop name">
+      </div>
+      <div class="fg-s"><label class="fl">Location</label>
+        <input type="text" id="edit-shop-location" class="fi" value="${esc(sh.location||'')}" placeholder="e.g. Nairobi CBD, Mombasa Rd">
+      </div>
+      <div class="fg-s"><label class="fl">M-Pesa Till / Paybill</label>
+        <input type="text" id="edit-shop-mpesa" class="fi" value="${esc(sh.mpesa_till||'')}" placeholder="e.g. 123456">
+      </div>
+      <button class="btn-p" onclick="saveShopDetails()">Save Changes</button>
+      <button class="btn-g" onclick="popSheet()">Cancel</button>
+    </div>`);
+}
+
+async function saveShopDetails() {
+  const name     = document.getElementById('edit-shop-name')?.value.trim();
+  const location = document.getElementById('edit-shop-location')?.value.trim();
+  const mpesa    = document.getElementById('edit-shop-mpesa')?.value.trim();
+  if (!name) { showToast('Shop name is required', true); return; }
+  const btn = document.querySelector('.sh-body .btn-p');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  const { error } = await apiPatch('shops', `id=eq.${S.shop.id}`, { name, location: location||null, mpesa_till: mpesa||null });
+  if (error) { showToast('Error: ' + error.message, true); if(btn){btn.disabled=false;btn.textContent='Save Changes';} return; }
+  S.shop.name = name; S.shop.location = location; S.shop.mpesa_till = mpesa;
+  const hdr = document.getElementById('hdr-shop-name');
+  if (hdr) hdr.textContent = name;
+  popSheet();
+  showToast('Shop details updated ✓');
+}
+
+/* ═══════════════════════════════
+   EXPENSES
+═══════════════════════════════ */
+function catEmoji(cat) {
+  return {Rent:'🏠',Utilities:'💡',Stock:'📦',Transport:'🚗',Salaries:'👷',Other:'💸'}[cat]||'💸';
+}
+
+async function showExpenses() {
+  pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>Expenses</h2></div><div class="sh-body"><div style="color:var(--txt2);text-align:center;padding:30px 0">Loading…</div></div>`);
+  const rows = await apiGet(`expenses?shop_id=eq.${S.shop.id}&order=expense_date.desc&limit=100`);
+  const thisMonth = rows?.filter(r => r.expense_date?.startsWith(new Date().toISOString().slice(0,7)))||[];
+  const monthTotal = thisMonth.reduce((a,r)=>a+parseFloat(r.amount||0),0);
+  const allTotal   = (rows||[]).reduce((a,r)=>a+parseFloat(r.amount||0),0);
+
+  let list = '';
+  (rows||[]).forEach(r => {
+    list += `<div class="more-item">
+      <div class="more-ico" style="background:#7c3aed22;font-size:20px">${catEmoji(r.category)}</div>
+      <div class="more-inf">
+        <div class="more-nm">${esc(r.description||r.category)}</div>
+        <div class="more-mt">${r.category} · ${r.expense_date||''}</div>
+      </div>
+      <div style="font-size:13px;font-weight:700;color:var(--red)">${kes(r.amount)}</div>
+    </div>`;
+  });
+
+  const sheet = document.querySelector('.sh-body');
+  if (!sheet) return;
+  sheet.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+      <div style="background:var(--surf2);border-radius:12px;padding:14px;text-align:center">
+        <div style="font-size:11px;color:var(--txt2);margin-bottom:4px">This Month</div>
+        <div style="font-size:18px;font-weight:800;color:var(--red)">${kes(monthTotal)}</div>
+      </div>
+      <div style="background:var(--surf2);border-radius:12px;padding:14px;text-align:center">
+        <div style="font-size:11px;color:var(--txt2);margin-bottom:4px">All Time</div>
+        <div style="font-size:18px;font-weight:800;color:var(--red)">${kes(allTotal)}</div>
+      </div>
+    </div>
+    <div class="clist">${list||'<div style="color:var(--txt2);text-align:center;padding:20px 0">No expenses recorded yet</div>'}</div>
+    <button class="btn-g" onclick="popSheet()">Close</button>`;
+
+  // FAB
+  addFab('+ Add Expense', openAddExpenseSheet);
+}
+
+function openAddExpenseSheet() {
+  const today = new Date().toISOString().slice(0,10);
+  pushSheet(`
+    <div class="sh-hand"></div>
+    <div class="sh-hdr"><h2>Add Expense</h2></div>
+    <div class="sh-body">
+      <div class="fg-s"><label class="fl">Category</label>
+        <select id="exp-cat" class="fi">
+          <option>Rent</option><option>Utilities</option><option>Stock</option>
+          <option>Transport</option><option>Salaries</option><option selected>Other</option>
+        </select>
+      </div>
+      <div class="fg-s"><label class="fl">Amount (KES)</label>
+        <input type="number" id="exp-amt" class="fi" placeholder="0" min="1" inputmode="decimal">
+      </div>
+      <div class="fg-s"><label class="fl">Description</label>
+        <input type="text" id="exp-desc" class="fi" placeholder="e.g. Monthly rent payment">
+      </div>
+      <div class="fg-s"><label class="fl">Date</label>
+        <input type="date" id="exp-date" class="fi" value="${today}">
+      </div>
+      <button class="btn-p" onclick="saveExpense()">Save Expense</button>
+      <button class="btn-g" onclick="popSheet()">Cancel</button>
+    </div>`);
+}
+
+async function saveExpense() {
+  const cat  = document.getElementById('exp-cat')?.value;
+  const amt  = parseFloat(document.getElementById('exp-amt')?.value||0);
+  const desc = document.getElementById('exp-desc')?.value.trim();
+  const date = document.getElementById('exp-date')?.value;
+  if (!amt || amt <= 0) { showToast('Enter a valid amount', true); return; }
+  const btn = document.querySelector('.sh-body .btn-p');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  const { error } = await apiPost('expenses', {
+    shop_id: S.shop.id, category: cat, description: desc||null,
+    amount: amt, expense_date: date||new Date().toISOString().slice(0,10),
+    recorded_by: S.user.id,
+  });
+  if (error) { showToast('Error: ' + error.message, true); if(btn){btn.disabled=false;btn.textContent='Save Expense';} return; }
+  popSheet();
+  showToast(`${catEmoji(cat)} Expense saved — ${kes(amt)}`);
+  showExpenses(); // refresh
+}
+
+/* ═══════════════════════════════
+   SUPPLIERS
+═══════════════════════════════ */
+async function showSuppliers() {
+  pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>Suppliers</h2></div><div class="sh-body"><div style="color:var(--txt2);text-align:center;padding:30px 0">Loading…</div></div>`);
+  const rows = await apiGet(`suppliers?shop_id=eq.${S.shop.id}&order=name`);
+  S.suppliers = rows||[];
+
+  let list = '';
+  S.suppliers.forEach(s => {
+    list += `<div class="more-item">
+      <div class="more-ico" style="background:#0891b222">🚚</div>
+      <div class="more-inf">
+        <div class="more-nm">${esc(s.name)}</div>
+        <div class="more-mt">${esc(s.supplies||'—')}${s.phone?` · ${esc(s.phone)}`:''}</div>
+      </div>
+    </div>`;
+  });
+
+  const sheet = document.querySelector('.sh-body');
+  if (!sheet) return;
+  sheet.innerHTML = `
+    <div class="clist">${list||'<div style="color:var(--txt2);text-align:center;padding:20px 0">No suppliers yet</div>'}</div>
+    <button class="btn-g" onclick="popSheet()">Close</button>`;
+
+  addFab('+ Add Supplier', openAddSupplierSheet);
+}
+
+function openAddSupplierSheet() {
+  pushSheet(`
+    <div class="sh-hand"></div>
+    <div class="sh-hdr"><h2>Add Supplier</h2></div>
+    <div class="sh-body">
+      <div class="fg-s"><label class="fl">Supplier Name *</label>
+        <input type="text" id="sup-name" class="fi" placeholder="e.g. Nairobi Wholesalers">
+      </div>
+      <div class="fg-s"><label class="fl">Phone</label>
+        <input type="tel" id="sup-phone" class="fi" placeholder="e.g. 0712 345 678">
+      </div>
+      <div class="fg-s"><label class="fl">What They Supply</label>
+        <input type="text" id="sup-supplies" class="fi" placeholder="e.g. Soft drinks, snacks">
+      </div>
+      <div class="fg-s"><label class="fl">Notes</label>
+        <input type="text" id="sup-notes" class="fi" placeholder="e.g. Delivers on Mondays">
+      </div>
+      <button class="btn-p" onclick="saveSupplier()">Save Supplier</button>
+      <button class="btn-g" onclick="popSheet()">Cancel</button>
+    </div>`);
+}
+
+async function saveSupplier() {
+  const name     = document.getElementById('sup-name')?.value.trim();
+  const phone    = document.getElementById('sup-phone')?.value.trim();
+  const supplies = document.getElementById('sup-supplies')?.value.trim();
+  const notes    = document.getElementById('sup-notes')?.value.trim();
+  if (!name) { showToast('Supplier name is required', true); return; }
+  const btn = document.querySelector('.sh-body .btn-p');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  const { error } = await apiPost('suppliers', {
+    shop_id: S.shop.id, name, phone: phone||null, supplies: supplies||null, notes: notes||null,
+  });
+  if (error) { showToast('Error: ' + error.message, true); if(btn){btn.disabled=false;btn.textContent='Save Supplier';} return; }
+  popSheet();
+  showToast(`🚚 Supplier "${name}" added`);
+  showSuppliers(); // refresh
+}
+
+/* ═══════════════════════════════
+   TOP CLIENTS
+═══════════════════════════════ */
+async function showTopClients() {
+  pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>Top Clients</h2></div><div class="sh-body"><div style="color:var(--txt2);text-align:center;padding:30px 0">Loading…</div></div>`);
+  const sales = await apiGet(`sales?shop_id=eq.${S.shop.id}&customer_id=not.is.null&select=customer_id,customer_name,total&limit=1000`);
+
+  // Aggregate by customer client-side
+  const map = {};
+  (sales||[]).forEach(s => {
+    if (!s.customer_id) return;
+    if (!map[s.customer_id]) map[s.customer_id] = { name: s.customer_name, total: 0, count: 0 };
+    map[s.customer_id].total  += parseFloat(s.total||0);
+    map[s.customer_id].count++;
+  });
+
+  const sorted = Object.values(map).sort((a,b)=>b.total-a.total);
+  const medals = ['🥇','🥈','🥉'];
+
+  let list = '';
+  sorted.forEach((c, i) => {
+    list += `<div class="more-item">
+      <div class="more-ico" style="background:${i<3?'#d9770622':'var(--surf2)'};font-size:${i<3?'22':'16'}px">${medals[i]||'👤'}</div>
+      <div class="more-inf">
+        <div class="more-nm">${esc(c.name)}</div>
+        <div class="more-mt">${c.count} purchase${c.count!==1?'s':''}</div>
+      </div>
+      <div style="font-size:13px;font-weight:700;color:var(--grn)">${kes(c.total)}</div>
+    </div>`;
+  });
+
+  const sheet = document.querySelector('.sh-body');
+  if (!sheet) return;
+  sheet.innerHTML = `
+    ${sorted.length>0?`<div style="font-size:12px;color:var(--txt2);margin-bottom:10px">${sorted.length} client${sorted.length!==1?'s':''} ranked by total purchases</div>`:''}
+    <div class="clist">${list||'<div style="color:var(--txt2);text-align:center;padding:20px 0">No client data yet — name customers when recording sales</div>'}</div>
+    <button class="btn-g" onclick="popSheet()">Close</button>`;
+}
+
+/* ─── Sheet stack helpers ─── */
+const _sheetStack = [];
+function pushSheet(html) {
+  const ov = document.getElementById('sale-overlay');
+  const sh = document.getElementById('sale-sheet');
+  _sheetStack.push(sh.innerHTML);
+  sh.innerHTML = html;
+  ov.classList.add('on');
+}
+function popSheet() {
+  const ov = document.getElementById('sale-overlay');
+  const sh = document.getElementById('sale-sheet');
+  removeFab();
+  if (_sheetStack.length) { sh.innerHTML = _sheetStack.pop(); }
+  else { ov.classList.remove('on'); }
+}
+
+/* ─── Floating action button helper ─── */
+let _fab = null;
+function addFab(label, fn) {
+  removeFab();
+  _fab = document.createElement('button');
+  _fab.className = 'btn-p';
+  _fab.style.cssText = 'position:sticky;bottom:20px;left:0;right:0;margin:16px 0 0;z-index:10';
+  _fab.textContent = label;
+  _fab.onclick = fn;
+  document.querySelector('.sh-body')?.appendChild(_fab);
+}
+function removeFab() { _fab?.remove(); _fab = null; }
+
+/* ─── esc helper ─── */
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 </script>
 </body>
 </html>

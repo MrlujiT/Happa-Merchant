@@ -1,0 +1,23 @@
+{
+  "name": "Happa Admin",
+  "short_name": "Happa Admin",
+  "id": "happa-admin",
+  "description": "Happa Merchant admin panel",
+  "start_url": "/admin.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#080D1A",
+  "theme_color": "#CC0000",
+  "icons": [
+    {
+      "src": "/happa-logo.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg"
+    },
+    {
+      "src": "/happa-logo.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg"
+    }
+  ]
+}
