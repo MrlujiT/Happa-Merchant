@@ -1,11 +1,12 @@
-const CACHE = 'happa-v3';
+const CACHE = 'happa-v4';
 const SHELL = [
   '/',
   '/index.html',
-  '/admin.html',
   '/happa-logo.jpg',
   '/manifest.json',
 ];
+// Never cache these — always fetch fresh
+const NO_CACHE = ['/admin.html', '/admin'];
 
 self.addEventListener('install', e => {
   e.waitUntil(
@@ -22,9 +23,13 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  // Network-first for Supabase API calls
-  if (e.request.url.includes('supabase.co')) return;
+  const url = new URL(e.request.url);
 
+  // Always network-only: Supabase API calls and admin page
+  if (url.hostname.includes('supabase.co')) return;
+  if (NO_CACHE.some(p => url.pathname === p || url.pathname.startsWith(p + '?'))) return;
+
+  // Network-first for everything else
   e.respondWith(
     fetch(e.request)
       .then(res => {

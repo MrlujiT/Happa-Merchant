@@ -23,7 +23,8 @@ html,body{height:100%;font-family:'Plus Jakarta Sans',system-ui,sans-serif;backg
 
 /* AUTH */
 .auth-wrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 20px}
-.auth-logo{width:64px;height:64px;background:var(--acc);border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:#08122A;margin-bottom:16px}
+.auth-logo{width:72px;height:72px;border-radius:18px;overflow:hidden;margin-bottom:16px}
+.auth-logo img{width:100%;height:100%;object-fit:cover}
 .auth-title{font-size:22px;font-weight:800;margin-bottom:4px}
 .auth-sub{font-size:13px;color:var(--txt2);margin-bottom:28px;text-align:center}
 .auth-card{background:var(--surf);border:1px solid var(--bdr);border-radius:16px;padding:24px;width:100%;max-width:400px}
@@ -41,7 +42,8 @@ select.fi{cursor:pointer}
 /* HEADER */
 .hdr{background:var(--surf);border-bottom:1px solid var(--bdr);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
 .hdr-brand{display:flex;align-items:center;gap:10px}
-.hdr-logo{width:36px;height:36px;background:var(--acc);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#08122A}
+.hdr-logo{width:36px;height:36px;border-radius:10px;overflow:hidden}
+.hdr-logo img{width:100%;height:100%;object-fit:cover}
 .hdr-title{font-size:16px;font-weight:800}
 .hdr-sub{font-size:11px;color:var(--txt2)}
 .btn-s{padding:8px 16px;background:var(--surf2);border:1px solid var(--bdr);border-radius:9px;color:var(--txt2);font-family:inherit;font-size:13px;cursor:pointer;transition:background .15s}
@@ -144,7 +146,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
   <!-- AUTH PAGE -->
   <div id="page-auth" style="flex:1;display:flex;flex-direction:column">
     <div class="auth-wrap">
-      <div class="auth-logo">HA</div>
+      <div class="auth-logo"><img src="/happa-logo.jpg" alt="Happa"></div>
       <div class="auth-title">Happa Admin</div>
       <div class="auth-sub">Super-admin panel — Njau only</div>
       <div class="auth-card">
@@ -162,7 +164,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
   <div id="page-admin" style="display:none;flex-direction:column;min-height:100vh">
     <header class="hdr">
       <div class="hdr-brand">
-        <div class="hdr-logo">HA</div>
+        <div class="hdr-logo"><img src="/happa-logo.jpg" alt="Happa"></div>
         <div>
           <div class="hdr-title">Happa Admin</div>
           <div class="hdr-sub" id="hdr-email">admin</div>
