@@ -1,0 +1,535 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#101724">
+<title>Happa Admin</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.50.0/dist/umd/supabase.min.js"></script>
+<style>
+:root{
+  --bg:#080D1A;--surf:#101724;--surf2:#182030;--bdr:#263040;
+  --acc:#F5A623;--acc-d:rgba(245,166,35,.14);
+  --grn:#22C55E;--grn-d:rgba(34,197,94,.13);
+  --red:#EF4444;--red-d:rgba(239,68,68,.12);
+  --blu:#3B82F6;
+  --txt:#EEF2FF;--txt2:#8B9EC0;--txt3:#4B5E7A;
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);color:var(--txt)}
+
+#app{max-width:680px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column}
+
+/* ── AUTH ── */
+.auth-wrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 20px}
+.auth-logo{width:64px;height:64px;background:var(--acc);border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:#08122A;margin-bottom:16px}
+.auth-title{font-size:22px;font-weight:800;margin-bottom:4px}
+.auth-sub{font-size:13px;color:var(--txt2);margin-bottom:28px;text-align:center}
+.auth-card{background:var(--surf);border:1px solid var(--bdr);border-radius:16px;padding:24px;width:100%;max-width:400px}
+.fg{margin-bottom:14px}
+.fl{display:block;font-size:11px;font-weight:700;color:var(--txt2);margin-bottom:5px;letter-spacing:.03em;text-transform:uppercase}
+.fi{width:100%;padding:10px 13px;background:var(--surf2);border:1px solid var(--bdr);border-radius:10px;color:var(--txt);font-family:inherit;font-size:14px;outline:none;transition:border-color .15s}
+.fi:focus{border-color:var(--acc)}
+.fi::placeholder{color:var(--txt3)}
+select.fi{cursor:pointer}
+.btn-p{width:100%;padding:12px;background:var(--acc);color:#08122A;border:none;border-radius:11px;font-family:inherit;font-size:15px;font-weight:800;cursor:pointer;transition:opacity .15s}
+.btn-p:hover{opacity:.9}
+.btn-p:disabled{opacity:.5;cursor:default}
+.err-msg{font-size:12px;color:var(--red);margin-top:10px;display:none;text-align:center}
+
+/* ── HEADER ── */
+.hdr{background:var(--surf);border-bottom:1px solid var(--bdr);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.hdr-brand{display:flex;align-items:center;gap:10px}
+.hdr-logo{width:36px;height:36px;background:var(--acc);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#08122A}
+.hdr-title{font-size:16px;font-weight:800}
+.hdr-sub{font-size:11px;color:var(--txt2)}
+.btn-s{padding:8px 16px;background:var(--surf2);border:1px solid var(--bdr);border-radius:9px;color:var(--txt2);font-family:inherit;font-size:13px;cursor:pointer;transition:background .15s}
+.btn-s:hover{background:var(--bdr)}
+
+/* ── MAIN ── */
+.main{padding:24px;flex:1}
+.page-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.page-ttl{font-size:20px;font-weight:800}
+.btn-acc{padding:9px 18px;background:var(--acc);color:#08122A;border:none;border-radius:9px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;transition:opacity .15s}
+.btn-acc:hover{opacity:.9}
+
+/* ── STATS ── */
+.stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:24px}
+.sc{background:var(--surf);border:1px solid var(--bdr);border-radius:12px;padding:14px}
+.sc-lbl{font-size:11px;color:var(--txt2);margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em}
+.sc-val{font-size:26px;font-weight:800;font-variant-numeric:tabular-nums}
+.sc-sub{font-size:11px;color:var(--txt3);margin-top:2px}
+
+/* ── TABS ── */
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--bdr);margin-bottom:20px}
+.tab{padding:10px 16px;font-family:inherit;font-size:13px;font-weight:600;color:var(--txt3);background:transparent;border:none;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s}
+.tab.on{color:var(--acc);border-bottom-color:var(--acc)}
+
+/* ── TABLE ── */
+.table-wrap{overflow-x:auto;border-radius:14px;border:1px solid var(--bdr)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:var(--surf2);padding:10px 14px;text-align:left;font-size:10px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+td{padding:12px 14px;border-top:1px solid var(--bdr);vertical-align:middle}
+tr:hover td{background:var(--surf2)}
+.chip{display:inline-block;padding:2px 8px;border-radius:5px;font-size:10px;font-weight:700}
+.chip-g{background:var(--grn-d);color:var(--grn)}
+.chip-a{background:var(--acc-d);color:var(--acc)}
+.chip-r{background:var(--red-d);color:var(--red)}
+.chip-b{background:rgba(59,130,246,.14);color:var(--blu)}
+.act-btn{padding:5px 10px;border-radius:7px;font-family:inherit;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--bdr);background:var(--surf2);color:var(--txt2);transition:background .15s}
+.act-btn:hover{background:var(--bdr)}
+.act-btn.danger{border-color:var(--red-d);color:var(--red)}
+.act-btn.primary{border-color:var(--acc-d);color:var(--acc)}
+
+/* ── MODAL ── */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;display:none;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(6px)}
+.overlay.on{display:flex}
+.modal{background:var(--surf);border:1px solid var(--bdr);border-radius:18px;padding:28px;width:100%;max-width:440px;max-height:90vh;overflow-y:auto}
+.modal h2{font-size:18px;font-weight:700;margin-bottom:6px}
+.modal-sub{font-size:13px;color:var(--txt2);margin-bottom:20px}
+.modal-acts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:20px}
+.btn-g{background:transparent;border:1px solid var(--bdr);color:var(--txt2);border-radius:10px;padding:11px;font-family:inherit;font-size:14px;cursor:pointer;transition:background .15s}
+.btn-g:hover{background:var(--surf2)}
+
+/* ── TOAST ── */
+.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#0D2B1A;border:1px solid var(--grn);color:var(--grn);padding:10px 18px;border-radius:12px;font-size:13px;font-weight:700;z-index:300;opacity:0;transition:opacity .3s;white-space:nowrap;pointer-events:none}
+.toast.err{background:#2B0D0D;border-color:var(--red);color:var(--red)}
+.toast.on{opacity:1}
+
+/* ── EMPTY ── */
+.empty{padding:40px 20px;text-align:center;color:var(--txt2)}
+.empty-ico{font-size:36px;margin-bottom:12px}
+.empty p{font-size:13px;line-height:1.7}
+
+/* ── LOADER ── */
+.spin{display:inline-block;width:20px;height:20px;border:2px solid var(--bdr);border-top-color:var(--acc);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:8px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+@media(max-width:600px){
+  .stat-row{grid-template-columns:1fr 1fr}
+  .main{padding:16px}
+  .hdr{padding:12px 16px}
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- AUTH PAGE -->
+  <div id="page-auth" style="flex:1;display:flex;flex-direction:column">
+    <div class="auth-wrap">
+      <div class="auth-logo">HA</div>
+      <div class="auth-title">Happa Admin</div>
+      <div class="auth-sub">Super-admin panel — Njau only</div>
+      <div class="auth-card">
+        <div class="fg"><label class="fl">Email</label>
+          <input class="fi" id="auth-email" type="email" placeholder="your@email.com" autocomplete="email"></div>
+        <div class="fg" style="margin-bottom:18px"><label class="fl">Password</label>
+          <input class="fi" id="auth-pwd" type="password" placeholder="Password" autocomplete="current-password"></div>
+        <button class="btn-p" id="auth-btn" onclick="doLogin()">Sign In</button>
+        <div class="err-msg" id="auth-err"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN ADMIN -->
+  <div id="page-admin" style="display:none;flex-direction:column;min-height:100vh">
+    <header class="hdr">
+      <div class="hdr-brand">
+        <div class="hdr-logo">HA</div>
+        <div>
+          <div class="hdr-title">Happa Admin</div>
+          <div class="hdr-sub" id="hdr-email">admin</div>
+        </div>
+      </div>
+      <button class="btn-s" onclick="doLogout()">Sign Out</button>
+    </header>
+
+    <div class="main">
+      <div class="page-hdr">
+        <div class="page-ttl">Dashboard</div>
+        <button class="btn-acc" onclick="showInviteModal()">+ Invite Shop Owner</button>
+      </div>
+
+      <div class="stat-row" id="stats-row">
+        <div class="sc"><div class="sc-lbl">Shops</div><div class="sc-val" id="stat-shops">—</div></div>
+        <div class="sc"><div class="sc-lbl">Users</div><div class="sc-val" id="stat-users">—</div></div>
+        <div class="sc"><div class="sc-lbl">Sales Today</div><div class="sc-val" id="stat-sales">—</div></div>
+      </div>
+
+      <div class="tabs">
+        <button class="tab on" onclick="switchTab('shops')">Shops</button>
+        <button class="tab" onclick="switchTab('invites')">Pending Invites</button>
+        <button class="tab" onclick="switchTab('users')">All Users</button>
+      </div>
+
+      <div id="tab-content"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- INVITE MODAL -->
+<div class="overlay" id="invite-overlay">
+  <div class="modal">
+    <h2>Invite Shop Owner</h2>
+    <div class="modal-sub">They'll get an email with a link to set up their account and shop.</div>
+    <div class="fg"><label class="fl">Owner's Name *</label>
+      <input class="fi" id="inv-name" type="text" placeholder="e.g. Mama Njeri"></div>
+    <div class="fg"><label class="fl">Email Address *</label>
+      <input class="fi" id="inv-email" type="email" placeholder="owner@gmail.com"></div>
+    <div class="fg"><label class="fl">Shop Name *</label>
+      <input class="fi" id="inv-shopname" type="text" placeholder="e.g. Mama Njeri's Mart"></div>
+    <div class="fg"><label class="fl">Business Type</label>
+      <select class="fi" id="inv-biztype">
+        <option value="goods">Goods (shop / supermarket)</option>
+        <option value="services">Services (salon / barber)</option>
+        <option value="mixed">Mixed (restaurant / cafe)</option>
+      </select></div>
+    <div class="fg"><label class="fl">Location (optional)</label>
+      <input class="fi" id="inv-location" type="text" placeholder="e.g. Ngara, Nairobi"></div>
+    <div class="err-msg" id="inv-err"></div>
+    <div class="modal-acts">
+      <button class="btn-g" onclick="closeModal()">Cancel</button>
+      <button class="btn-p" id="inv-btn" onclick="sendOwnerInvite()" style="margin-top:0">Send Invite</button>
+    </div>
+  </div>
+</div>
+
+<!-- CREATE SHOP MANUALLY MODAL -->
+<div class="overlay" id="shop-overlay">
+  <div class="modal">
+    <h2>Create Shop Manually</h2>
+    <div class="modal-sub">Create a shop and assign it to an existing user, or create a standalone shop.</div>
+    <div class="fg"><label class="fl">Shop Name *</label>
+      <input class="fi" id="sh-name" type="text" placeholder="e.g. Mama Njeri's Mart"></div>
+    <div class="fg"><label class="fl">Business Type</label>
+      <select class="fi" id="sh-type">
+        <option value="goods">Goods</option>
+        <option value="services">Services</option>
+        <option value="mixed">Mixed</option>
+      </select></div>
+    <div class="fg"><label class="fl">Location</label>
+      <input class="fi" id="sh-location" type="text" placeholder="e.g. Ngara"></div>
+    <div class="fg"><label class="fl">M-Pesa Till (optional)</label>
+      <input class="fi" id="sh-till" type="text" placeholder="e.g. 123456"></div>
+    <div class="err-msg" id="sh-err"></div>
+    <div class="modal-acts">
+      <button class="btn-g" onclick="closeModal()">Cancel</button>
+      <button class="btn-p" id="sh-btn" onclick="createShop()" style="margin-top:0">Create Shop</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+
+const SUPABASE_URL = 'https://zxucpsdfcokkjtcgygna.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_4gPfb5f8RAI7IgwyRbOXAQ_FntyLQo_';
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let currentUser = null;
+let currentTab = 'shops';
+
+// ── INIT ──
+(async function init() {
+  const { data: { session } } = await db.auth.getSession();
+  if (session) { currentUser = session.user; await checkAdminAndLoad(); }
+  else show('page-auth');
+
+  db.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'SIGNED_IN') { currentUser = session.user; await checkAdminAndLoad(); }
+    if (event === 'SIGNED_OUT') { currentUser = null; show('page-auth'); }
+  });
+
+  document.getElementById('auth-email').addEventListener('keydown', e=>{ if(e.key==='Enter') document.getElementById('auth-pwd').focus(); });
+  document.getElementById('auth-pwd').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
+})();
+
+async function checkAdminAndLoad() {
+  // Only allow njautheinvestmentsconsultant@gmail.com
+  if (currentUser.email !== 'njautheinvestmentsconsultant@gmail.com') {
+    showToast('Access denied — admin only', true);
+    await db.auth.signOut(); return;
+  }
+  document.getElementById('hdr-email').textContent = currentUser.email;
+  show('page-admin');
+  await loadStats();
+  switchTab('shops');
+}
+
+// ── AUTH ──
+async function doLogin() {
+  const email = document.getElementById('auth-email').value.trim();
+  const pwd   = document.getElementById('auth-pwd').value;
+  const btn   = document.getElementById('auth-btn');
+  const err   = document.getElementById('auth-err');
+  if (!email || !pwd) { showErr(err, 'Enter your email and password'); return; }
+  btn.disabled = true; btn.textContent = 'Signing in…';
+  const { error } = await db.auth.signInWithPassword({ email, password: pwd });
+  btn.disabled = false; btn.textContent = 'Sign In';
+  if (error) showErr(err, error.message);
+}
+
+async function doLogout() {
+  await db.auth.signOut();
+  show('page-auth');
+}
+
+// ── STATS ──
+async function loadStats() {
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  const [{ count: shopsC }, { count: usersC }, { count: salesC }] = await Promise.all([
+    db.from('shops').select('*', {count:'exact',head:true}),
+    db.from('shop_members').select('*', {count:'exact',head:true}),
+    db.from('sales').select('*', {count:'exact',head:true}).gte('recorded_at', today.toISOString()),
+  ]);
+
+  document.getElementById('stat-shops').textContent = shopsC ?? '—';
+  document.getElementById('stat-users').textContent = usersC ?? '—';
+  document.getElementById('stat-sales').textContent = salesC ?? '—';
+}
+
+// ── TABS ──
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach((t,i) => {
+    const labels = ['shops','invites','users'];
+    t.classList.toggle('on', labels[i] === tab);
+  });
+  if (tab === 'shops')   renderShops();
+  if (tab === 'invites') renderInvites();
+  if (tab === 'users')   renderUsers();
+}
+
+// ── SHOPS TAB ──
+async function renderShops() {
+  const el = document.getElementById('tab-content');
+  el.innerHTML = '<div style="padding:20px;color:var(--txt2)"><span class="spin"></span>Loading…</div>';
+
+  const { data: shops } = await db.from('shops').select('*, shop_members(count)').order('created_at', {ascending:false});
+
+  if (!shops?.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-ico">🏪</div><p>No shops yet.<br>Invite a shop owner to get started.</p></div>`;
+    return;
+  }
+
+  el.innerHTML = `<div class="table-wrap"><table>
+    <thead><tr>
+      <th>Shop</th><th>Type</th><th>Location</th><th>Members</th><th>Created</th><th>Actions</th>
+    </tr></thead>
+    <tbody>${shops.map(s => `
+      <tr>
+        <td><strong>${s.name}</strong></td>
+        <td><span class="chip ${s.business_type==='goods'?'chip-g':s.business_type==='services'?'chip-b':'chip-a'}">${s.business_type}</span></td>
+        <td style="color:var(--txt2)">${s.location||'—'}</td>
+        <td>${s.shop_members?.[0]?.count||0}</td>
+        <td style="color:var(--txt3)">${new Date(s.created_at).toLocaleDateString('en-KE',{day:'numeric',month:'short',year:'2-digit'})}</td>
+        <td><button class="act-btn" onclick="viewShop('${s.id}')">View</button></td>
+      </tr>`).join('')}
+    </tbody>
+  </table></div>
+  <div style="margin-top:12px;text-align:right">
+    <button class="act-btn primary" onclick="showShopModal()">+ Create Shop Manually</button>
+  </div>`;
+}
+
+async function viewShop(shopId) {
+  const { data: shop } = await db.from('shops').select('*').eq('id', shopId).single();
+  const { data: members } = await db.from('shop_members').select('*').eq('shop_id', shopId);
+  const { data: products } = await db.from('products').select('id').eq('shop_id', shopId);
+  const { count: salesCount } = await db.from('sales').select('*', {count:'exact',head:true}).eq('shop_id', shopId);
+
+  showToast(`${shop.name}: ${members?.length||0} members, ${products?.length||0} products, ${salesCount||0} total sales`);
+}
+
+// ── INVITES TAB ──
+async function renderInvites() {
+  const el = document.getElementById('tab-content');
+  el.innerHTML = '<div style="padding:20px;color:var(--txt2)"><span class="spin"></span>Loading…</div>';
+
+  const { data: invites } = await db.from('invites').select('*').eq('used', false).order('created_at', {ascending:false});
+
+  if (!invites?.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-ico">📬</div><p>No pending invites.<br>All invites have been used or none sent yet.</p></div>`;
+    return;
+  }
+
+  el.innerHTML = `<div class="table-wrap"><table>
+    <thead><tr>
+      <th>Email</th><th>Role</th><th>Sent</th><th>Expires</th><th>Status</th><th>Actions</th>
+    </tr></thead>
+    <tbody>${invites.map(inv => {
+      const expired = new Date(inv.expires_at) < new Date();
+      return `<tr>
+        <td>${inv.email||'—'}</td>
+        <td><span class="chip ${inv.role==='owner'?'chip-a':'chip-b'}">${inv.role}</span></td>
+        <td style="color:var(--txt3)">${new Date(inv.created_at).toLocaleDateString('en-KE',{day:'numeric',month:'short'})}</td>
+        <td style="color:${expired?'var(--red)':'var(--txt3)'}">${new Date(inv.expires_at).toLocaleDateString('en-KE',{day:'numeric',month:'short'})}</td>
+        <td><span class="chip ${expired?'chip-r':'chip-g'}">${expired?'expired':'pending'}</span></td>
+        <td><button class="act-btn danger" onclick="deleteInvite('${inv.id}')">Delete</button></td>
+      </tr>`;
+    }).join('')}
+    </tbody>
+  </table></div>`;
+}
+
+async function deleteInvite(id) {
+  const { error } = await db.from('invites').delete().eq('id', id);
+  if (error) { showToast('Error: ' + error.message, true); return; }
+  showToast('Invite deleted');
+  renderInvites();
+}
+
+// ── USERS TAB ──
+async function renderUsers() {
+  const el = document.getElementById('tab-content');
+  el.innerHTML = '<div style="padding:20px;color:var(--txt2)"><span class="spin"></span>Loading…</div>';
+
+  const { data: members } = await db.from('shop_members').select('*, shops(name)').order('invited_at', {ascending:false});
+
+  if (!members?.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-ico">👥</div><p>No users yet.</p></div>`;
+    return;
+  }
+
+  el.innerHTML = `<div class="table-wrap"><table>
+    <thead><tr>
+      <th>Name</th><th>Role</th><th>Shop</th><th>Phone</th><th>Joined</th>
+    </tr></thead>
+    <tbody>${members.map(m => `
+      <tr>
+        <td><strong>${m.name}</strong></td>
+        <td><span class="chip ${m.role==='owner'?'chip-a':'chip-b'}">${m.role}</span></td>
+        <td>${m.shops?.name||'—'}</td>
+        <td style="color:var(--txt2)">${m.phone||'—'}</td>
+        <td style="color:var(--txt3)">${m.joined_at ? new Date(m.joined_at).toLocaleDateString('en-KE',{day:'numeric',month:'short',year:'2-digit'}) : 'Pending'}</td>
+      </tr>`).join('')}
+    </tbody>
+  </table></div>`;
+}
+
+// ── INVITE OWNER ──
+function showInviteModal() {
+  document.getElementById('invite-overlay').classList.add('on');
+}
+
+async function sendOwnerInvite() {
+  const name     = document.getElementById('inv-name').value.trim();
+  const email    = document.getElementById('inv-email').value.trim();
+  const shopname = document.getElementById('inv-shopname').value.trim();
+  const biztype  = document.getElementById('inv-biztype').value;
+  const location = document.getElementById('inv-location').value.trim();
+  const err      = document.getElementById('inv-err');
+  const btn      = document.getElementById('inv-btn');
+
+  if (!name || !email || !shopname) { showErr(err, 'Name, email, and shop name are required'); return; }
+
+  btn.disabled = true; btn.textContent = 'Creating…';
+
+  // 1. Create the shop
+  const { data: shop, error: shopErr } = await db.from('shops').insert({
+    name: shopname, business_type: biztype, location: location || null,
+  }).select().single();
+
+  if (shopErr) {
+    btn.disabled = false; btn.textContent = 'Send Invite';
+    showErr(err, 'Could not create shop: ' + shopErr.message); return;
+  }
+
+  // 2. Record invite
+  const { error: invErr } = await db.from('invites').insert({
+    shop_id: shop.id, email, role: 'owner', invited_by: currentUser.id,
+  });
+
+  btn.disabled = false; btn.textContent = 'Send Invite';
+
+  if (invErr) { showErr(err, 'Invite record error: ' + invErr.message); return; }
+
+  // 3. NOTE: Supabase admin invite email requires service-role key.
+  //    The invite record is created. To send the actual email invite:
+  //    use the Supabase dashboard → Authentication → Invite user,
+  //    OR use the service-role key in a secure backend/Edge Function.
+
+  closeModal();
+  showToast(`✓ Shop "${shopname}" created for ${name}`);
+  showToast('⚠️ Go to Supabase → Auth → Invite user to send the login email', true);
+  setTimeout(() => {
+    showToast(`Shop ID: ${shop.id.slice(0,8)}… — copy it to link after invite`);
+  }, 2500);
+
+  await loadStats();
+  switchTab('shops');
+}
+
+// ── CREATE SHOP ──
+function showShopModal() {
+  document.getElementById('shop-overlay').classList.add('on');
+}
+
+async function createShop() {
+  const name     = document.getElementById('sh-name').value.trim();
+  const biztype  = document.getElementById('sh-type').value;
+  const location = document.getElementById('sh-location').value.trim();
+  const till     = document.getElementById('sh-till').value.trim();
+  const err      = document.getElementById('sh-err');
+  const btn      = document.getElementById('sh-btn');
+
+  if (!name) { showErr(err, 'Shop name is required'); return; }
+
+  btn.disabled = true; btn.textContent = 'Creating…';
+
+  const { error } = await db.from('shops').insert({
+    name, business_type: biztype,
+    location: location || null,
+    mpesa_till: till || null,
+  });
+
+  btn.disabled = false; btn.textContent = 'Create Shop';
+
+  if (error) { showErr(err, error.message); return; }
+
+  closeModal();
+  showToast(`✓ Shop "${name}" created`);
+  await loadStats();
+  switchTab('shops');
+}
+
+// ── UTILITIES ──
+function show(id) {
+  ['page-auth','page-admin'].forEach(p => {
+    const el = document.getElementById(p);
+    el.style.display = el.id === id ? 'flex' : 'none';
+  });
+}
+
+function showErr(el, msg) {
+  el.textContent = msg; el.style.display = 'block';
+  setTimeout(()=>el.style.display='none', 6000);
+}
+
+function closeModal() {
+  document.querySelectorAll('.overlay').forEach(o => o.classList.remove('on'));
+}
+
+let _toastTimer;
+function showToast(msg, isErr) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast on' + (isErr ? ' err' : '');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => t.classList.remove('on'), 4000);
+}
+
+// Close overlays on backdrop click
+document.querySelectorAll('.overlay').forEach(o => {
+  o.addEventListener('click', e => { if (e.target === o) closeModal(); });
+});
+</script>
+</body>
+</html>

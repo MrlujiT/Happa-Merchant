@@ -1,0 +1,1124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Happa Merchant">
+<meta name="theme-color" content="#101724">
+<title>Happa Merchant</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.50.0/dist/umd/supabase.min.js"></script>
+<style>
+:root{
+  --bg:#080D1A;--surf:#101724;--surf2:#182030;--bdr:#263040;
+  --acc:#F5A623;--acc-d:rgba(245,166,35,.14);
+  --grn:#22C55E;--grn-d:rgba(34,197,94,.13);
+  --red:#EF4444;--red-d:rgba(239,68,68,.12);
+  --blu:#3B82F6;
+  --txt:#EEF2FF;--txt2:#8B9EC0;--txt3:#4B5E7A;
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);color:var(--txt)}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--surf);z-index:101}
+
+/* ── LAYOUT ── */
+#app{display:flex;flex-direction:column;height:100%;max-width:480px;margin:0 auto;position:relative}
+.page{display:none;flex:1;overflow-y:auto;overflow-x:hidden}
+.page.on{display:flex;flex-direction:column}
+
+/* ── AUTH PAGE ── */
+.auth-wrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px max(20px,env(safe-area-inset-right,0px)) 32px max(20px,env(safe-area-inset-left,0px))}
+.auth-logo{width:64px;height:64px;background:var(--acc);border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:#08122A;margin-bottom:16px}
+.auth-title{font-size:24px;font-weight:800;margin-bottom:4px;text-align:center}
+.auth-sub{font-size:14px;color:var(--txt2);text-align:center;margin-bottom:32px}
+.auth-card{background:var(--surf);border:1px solid var(--bdr);border-radius:16px;padding:24px;width:100%}
+.fg{margin-bottom:16px}
+.fl{display:block;font-size:11px;font-weight:700;color:var(--txt2);margin-bottom:6px;letter-spacing:.03em}
+.fi{width:100%;padding:11px 14px;background:var(--surf2);border:1px solid var(--bdr);border-radius:10px;color:var(--txt);font-family:inherit;font-size:15px;outline:none;transition:border-color .15s}
+.fi:focus{border-color:var(--acc)}
+.fi::placeholder{color:var(--txt3)}
+.btn-p{width:100%;padding:13px;background:var(--acc);color:#08122A;border:none;border-radius:11px;font-family:inherit;font-size:15px;font-weight:800;cursor:pointer;transition:opacity .15s}
+.btn-p:hover{opacity:.9}
+.btn-p:disabled{opacity:.5;cursor:default}
+.err-msg{font-size:12px;color:var(--red);text-align:center;margin-top:12px;display:none}
+
+/* ── HEADER ── */
+.hdr{position:sticky;top:env(safe-area-inset-top,0px);background:var(--surf);border-bottom:1px solid var(--bdr);padding:12px max(16px,env(safe-area-inset-right,0px)) 12px max(16px,env(safe-area-inset-left,0px));display:flex;align-items:center;justify-content:space-between;z-index:100;flex-shrink:0}
+.hdr-brand{display:flex;align-items:center;gap:10px}
+.hdr-logo{width:36px;height:36px;background:var(--acc);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#08122A;flex-shrink:0;overflow:hidden}
+.hdr-logo img{width:100%;height:100%;object-fit:cover;border-radius:10px}
+.hdr-name{font-size:14px;font-weight:700}
+.hdr-role{font-size:10px;color:var(--txt2);margin-top:1px}
+.hdr-acts{display:flex;gap:6px}
+.ico-btn{width:34px;height:34px;background:var(--surf2);border:1px solid var(--bdr);border-radius:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:15px;color:var(--txt2);border:none;transition:background .15s;flex-shrink:0}
+.ico-btn:hover{background:var(--bdr)}
+
+/* ── BOTTOM NAV ── */
+.bnav{background:var(--surf);border-top:1px solid var(--bdr);padding:6px max(8px,env(safe-area-inset-right,0px)) max(12px,calc(6px + env(safe-area-inset-bottom,0px))) max(8px,env(safe-area-inset-left,0px));display:flex;justify-content:space-around;flex-shrink:0}
+.ni{display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;flex:1;padding:5px 4px;border-radius:10px;border:none;background:transparent;color:var(--txt3);transition:background .15s;font-family:inherit}
+.ni.on{color:var(--acc)}
+.ni:hover{background:var(--surf2)}
+.ni-ico{font-size:19px;line-height:1}
+.ni-lbl{font-size:10px;font-weight:700;letter-spacing:.02em}
+
+/* ── MAIN CONTENT ── */
+.main{flex:1;overflow-y:auto;padding-bottom:8px}
+.sec{padding:14px max(16px,env(safe-area-inset-right,0px)) 0}
+.sec-ttl{font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px}
+
+/* ── HERO ── */
+.hero{background:linear-gradient(135deg,#E69520,#C87C18);border-radius:18px;padding:20px;color:#08122A;margin:14px max(16px,env(safe-area-inset-right,0px)) 0;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;right:-30px;top:-30px;width:130px;height:130px;background:rgba(255,255,255,.08);border-radius:50%}
+.hero-lbl{font-size:12px;font-weight:600;opacity:.7;margin-bottom:3px}
+.hero-amt{font-size:36px;font-weight:800;letter-spacing:-1.5px;font-variant-numeric:tabular-nums;line-height:1}
+.hero-sub{display:flex;align-items:center;gap:12px;margin-top:9px;font-size:12px;font-weight:500;opacity:.8}
+
+/* ── STATS ROW ── */
+.stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:10px max(16px,env(safe-area-inset-right,0px)) 0}
+.scard{background:var(--surf);border:1px solid var(--bdr);border-radius:12px;padding:12px 10px}
+.scard-lbl{font-size:10px;color:var(--txt2);margin-bottom:3px}
+.scard-val{font-size:17px;font-weight:700;font-variant-numeric:tabular-nums}
+.scard-sub{font-size:10px;color:var(--txt3);margin-top:2px}
+.bdg{display:inline-block;font-size:9px;font-weight:700;padding:2px 5px;border-radius:5px;margin-top:3px}
+.bdg-g{background:var(--grn-d);color:var(--grn)}
+.bdg-r{background:var(--red-d);color:var(--red)}
+.bdg-a{background:var(--acc-d);color:var(--acc)}
+
+/* ── ALERT ── */
+.alert-b{margin:10px max(16px,env(safe-area-inset-right,0px)) 0;background:var(--red-d);border:1px solid rgba(239,68,68,.18);border-radius:12px;padding:10px 14px;display:flex;align-items:center;gap:10px;cursor:pointer}
+.alert-ico{font-size:18px}
+.alert-txt{flex:1}
+.alert-ttl{font-size:13px;font-weight:600;color:var(--red)}
+.alert-sub{font-size:11px;color:var(--txt2);margin-top:1px}
+
+/* ── FAB ── */
+.fab{display:flex;align-items:center;justify-content:center;gap:8px;background:var(--acc);color:#08122A;border:none;border-radius:14px;padding:0 20px;height:52px;font-family:inherit;font-size:15px;font-weight:800;cursor:pointer;width:calc(100% - max(32px,calc(env(safe-area-inset-left,0px) + env(safe-area-inset-right,0px))));margin:12px max(16px,env(safe-area-inset-right,0px)) 0 max(16px,env(safe-area-inset-left,0px));transition:opacity .15s,transform .1s}
+.fab:hover{opacity:.92}
+.fab:active{transform:scale(.98)}
+
+/* ── CARD LIST ── */
+.clist{background:var(--surf);border:1px solid var(--bdr);border-radius:14px;overflow:hidden;margin:10px max(16px,env(safe-area-inset-right,0px)) 0}
+
+/* ── TX ITEM ── */
+.txi{display:flex;align-items:center;gap:12px;padding:11px 16px;border-bottom:1px solid var(--bdr);transition:background .1s;cursor:default}
+.txi:last-child{border-bottom:none}
+.tx-ico{width:38px;height:38px;border-radius:10px;background:var(--surf2);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.tx-inf{flex:1;min-width:0}
+.tx-nm{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tx-mt{font-size:11px;color:var(--txt2);margin-top:2px}
+.tx-amt{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--grn);text-align:right;flex-shrink:0}
+.tx-amt.debt{color:var(--red)}
+.tx-amt.mpesa{color:var(--blu)}
+
+/* ── FILTER ROW ── */
+.frow{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:12px max(16px,env(safe-area-inset-right,0px)) 0}
+.frow::-webkit-scrollbar{display:none}
+.fchip{padding:6px 14px;border-radius:20px;flex-shrink:0;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;border:1px solid var(--bdr);color:var(--txt2);background:transparent;transition:all .15s}
+.fchip.on{background:var(--surf2);color:var(--txt);border-color:var(--txt2)}
+
+/* ── STOCK ── */
+.sti{display:flex;align-items:center;gap:12px;padding:11px 16px;border-bottom:1px solid var(--bdr)}
+.sti:last-child{border-bottom:none}
+.st-ico{width:38px;height:38px;border-radius:10px;background:var(--surf2);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.st-inf{flex:1;min-width:0}
+.st-nm{font-size:14px;font-weight:600}
+.st-pr{font-size:11px;color:var(--txt2);margin-top:1px}
+.st-lvl{width:80px;text-align:right;flex-shrink:0}
+.st-cnt{font-size:13px;font-weight:700;font-variant-numeric:tabular-nums}
+.st-bar{width:80px;height:4px;background:var(--bdr);border-radius:2px;margin-top:5px}
+.st-fill{height:100%;border-radius:2px}
+
+/* ── DEBT ITEM ── */
+.dbi{display:flex;align-items:center;gap:12px;padding:11px 16px;border-bottom:1px solid var(--bdr);cursor:pointer;transition:background .1s}
+.dbi:hover{background:var(--surf2)}
+.dbi:last-child{border-bottom:none}
+.db-av{width:38px;height:38px;border-radius:12px;background:var(--red-d);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:var(--red);flex-shrink:0}
+.db-inf{flex:1;min-width:0}
+.db-nm{font-size:14px;font-weight:600}
+.db-mt{font-size:11px;color:var(--txt2);margin-top:2px}
+.db-amt{text-align:right;flex-shrink:0}
+.db-val{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--red)}
+.db-days{font-size:10px;color:var(--txt3);margin-top:2px}
+
+/* ── SHEET / OVERLAY ── */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:200;display:none;align-items:flex-end;backdrop-filter:blur(6px)}
+.overlay.on{display:flex}
+.sheet{background:var(--surf);border-radius:22px 22px 0 0;width:100%;max-width:480px;margin:0 auto;padding:0 0 max(24px,env(safe-area-inset-bottom,0px));max-height:92vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.sh-hand{width:40px;height:4px;background:var(--bdr);border-radius:2px;margin:12px auto 0}
+.sh-hdr{padding:12px 20px 14px;border-bottom:1px solid var(--bdr)}
+.sh-hdr h2{font-size:18px;font-weight:700}
+.sh-body{padding:16px 20px}
+.fg-s{margin-bottom:14px}
+.method-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px}
+.method-btn{padding:10px 6px;background:var(--surf2);border:1.5px solid var(--bdr);border-radius:10px;text-align:center;cursor:pointer;font-family:inherit;color:var(--txt2);font-size:12px;font-weight:600;transition:all .15s}
+.method-btn.sel{border-color:var(--acc);background:var(--acc-d);color:var(--acc)}
+.method-btn .m-ico{font-size:18px;display:block;margin-bottom:3px}
+.pg{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+.pc{background:var(--surf2);border:1.5px solid var(--bdr);border-radius:11px;padding:10px 7px;text-align:center;cursor:pointer;transition:all .15s}
+.pc:hover{border-color:var(--acc)}
+.pc.sel{border-color:var(--acc);background:var(--acc-d)}
+.pc-em{font-size:22px}
+.pc-nm{font-size:10px;font-weight:600;margin-top:3px;color:var(--txt);line-height:1.2}
+.pc-pr{font-size:10px;color:var(--txt2);margin-top:2px}
+.qty-wrap{display:flex;align-items:center;gap:8px}
+.qty-btn{width:40px;height:40px;background:var(--surf2);border:1px solid var(--bdr);border-radius:10px;font-size:20px;cursor:pointer;color:var(--txt);display:flex;align-items:center;justify-content:center;font-family:inherit;transition:background .15s}
+.qty-btn:hover{background:var(--bdr)}
+.qty-inp{width:64px;text-align:center}
+.tot-box{background:var(--surf2);border-radius:12px;padding:14px;margin-bottom:14px}
+.tot-row{display:flex;justify-content:space-between;align-items:center}
+.tot-lbl{font-size:13px;color:var(--txt2)}
+.tot-val{font-size:24px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--acc)}
+.btn-g{background:transparent;border:1px solid var(--bdr);color:var(--txt2);border-radius:12px;padding:12px;font-family:inherit;font-size:14px;cursor:pointer;width:100%;margin-top:8px;transition:background .15s}
+.btn-g:hover{background:var(--surf2)}
+
+/* ── TOAST ── */
+.toast{position:fixed;top:calc(env(safe-area-inset-top,0px) + 64px);left:50%;transform:translateX(-50%);background:#0D2B1A;border:1px solid var(--grn);color:var(--grn);padding:11px 18px;border-radius:12px;font-size:13px;font-weight:700;z-index:300;opacity:0;transition:opacity .3s;white-space:nowrap;pointer-events:none;max-width:90%}
+.toast.err{background:#2B0D0D;border-color:var(--red);color:var(--red)}
+.toast.on{opacity:1}
+
+/* ── LOADING ── */
+.loader{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 20px;gap:14px;flex:1}
+.spin{width:36px;height:36px;border:3px solid var(--bdr);border-top-color:var(--acc);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loader-msg{font-size:13px;color:var(--txt2)}
+
+/* ── MORE / SETTINGS ── */
+.more-item{display:flex;align-items:center;gap:12px;padding:13px 16px;border-bottom:1px solid var(--bdr);cursor:pointer;transition:background .1s}
+.more-item:hover{background:var(--surf2)}
+.more-item:last-child{border-bottom:none}
+.more-ico{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+.more-inf{flex:1}
+.more-nm{font-size:14px;font-weight:600}
+.more-mt{font-size:11px;color:var(--txt2);margin-top:1px}
+
+/* ── EMPTY STATE ── */
+.empty{padding:36px 20px;text-align:center;color:var(--txt2);display:flex;flex-direction:column;align-items:center}
+.empty-ico{font-size:38px;margin-bottom:12px}
+.empty p{font-size:13px;line-height:1.6}
+
+/* ── CONFIRM ── */
+.conf-box{background:var(--surf);border:1px solid var(--bdr);border-radius:16px;padding:24px;margin:20px;position:relative;top:30%}
+.conf-ttl{font-size:16px;font-weight:700;margin-bottom:6px}
+.conf-msg{font-size:13px;color:var(--txt2);margin-bottom:18px;line-height:1.5}
+.conf-acts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+/* ── BAR CHART ── */
+.bar-wrap{display:flex;align-items:flex-end;gap:5px;height:96px;margin-top:4px}
+.bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px}
+.bar-rect{width:100%;border-radius:5px 5px 0 0;min-height:3px;background:var(--surf2);border:1px solid var(--bdr)}
+.bar-rect.has{background:var(--acc);border-color:var(--acc)}
+.bar-rect.tod{background:var(--grn);border-color:var(--grn)}
+.bar-lbl{font-size:9px;color:var(--txt3)}
+.bar-v{font-size:9px;color:var(--txt2);font-variant-numeric:tabular-nums}
+.chart-card{background:var(--surf);border:1px solid var(--bdr);border-radius:14px;padding:14px 16px;margin:10px max(16px,env(safe-area-inset-right,0px)) 0}
+.chart-ttl{font-size:11px;font-weight:700;color:var(--txt2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ── AUTH PAGE ── -->
+  <div class="page on" id="page-auth">
+    <div class="auth-wrap">
+      <div class="auth-logo">HM</div>
+      <div class="auth-title">Happa Merchant</div>
+      <div class="auth-sub">Business intelligence for your shop</div>
+      <div class="auth-card">
+        <div class="fg"><label class="fl">Email Address</label>
+          <input class="fi" id="auth-email" type="email" placeholder="you@example.com" autocomplete="email"></div>
+        <div class="fg" style="margin-bottom:20px"><label class="fl">Password</label>
+          <input class="fi" id="auth-pwd" type="password" placeholder="Your password" autocomplete="current-password"></div>
+        <button class="btn-p" id="auth-btn" onclick="doLogin()">Sign In</button>
+        <div class="err-msg" id="auth-err"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SET PASSWORD PAGE ── -->
+  <div class="page" id="page-setpwd">
+    <div class="auth-wrap">
+      <div class="auth-logo">🔑</div>
+      <div class="auth-title">Set Your Password</div>
+      <div class="auth-sub">You're in! Create a password for your account.</div>
+      <div class="auth-card">
+        <div class="fg"><label class="fl">New Password</label>
+          <input class="fi" id="new-pwd" type="password" placeholder="At least 8 characters" autocomplete="new-password"></div>
+        <div class="fg" style="margin-bottom:20px"><label class="fl">Confirm Password</label>
+          <input class="fi" id="new-pwd2" type="password" placeholder="Repeat password" autocomplete="new-password"></div>
+        <button class="btn-p" id="setpwd-btn" onclick="doSetPassword()">Set Password & Continue</button>
+        <div class="err-msg" id="setpwd-err"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── LOADING PAGE ── -->
+  <div class="page" id="page-loading">
+    <div class="loader"><div class="spin"></div><div class="loader-msg">Loading your shop…</div></div>
+  </div>
+
+  <!-- ── NO SHOP PAGE ── -->
+  <div class="page" id="page-noshop">
+    <div class="auth-wrap">
+      <div class="auth-logo">⏳</div>
+      <div class="auth-title">Almost there</div>
+      <div class="auth-sub">Your shop hasn't been set up yet. Contact the administrator to complete your onboarding.</div>
+      <button class="btn-p" onclick="doLogout()">Sign Out</button>
+    </div>
+  </div>
+
+  <!-- ── MAIN APP ── -->
+  <div class="page" id="page-app" style="flex-direction:column">
+    <header class="hdr">
+      <div class="hdr-brand">
+        <div class="hdr-logo" id="hdr-logo-el">HM</div>
+        <div>
+          <div class="hdr-name" id="hdr-shop-name">My Shop</div>
+          <div class="hdr-role" id="hdr-role-badge">Owner</div>
+        </div>
+      </div>
+      <div class="hdr-acts">
+        <button class="ico-btn" onclick="openSaleSheet()" title="Record sale">＋</button>
+        <button class="ico-btn" onclick="showTab('more')" title="Settings">⚙️</button>
+      </div>
+    </header>
+
+    <div class="main" id="main-content"></div>
+
+    <nav class="bnav" id="bottom-nav">
+      <button class="ni on" data-tab="home"><span class="ni-ico">🏠</span><span class="ni-lbl">Home</span></button>
+      <button class="ni" data-tab="sales"><span class="ni-ico">💰</span><span class="ni-lbl">Sales</span></button>
+      <button class="ni" data-tab="stock"><span class="ni-ico">📦</span><span class="ni-lbl">Stock</span></button>
+      <button class="ni" data-tab="debts"><span class="ni-ico">📋</span><span class="ni-lbl">Debts</span></button>
+      <button class="ni" data-tab="more"><span class="ni-ico">☰</span><span class="ni-lbl">More</span></button>
+    </nav>
+  </div>
+
+</div><!-- #app -->
+
+<!-- OVERLAYS -->
+<div class="overlay" id="sale-overlay"><div class="sheet" id="sale-sheet"></div></div>
+<div class="overlay" id="conf-overlay"><div style="width:100%;max-width:480px;margin:0 auto">
+  <div class="conf-box">
+    <div class="conf-ttl" id="conf-ttl">Confirm</div>
+    <div class="conf-msg" id="conf-msg"></div>
+    <div class="conf-acts">
+      <button class="btn-g" onclick="closeConf()">Cancel</button>
+      <button class="btn-p" id="conf-ok" style="margin-top:0">OK</button>
+    </div>
+  </div>
+</div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+
+const SUPABASE_URL = 'https://zxucpsdfcokkjtcgygna.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_4gPfb5f8RAI7IgwyRbOXAQ_FntyLQo_';
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+/* ═══════════════════════════════
+   STATE
+═══════════════════════════════ */
+const S = {
+  user: null, shop: null, member: null,
+  products: [], customers: [],
+  tab: 'home', salesFilter: 'today',
+  spid: null, sqty: 1, smethod: 'cash',
+  pendingPwdSetup: false,
+};
+
+/* ═══════════════════════════════
+   INIT
+═══════════════════════════════ */
+(async function init() {
+  const { data: { session } } = await db.auth.getSession();
+  if (session) {
+    S.user = session.user;
+    await loadUserContext();
+  } else {
+    showPage('auth');
+  }
+
+  db.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'PASSWORD_RECOVERY') {
+      showPage('setpwd'); return;
+    }
+    if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+      S.user = session.user;
+      if (S.pendingPwdSetup) { showPage('setpwd'); return; }
+      await loadUserContext();
+    }
+    if (event === 'SIGNED_OUT') { S.user = null; showPage('auth'); }
+  });
+
+  // Handle invite / magic link fragments
+  const hash = window.location.hash;
+  if (hash.includes('type=invite') || hash.includes('type=signup') || hash.includes('type=recovery')) {
+    S.pendingPwdSetup = true;
+  }
+
+  // Enter key on auth inputs
+  ['auth-email','auth-pwd'].forEach(id=>{
+    document.getElementById(id)?.addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
+  });
+  ['new-pwd','new-pwd2'].forEach(id=>{
+    document.getElementById(id)?.addEventListener('keydown', e=>{ if(e.key==='Enter') doSetPassword(); });
+  });
+})();
+
+/* ═══════════════════════════════
+   AUTH
+═══════════════════════════════ */
+async function doLogin() {
+  const email = document.getElementById('auth-email').value.trim();
+  const pwd   = document.getElementById('auth-pwd').value;
+  const btn   = document.getElementById('auth-btn');
+  const err   = document.getElementById('auth-err');
+  if (!email || !pwd) { showErr(err,'Enter your email and password'); return; }
+  btn.disabled = true; btn.textContent = 'Signing in…';
+  const { error } = await db.auth.signInWithPassword({ email, password: pwd });
+  btn.disabled = false; btn.textContent = 'Sign In';
+  if (error) showErr(err, error.message);
+}
+
+async function doSetPassword() {
+  const p1 = document.getElementById('new-pwd').value;
+  const p2 = document.getElementById('new-pwd2').value;
+  const err = document.getElementById('setpwd-err');
+  const btn = document.getElementById('setpwd-btn');
+  if (p1.length < 8) { showErr(err,'Password must be at least 8 characters'); return; }
+  if (p1 !== p2)     { showErr(err,"Passwords don't match"); return; }
+  btn.disabled = true; btn.textContent = 'Saving…';
+  const { error } = await db.auth.updateUser({ password: p1 });
+  btn.disabled = false; btn.textContent = 'Set Password & Continue';
+  if (error) { showErr(err, error.message); return; }
+  S.pendingPwdSetup = false;
+  window.history.replaceState(null, '', window.location.pathname);
+  await loadUserContext();
+}
+
+async function doLogout() {
+  await db.auth.signOut();
+  showPage('auth');
+}
+
+function showErr(el, msg) {
+  el.textContent = msg; el.style.display = 'block';
+  setTimeout(()=>el.style.display='none', 5000);
+}
+
+/* ═══════════════════════════════
+   LOAD USER CONTEXT
+═══════════════════════════════ */
+async function loadUserContext() {
+  showPage('loading');
+  const { data: mems } = await db.from('shop_members')
+    .select('*, shops(*)')
+    .eq('user_id', S.user.id)
+    .limit(1);
+
+  if (!mems?.length) { showPage('noshop'); return; }
+
+  S.member = mems[0];
+  S.shop   = mems[0].shops;
+
+  // Update header
+  document.getElementById('hdr-shop-name').textContent = S.shop.name;
+  document.getElementById('hdr-role-badge').textContent = S.member.role === 'owner' ? '👑 Owner' : '🧾 Cashier';
+
+  // Cashier-only nav
+  if (S.member.role === 'cashier') {
+    document.getElementById('bottom-nav').innerHTML = `
+      <button class="ni on" data-tab="home"><span class="ni-ico">🏠</span><span class="ni-lbl">Home</span></button>
+      <button class="ni" data-tab="sales"><span class="ni-ico">💰</span><span class="ni-lbl">Sales</span></button>`;
+  }
+
+  await Promise.all([loadProducts(), loadCustomers()]);
+  showPage('app');
+  setupNav();
+  showTab('home');
+}
+
+async function loadProducts() {
+  const { data } = await db.from('products').select('*').eq('shop_id', S.shop.id).eq('active', true).order('name');
+  S.products = data || [];
+}
+
+async function loadCustomers() {
+  const { data } = await db.from('customers').select('*').eq('shop_id', S.shop.id).order('name');
+  S.customers = data || [];
+}
+
+/* ═══════════════════════════════
+   NAVIGATION
+═══════════════════════════════ */
+function setupNav() {
+  document.querySelectorAll('.ni').forEach(btn => {
+    btn.addEventListener('click', ()=> showTab(btn.dataset.tab));
+  });
+}
+
+function showTab(tab) {
+  S.tab = tab;
+  document.querySelectorAll('.ni').forEach(n => n.classList.toggle('on', n.dataset.tab === tab));
+  renderTab(tab);
+  document.getElementById('main-content').scrollTop = 0;
+}
+
+async function renderTab(tab) {
+  const el = document.getElementById('main-content');
+  el.innerHTML = '<div class="loader"><div class="spin"></div></div>';
+  if (tab === 'home')   await renderHome(el);
+  else if (tab === 'sales')  await renderSales(el);
+  else if (tab === 'stock')  await renderStock(el);
+  else if (tab === 'debts')  await renderDebts(el);
+  else if (tab === 'more')   renderMore(el);
+}
+
+/* ═══════════════════════════════
+   HOME TAB
+═══════════════════════════════ */
+async function renderHome(el) {
+  const todayISO = todayStart();
+  const [{ data: todaySales }, { data: daily }] = await Promise.all([
+    db.from('sales').select('total,profit,payment_method').eq('shop_id', S.shop.id).gte('recorded_at', todayISO),
+    db.from('sales').select('total,recorded_at').eq('shop_id', S.shop.id).gte('recorded_at', sevenDaysAgo()),
+  ]);
+
+  const rev   = sum(todaySales, 'total');
+  const prof  = sum(todaySales, 'profit');
+  const txns  = todaySales?.length || 0;
+  const avg   = txns ? Math.round(rev / txns) : 0;
+  const low   = S.products.filter(p => p.stock <= p.low_stock_at);
+
+  const { data: recentAll } = await db.from('sales').select('*').eq('shop_id', S.shop.id)
+    .gte('recorded_at', todayISO).order('recorded_at', {ascending:false}).limit(5);
+
+  // 7-day chart
+  const days = build7Days(daily || []);
+  const maxR = Math.max(...days.map(d => d.rev), 1);
+
+  let h = `
+    <div class="hero">
+      <div class="hero-lbl">Today's Revenue</div>
+      <div class="hero-amt">${kes(rev)}</div>
+      <div class="hero-sub"><span>${txns} sales</span><span>·</span><span>Profit ${kes(prof)}</span></div>
+    </div>
+    <div class="stats">
+      <div class="scard"><div class="scard-lbl">Transactions</div><div class="scard-val">${txns}</div><span class="bdg bdg-g">today</span></div>
+      <div class="scard"><div class="scard-lbl">Avg Sale</div><div class="scard-val">${kshort(avg)}</div><div class="scard-sub">KES</div></div>
+      <div class="scard"><div class="scard-lbl">Low Stock</div><div class="scard-val">${low.length}</div><span class="bdg ${low.length?'bdg-r':'bdg-g'}">${low.length?'items':'all ok'}</span></div>
+    </div>`;
+
+  if (low.length)
+    h += `<div class="alert-b" onclick="showTab('stock')"><span class="alert-ico">⚠️</span>
+      <div class="alert-txt"><div class="alert-ttl">${low.length} item${low.length>1?'s':''} running low</div>
+      <div class="alert-sub">${low.slice(0,2).map(p=>p.name).join(', ')}${low.length>2?'…':''}</div></div>
+      <span style="color:var(--txt3);font-size:20px">›</span></div>`;
+
+  h += `<button class="fab" onclick="openSaleSheet()"><span style="font-size:22px">+</span> Record a Sale</button>`;
+
+  // chart
+  h += `<div class="chart-card"><div class="chart-ttl">Revenue — Last 7 Days</div><div class="bar-wrap">`;
+  days.forEach(d => {
+    const ht = d.rev > 0 ? Math.max(6, Math.round(d.rev / maxR * 84)) : 4;
+    h += `<div class="bar-col"><div class="bar-v">${d.rev>0?kshort(d.rev):''}</div>
+      <div class="bar-rect ${d.tod?'tod':d.rev>0?'has':''}" style="height:${ht}px"></div>
+      <div class="bar-lbl">${d.lbl}</div></div>`;
+  });
+  h += `</div></div>`;
+
+  if (recentAll?.length) {
+    h += `<div class="sec"><div class="sec-ttl">Today's Sales</div></div><div class="clist">`;
+    recentAll.forEach(s => { h += txRow(s); });
+    h += `</div>`;
+  } else {
+    h += `<div class="empty"><div class="empty-ico">🛍️</div><p>No sales recorded today yet.<br>Tap <b>Record a Sale</b> to begin.</p></div>`;
+  }
+
+  h += '<div style="height:8px"></div>';
+  el.innerHTML = h;
+}
+
+/* ═══════════════════════════════
+   SALES TAB
+═══════════════════════════════ */
+async function renderSales(el) {
+  const filter = S.salesFilter;
+  let from = filter === 'today' ? todayStart() : filter === 'week' ? sevenDaysAgo() : '2000-01-01';
+  const { data: ss } = await db.from('sales').select('*').eq('shop_id', S.shop.id)
+    .gte('recorded_at', from).order('recorded_at', {ascending:false});
+
+  const rev  = sum(ss, 'total');
+  const prof = sum(ss, 'profit');
+
+  let h = `<div class="frow">
+    <button class="fchip ${filter==='today'?'on':''}" onclick="setSF('today')">Today</button>
+    <button class="fchip ${filter==='week'?'on':''}" onclick="setSF('week')">This Week</button>
+    <button class="fchip ${filter==='all'?'on':''}" onclick="setSF('all')">All Time</button>
+  </div>
+  <div class="stats">
+    <div class="scard"><div class="scard-lbl">Revenue</div><div class="scard-val" style="font-size:14px">${kshort(rev)}</div><div class="scard-sub">KES</div></div>
+    <div class="scard"><div class="scard-lbl">Profit</div><div class="scard-val" style="font-size:14px;color:var(--grn)">${kshort(prof)}</div><div class="scard-sub">KES</div></div>
+    <div class="scard"><div class="scard-lbl">Count</div><div class="scard-val">${ss?.length||0}</div><div class="scard-sub">txns</div></div>
+  </div>
+  <button class="fab" onclick="openSaleSheet()"><span style="font-size:22px">+</span> Record a Sale</button>`;
+
+  if (ss?.length) {
+    h += `<div class="clist" style="margin-top:10px">`;
+    ss.forEach(s => { h += txRow(s, true); });
+    h += `</div>`;
+  } else {
+    h += `<div class="empty"><div class="empty-ico">💰</div><p>No sales in this period.</p></div>`;
+  }
+  h += '<div style="height:8px"></div>';
+  el.innerHTML = h;
+}
+
+function setSF(f) { S.salesFilter = f; showTab('sales'); }
+
+/* ═══════════════════════════════
+   STOCK TAB
+═══════════════════════════════ */
+async function renderStock(el) {
+  await loadProducts();
+  const low = S.products.filter(p => p.stock <= p.low_stock_at);
+  let h = '';
+
+  if (low.length) {
+    h += `<div class="sec" style="padding-top:14px"><div class="sec-ttl" style="color:var(--red)">⚠️ Low Stock — Restock Now</div></div><div class="clist">`;
+    low.forEach(p => { h += stockRow(p); }); h += `</div>`;
+  }
+
+  h += `<div class="sec" style="padding-top:${low.length?12:14}px"><div class="sec-ttl">All Products (${S.products.length})</div></div>`;
+  if (S.products.length) {
+    h += `<div class="clist">`;
+    S.products.forEach(p => { h += stockRow(p); });
+    h += `</div>`;
+  } else {
+    h += `<div class="empty"><div class="empty-ico">📦</div><p>No products yet.<br>Add products from the More tab.</p></div>`;
+  }
+  h += '<div style="height:8px"></div>';
+  el.innerHTML = h;
+}
+
+/* ═══════════════════════════════
+   DEBTS TAB
+═══════════════════════════════ */
+async function renderDebts(el) {
+  const { data: debts } = await db.from('debts').select('*, customers(name,phone)')
+    .eq('shop_id', S.shop.id).in('status', ['outstanding','partial','overdue'])
+    .order('due_date', {ascending:true});
+
+  const total = sum(debts, 'balance');
+
+  let h = `<div class="stats" style="padding-top:14px">
+    <div class="scard" style="grid-column:span 2"><div class="scard-lbl">Total Outstanding</div><div class="scard-val">${kes(total)}</div></div>
+    <div class="scard"><div class="scard-lbl">Open Debts</div><div class="scard-val">${debts?.length||0}</div></div>
+  </div>`;
+
+  if (debts?.length) {
+    h += `<div class="clist" style="margin-top:12px">`;
+    debts.forEach(d => {
+      const c = d.customers;
+      const days = d.due_date ? Math.ceil((new Date(d.due_date)-new Date())/86400000) : null;
+      const overdue = days !== null && days < 0;
+      const ini = (c?.name||'?').split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2);
+      h += `<div class="dbi" onclick="openDebtPaySheet('${d.id}','${c?.name||''}',${d.balance})">
+        <div class="db-av">${ini}</div>
+        <div class="db-inf">
+          <div class="db-nm">${c?.name||'Unknown'}</div>
+          <div class="db-mt">${c?.phone||''}${d.due_date?` · Due ${new Date(d.due_date).toLocaleDateString('en-KE',{day:'numeric',month:'short'})}`:''}</div>
+        </div>
+        <div class="db-amt">
+          <div class="db-val">${kes(d.balance)}</div>
+          ${days!==null?`<div class="db-days" style="${overdue?'color:var(--red)':''}">${overdue?`${Math.abs(days)}d overdue`:`${days}d left`}</div>`:''}
+        </div>
+      </div>`;
+    });
+    h += `</div>`;
+  } else {
+    h += `<div class="empty"><div class="empty-ico">✅</div><p>No outstanding debts.<br>Well done!</p></div>`;
+  }
+  h += '<div style="height:8px"></div>';
+  el.innerHTML = h;
+}
+
+/* ═══════════════════════════════
+   MORE TAB
+═══════════════════════════════ */
+function renderMore(el) {
+  const isOwner = S.member.role === 'owner';
+  el.innerHTML = `
+    <div style="padding:14px max(16px,env(safe-area-inset-right,0px)) 0">
+      <div style="background:var(--surf);border:1px solid var(--bdr);border-radius:16px;padding:20px;text-align:center;margin-bottom:14px">
+        <div style="font-size:36px;margin-bottom:8px">🏪</div>
+        <div style="font-size:17px;font-weight:700">${S.shop.name}</div>
+        <div style="font-size:12px;color:var(--txt2);margin-top:4px">${S.shop.location||''}</div>
+        ${S.shop.mpesa_till?`<div style="font-size:11px;color:var(--txt3);margin-top:3px">M-Pesa Till: ${S.shop.mpesa_till}</div>`:''}
+        <div style="font-size:11px;color:var(--txt2);margin-top:6px">${S.user?.email}</div>
+      </div>
+
+      <div class="sec-ttl" style="margin-bottom:10px">Account</div>
+      <div class="clist">
+        ${isOwner?`<div class="more-item" onclick="showAddProductSheet()">
+          <div class="more-ico" style="background:var(--acc-d)">📦</div>
+          <div class="more-inf"><div class="more-nm">Add Product</div><div class="more-mt">Add a new item to your inventory</div></div>
+          <span style="color:var(--txt3)">›</span></div>`:''}
+        ${isOwner?`<div class="more-item" onclick="showInviteSheet()">
+          <div class="more-ico" style="background:var(--grn-d)">👤</div>
+          <div class="more-inf"><div class="more-nm">Invite Cashier</div><div class="more-mt">Give a staff member access</div></div>
+          <span style="color:var(--txt3)">›</span></div>`:''}
+        <div class="more-item" onclick="showConf('Sign Out','Sign out of your account?',doLogout)">
+          <div class="more-ico" style="background:var(--red-d)">🚪</div>
+          <div class="more-inf"><div class="more-nm">Sign Out</div><div class="more-mt">${S.user?.email}</div></div>
+        </div>
+      </div>
+
+      <div class="sec-ttl" style="margin-bottom:10px;margin-top:14px">App</div>
+      <div class="clist">
+        <div class="more-item" style="cursor:default">
+          <div class="more-ico" style="background:var(--acc-d)">ℹ️</div>
+          <div class="more-inf"><div class="more-nm">Happa Merchant v1.0</div><div class="more-mt">Business intelligence for small shops</div></div>
+        </div>
+      </div>
+    </div>
+    <div style="height:8px"></div>`;
+}
+
+/* ═══════════════════════════════
+   RECORD SALE SHEET
+═══════════════════════════════ */
+function openSaleSheet() {
+  S.spid = null; S.sqty = 1; S.smethod = 'cash';
+  renderSaleSheet();
+  document.getElementById('sale-overlay').classList.add('on');
+}
+
+function renderSaleSheet() {
+  let pg = '';
+  S.products.forEach(p => {
+    const low = p.stock <= p.low_stock_at;
+    pg += `<div class="pc ${S.spid===p.id?'sel':''}" onclick="selProduct('${p.id}')" data-pid="${p.id}">
+      <div class="pc-em">${p.emoji||'📦'}</div>
+      <div class="pc-nm">${p.name.split(' ').slice(0,2).join(' ')}</div>
+      <div class="pc-pr">${kes(p.sell_price)}${low?'<br><span style="font-size:9px;color:var(--red)">Low</span>':''}</div>
+    </div>`;
+  });
+
+  const prod = S.products.find(p=>p.id===S.spid);
+  const tot  = prod ? prod.sell_price * S.sqty : 0;
+  const prof = prod ? (prod.sell_price - prod.buy_price) * S.sqty : 0;
+
+  document.getElementById('sale-sheet').innerHTML = `
+    <div class="sh-hand"></div>
+    <div class="sh-hdr"><h2>Record a Sale</h2></div>
+    <div class="sh-body">
+      <div class="fg-s"><label class="fl">Select Product</label>
+        <div class="pg">${pg || '<p style="color:var(--txt2);font-size:13px">No products yet — add them from More.</p>'}</div>
+      </div>
+
+      <div id="sale-details" style="display:${S.spid?'block':'none'}">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+          <div><label class="fl">Quantity</label>
+            <div class="qty-wrap">
+              <button class="qty-btn" onclick="chgQty(-1)">−</button>
+              <input type="number" id="qty-inp" class="fi qty-inp" value="${S.sqty}" min="1" max="999" oninput="S.sqty=Math.max(1,parseInt(this.value)||1);updSaleTotal()">
+              <button class="qty-btn" onclick="chgQty(1)">+</button>
+            </div>
+          </div>
+          <div><label class="fl">Customer</label>
+            <input type="text" id="cust-inp" class="fi" placeholder="Walk-in" list="cust-list">
+            <datalist id="cust-list">${S.customers.map(c=>`<option value="${c.name}">`).join('')}</datalist>
+          </div>
+        </div>
+
+        <label class="fl">Payment Method</label>
+        <div class="method-row">
+          <button class="method-btn ${S.smethod==='cash'?'sel':''}" onclick="setMethod('cash')"><span class="m-ico">💵</span>Cash</button>
+          <button class="method-btn ${S.smethod==='mpesa'?'sel':''}" onclick="setMethod('mpesa')"><span class="m-ico">📱</span>M-Pesa</button>
+          <button class="method-btn ${S.smethod==='debt'?'sel':''}" onclick="setMethod('debt')"><span class="m-ico">📋</span>Debt</button>
+        </div>
+
+        <div id="mpesa-field" style="display:${S.smethod==='mpesa'?'block':'none'};margin-bottom:14px">
+          <label class="fl">M-Pesa Confirmation Code *</label>
+          <input type="text" id="mpesa-code" class="fi" placeholder="e.g. SJK4L9M2QP" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()">
+        </div>
+        <div id="debt-field" style="display:${S.smethod==='debt'?'block':'none'};margin-bottom:14px">
+          <label class="fl">Due Date</label>
+          <input type="date" id="debt-due" class="fi" value="${dateInDays(30)}">
+        </div>
+
+        <div class="tot-box">
+          <div class="tot-row"><span class="tot-lbl">Total</span><span class="tot-val" id="sale-tot-val">${kes(tot)}</span></div>
+          <div style="font-size:11px;color:var(--grn);margin-top:4px" id="sale-prof-val">Profit: ${kes(prof)}</div>
+        </div>
+        <button class="btn-p" onclick="confirmSale()">Confirm Sale ✓</button>
+      </div>
+      <button class="btn-g" onclick="closeSaleSheet()">Cancel</button>
+    </div>`;
+}
+
+function selProduct(id) {
+  S.spid = id; S.sqty = 1;
+  renderSaleSheet();
+  document.getElementById('sale-details').style.display = 'block';
+}
+
+function chgQty(d) {
+  S.sqty = Math.max(1, S.sqty + d);
+  const inp = document.getElementById('qty-inp');
+  if (inp) inp.value = S.sqty;
+  updSaleTotal();
+}
+
+function updSaleTotal() {
+  const p = S.products.find(x => x.id === S.spid);
+  if (!p) return;
+  const tv = document.getElementById('sale-tot-val');
+  const pv = document.getElementById('sale-prof-val');
+  if (tv) tv.textContent = kes(p.sell_price * S.sqty);
+  if (pv) pv.textContent = `Profit: ${kes((p.sell_price - p.buy_price) * S.sqty)}`;
+}
+
+function setMethod(m) {
+  S.smethod = m;
+  document.querySelectorAll('.method-btn').forEach(b => b.classList.toggle('sel', b.textContent.toLowerCase().includes(m==='cash'?'cash':m==='mpesa'?'pesa':'debt')));
+  document.getElementById('mpesa-field').style.display = m === 'mpesa' ? 'block' : 'none';
+  document.getElementById('debt-field').style.display  = m === 'debt'  ? 'block' : 'none';
+}
+
+async function confirmSale() {
+  const p = S.products.find(x => x.id === S.spid);
+  if (!p) { showToast('Select a product first', true); return; }
+
+  const custName = (document.getElementById('cust-inp')?.value||'').trim()||'Walk-in';
+
+  if (S.smethod === 'mpesa') {
+    const code = (document.getElementById('mpesa-code')?.value||'').trim().toUpperCase();
+    if (!code) { showToast('M-Pesa code is required', true); return; }
+    // Check duplicate code
+    const { data: dup } = await db.from('sales').select('id').eq('shop_id', S.shop.id).eq('mpesa_code', code).limit(1);
+    if (dup?.length) { showToast('This M-Pesa code is already recorded', true); return; }
+  }
+
+  if (S.smethod === 'debt' && custName === 'Walk-in') {
+    showToast('Enter customer name for debt sales', true); return;
+  }
+
+  const btn = document.querySelector('#sale-sheet .btn-p');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
+  // Upsert customer if named
+  let custId = null;
+  if (custName !== 'Walk-in') {
+    let cust = S.customers.find(c => c.name.toLowerCase() === custName.toLowerCase());
+    if (!cust) {
+      const { data: nc } = await db.from('customers').insert({shop_id:S.shop.id, name:custName}).select().single();
+      cust = nc;
+      if (cust) S.customers.push(cust);
+    }
+    custId = cust?.id || null;
+  }
+
+  const mpesaCode = S.smethod === 'mpesa' ? (document.getElementById('mpesa-code')?.value||'').trim().toUpperCase() : null;
+  const dueDate   = S.smethod === 'debt'  ? (document.getElementById('debt-due')?.value||null) : null;
+
+  const sale = {
+    shop_id: S.shop.id,
+    product_id: p.id, product_name: p.name, product_emoji: p.emoji||'📦',
+    qty: S.sqty, unit_price: p.sell_price, buy_price: p.buy_price,
+    total: p.sell_price * S.sqty, profit: (p.sell_price - p.buy_price) * S.sqty,
+    payment_method: S.smethod, mpesa_code: mpesaCode,
+    customer_id: custId, customer_name: custName,
+    recorded_by: S.user.id,
+  };
+
+  const { data: newSale, error } = await db.from('sales').insert(sale).select().single();
+
+  if (error) {
+    showToast('Error saving sale: ' + error.message, true);
+    if (btn) { btn.disabled = false; btn.textContent = 'Confirm Sale ✓'; }
+    return;
+  }
+
+  // Deduct stock
+  await db.from('products').update({ stock: Math.max(0, p.stock - S.sqty) }).eq('id', p.id);
+  const local = S.products.find(x=>x.id===p.id);
+  if (local) local.stock = Math.max(0, local.stock - S.sqty);
+
+  // Create debt record if needed
+  if (S.smethod === 'debt' && custId) {
+    await db.from('debts').insert({
+      shop_id: S.shop.id, customer_id: custId, sale_id: newSale.id,
+      original_amt: sale.total, balance: sale.total,
+      due_date: dueDate, status: 'outstanding',
+    });
+    // Update customer outstanding
+    await db.from('customers').update({ outstanding: (S.customers.find(c=>c.id===custId)?.outstanding||0) + sale.total }).eq('id', custId);
+  }
+
+  closeSaleSheet();
+  showToast(`✓ ${p.name} ×${S.sqty} — ${kes(sale.total)}`);
+  showTab(S.tab);
+}
+
+function closeSaleSheet() {
+  document.getElementById('sale-overlay').classList.remove('on');
+}
+
+/* ═══════════════════════════════
+   DEBT PAYMENT SHEET
+═══════════════════════════════ */
+function openDebtPaySheet(debtId, custName, balance) {
+  document.getElementById('sale-sheet').innerHTML = `
+    <div class="sh-hand"></div>
+    <div class="sh-hdr"><h2>Collect Payment</h2></div>
+    <div class="sh-body">
+      <div style="background:var(--red-d);border-radius:12px;padding:14px;margin-bottom:14px;text-align:center">
+        <div style="font-size:13px;color:var(--txt2);margin-bottom:4px">${custName} owes</div>
+        <div style="font-size:28px;font-weight:800;color:var(--red);font-variant-numeric:tabular-nums">${kes(balance)}</div>
+      </div>
+      <div class="fg-s"><label class="fl">Amount Received (KES)</label>
+        <input type="number" id="pay-amt" class="fi" placeholder="${balance}" value="${balance}" min="1" max="${balance}"></div>
+      <label class="fl">Payment Method</label>
+      <div class="method-row" style="grid-template-columns:1fr 1fr">
+        <button class="method-btn sel" id="pm-cash" onclick="document.getElementById('pm-cash').classList.add('sel');document.getElementById('pm-mpesa').classList.remove('sel');document.getElementById('mpesa-code-p').style.display='none'"><span class="m-ico">💵</span>Cash</button>
+        <button class="method-btn" id="pm-mpesa" onclick="document.getElementById('pm-mpesa').classList.add('sel');document.getElementById('pm-cash').classList.remove('sel');document.getElementById('mpesa-code-p').style.display='block'"><span class="m-ico">📱</span>M-Pesa</button>
+      </div>
+      <div id="mpesa-code-p" style="display:none;margin-bottom:14px">
+        <label class="fl">M-Pesa Code *</label>
+        <input type="text" id="pay-mpesa-code" class="fi" placeholder="e.g. SJK4L9M2QP" oninput="this.value=this.value.toUpperCase()">
+      </div>
+      <button class="btn-p" onclick="recordDebtPayment('${debtId}',${balance})">Confirm Payment ✓</button>
+      <button class="btn-g" onclick="closeSaleSheet()">Cancel</button>
+    </div>`;
+  document.getElementById('sale-overlay').classList.add('on');
+}
+
+async function recordDebtPayment(debtId, originalBalance) {
+  const amt = parseFloat(document.getElementById('pay-amt')?.value);
+  if (!amt || amt <= 0) { showToast('Enter amount received', true); return; }
+  const useMpesa = document.getElementById('pm-mpesa')?.classList.contains('sel');
+  const mpesaCode = useMpesa ? (document.getElementById('pay-mpesa-code')?.value||'').trim().toUpperCase() : null;
+  if (useMpesa && !mpesaCode) { showToast('M-Pesa code required', true); return; }
+
+  const newBalance = Math.max(0, originalBalance - amt);
+  const newStatus  = newBalance === 0 ? 'paid' : 'partial';
+
+  const { error } = await db.from('debt_payments').insert({
+    debt_id: debtId, shop_id: S.shop.id, amount: amt,
+    payment_method: useMpesa ? 'mpesa' : 'cash', mpesa_code: mpesaCode,
+    recorded_by: S.user.id,
+  });
+
+  if (error) { showToast('Error: ' + error.message, true); return; }
+
+  await db.from('debts').update({ balance: newBalance, status: newStatus, updated_at: new Date().toISOString() }).eq('id', debtId);
+
+  closeSaleSheet();
+  showToast(newBalance === 0 ? `✓ Debt cleared — ${kes(amt)} received` : `✓ ${kes(amt)} received — ${kes(newBalance)} remaining`);
+  showTab('debts');
+}
+
+/* ═══════════════════════════════
+   ADD PRODUCT SHEET (owner only)
+═══════════════════════════════ */
+function showAddProductSheet() {
+  document.getElementById('sale-sheet').innerHTML = `
+    <div class="sh-hand"></div>
+    <div class="sh-hdr"><h2>Add Product</h2></div>
+    <div class="sh-body">
+      <div class="fg-s"><label class="fl">Product Name *</label>
+        <input type="text" id="np-name" class="fi" placeholder="e.g. Sugar 1kg"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+        <div><label class="fl">Buy Price (KES) *</label>
+          <input type="number" id="np-buy" class="fi" placeholder="e.g. 130"></div>
+        <div><label class="fl">Sell Price (KES) *</label>
+          <input type="number" id="np-sell" class="fi" placeholder="e.g. 160"></div>
+        <div><label class="fl">Current Stock *</label>
+          <input type="number" id="np-stock" class="fi" placeholder="e.g. 20"></div>
+        <div><label class="fl">Low Stock Alert</label>
+          <input type="number" id="np-low" class="fi" placeholder="e.g. 5"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+        <div><label class="fl">Unit</label>
+          <input type="text" id="np-unit" class="fi" placeholder="kg, pkt, btl…"></div>
+        <div><label class="fl">Emoji (optional)</label>
+          <input type="text" id="np-emoji" class="fi" placeholder="📦"></div>
+      </div>
+      <button class="btn-p" onclick="saveProduct()">Add Product</button>
+      <button class="btn-g" onclick="closeSaleSheet()">Cancel</button>
+    </div>`;
+  document.getElementById('sale-overlay').classList.add('on');
+}
+
+async function saveProduct() {
+  const name  = document.getElementById('np-name')?.value?.trim();
+  const buy   = parseFloat(document.getElementById('np-buy')?.value);
+  const sell  = parseFloat(document.getElementById('np-sell')?.value);
+  const stock = parseFloat(document.getElementById('np-stock')?.value);
+  const low   = parseFloat(document.getElementById('np-low')?.value) || 5;
+  const unit  = document.getElementById('np-unit')?.value?.trim() || 'unit';
+  const emoji = document.getElementById('np-emoji')?.value?.trim() || '📦';
+
+  if (!name || isNaN(buy) || isNaN(sell) || isNaN(stock)) {
+    showToast('Fill in all required fields', true); return;
+  }
+
+  const { data, error } = await db.from('products').insert({
+    shop_id: S.shop.id, name, emoji, buy_price: buy, sell_price: sell,
+    stock, low_stock_at: low, unit, active: true,
+  }).select().single();
+
+  if (error) { showToast('Error: ' + error.message, true); return; }
+  S.products.push(data);
+  closeSaleSheet();
+  showToast(`✓ ${name} added to inventory`);
+  showTab('stock');
+}
+
+/* ═══════════════════════════════
+   INVITE CASHIER SHEET
+═══════════════════════════════ */
+function showInviteSheet() {
+  document.getElementById('sale-sheet').innerHTML = `
+    <div class="sh-hand"></div>
+    <div class="sh-hdr"><h2>Invite Cashier</h2></div>
+    <div class="sh-body">
+      <p style="font-size:13px;color:var(--txt2);margin-bottom:16px;line-height:1.6">
+        Your cashier will receive a link to set up their account. They'll only see sales and recent transactions.
+      </p>
+      <div class="fg-s"><label class="fl">Cashier's Name *</label>
+        <input type="text" id="inv-name" class="fi" placeholder="e.g. John Kariuki"></div>
+      <div class="fg-s"><label class="fl">Their Email Address *</label>
+        <input type="email" id="inv-email" class="fi" placeholder="johnk@email.com"></div>
+      <button class="btn-p" onclick="sendCashierInvite()">Send Invite</button>
+      <button class="btn-g" onclick="closeSaleSheet()">Cancel</button>
+    </div>`;
+  document.getElementById('sale-overlay').classList.add('on');
+}
+
+async function sendCashierInvite() {
+  const name  = document.getElementById('inv-name')?.value?.trim();
+  const email = document.getElementById('inv-email')?.value?.trim();
+  if (!name || !email) { showToast('Fill in name and email', true); return; }
+
+  // Store invite record; actual Supabase invite requires admin API
+  // For now: record the intent and show instructions
+  const { error } = await db.from('invites').insert({
+    shop_id: S.shop.id, email, role: 'cashier', invited_by: S.user.id,
+  });
+
+  if (error) { showToast('Error: ' + error.message, true); return; }
+  closeSaleSheet();
+  showToast(`✓ Invite recorded for ${name}`);
+  showConf(
+    'Invite Created',
+    `Go to the Happa Admin panel to send ${name} (${email}) their access link.`,
+    ()=>{}
+  );
+}
+
+/* ═══════════════════════════════
+   CONFIRM DIALOG
+═══════════════════════════════ */
+let _confCb = null;
+function showConf(ttl, msg, cb) {
+  _confCb = cb;
+  document.getElementById('conf-ttl').textContent = ttl;
+  document.getElementById('conf-msg').textContent = msg;
+  document.getElementById('conf-overlay').classList.add('on');
+  document.getElementById('conf-ok').onclick = ()=>{ closeConf(); if(_confCb) _confCb(); };
+}
+function closeConf() { document.getElementById('conf-overlay').classList.remove('on'); }
+
+/* ═══════════════════════════════
+   PAGE SWITCHER
+═══════════════════════════════ */
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.toggle('on', p.id === 'page-' + name));
+}
+
+/* ═══════════════════════════════
+   TOAST
+═══════════════════════════════ */
+let _toastTimer;
+function showToast(msg, isErr) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast on' + (isErr ? ' err' : '');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => t.classList.remove('on'), 3000);
+}
+
+/* ═══════════════════════════════
+   HELPERS
+═══════════════════════════════ */
+function kes(n) { return 'KES ' + Math.round(n||0).toLocaleString('en-KE'); }
+function kshort(n) { n=Math.round(n||0); return n>=1000?(n/1000).toFixed(1)+'k':n.toString(); }
+function sum(arr, key) { return (arr||[]).reduce((a,x)=>a+(x[key]||0), 0); }
+function todayStart() { const d=new Date(); d.setHours(0,0,0,0); return d.toISOString(); }
+function sevenDaysAgo() { const d=new Date(); d.setDate(d.getDate()-7); d.setHours(0,0,0,0); return d.toISOString(); }
+function dateInDays(n) { const d=new Date(); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); }
+function dayName(d) { return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()]; }
+
+function build7Days(sales) {
+  const out = []; const now = new Date();
+  for (let i=6; i>=0; i--) {
+    const d = new Date(now); d.setDate(d.getDate()-i); d.setHours(0,0,0,0);
+    const end = new Date(d); end.setDate(end.getDate()+1);
+    const rev = sales.filter(s=>{const t=new Date(s.recorded_at);return t>=d&&t<end;}).reduce((a,s)=>a+s.total,0);
+    out.push({lbl:i===0?'Today':dayName(d), rev, tod:i===0});
+  }
+  return out;
+}
+
+function txRow(s, showDate) {
+  const d = new Date(s.recorded_at);
+  const ts = showDate && !isToday(d)
+    ? d.toLocaleDateString('en-KE',{day:'numeric',month:'short'})
+    : d.toLocaleTimeString('en-KE',{hour:'2-digit',minute:'2-digit'});
+  const cls = s.payment_method==='debt'?'debt':s.payment_method==='mpesa'?'mpesa':'';
+  const icon = s.payment_method==='debt'?'📋':s.payment_method==='mpesa'?'📱':'💵';
+  return `<div class="txi">
+    <div class="tx-ico">${s.product_emoji||'📦'}</div>
+    <div class="tx-inf">
+      <div class="tx-nm">${s.product_name}</div>
+      <div class="tx-mt">${s.customer_name} · ×${s.qty} · ${ts} ${icon}</div>
+    </div>
+    <div class="tx-amt ${cls}">${kes(s.total)}</div>
+  </div>`;
+}
+
+function stockRow(p) {
+  const max = Math.max(p.low_stock_at * 3, p.stock, 1);
+  const pct = Math.min(100, Math.round(p.stock / max * 100));
+  const isLow = p.stock <= p.low_stock_at;
+  const col = isLow ? 'var(--red)' : pct > 65 ? 'var(--grn)' : 'var(--acc)';
+  const margin = p.sell_price > 0 ? Math.round((p.sell_price - p.buy_price) / p.sell_price * 100) : 0;
+  return `<div class="sti">
+    <div class="st-ico">${p.emoji||'📦'}</div>
+    <div class="st-inf"><div class="st-nm">${p.name}</div>
+      <div class="st-pr">${kes(p.sell_price)} · ${margin}% margin</div>
+    </div>
+    <div class="st-lvl">
+      <div class="st-cnt" style="${isLow?'color:var(--red)':''}">${p.stock} ${p.unit}</div>
+      <div class="st-bar"><div class="st-fill" style="width:${pct}%;background:${col}"></div></div>
+    </div>
+  </div>`;
+}
+
+function isToday(d) {
+  const n = new Date();
+  return d.getDate()===n.getDate() && d.getMonth()===n.getMonth() && d.getFullYear()===n.getFullYear();
+}
+
+// Close sheets on overlay click
+document.getElementById('sale-overlay').addEventListener('click', function(e){ if(e.target===this) closeSaleSheet(); });
+document.getElementById('conf-overlay').addEventListener('click', function(e){ if(e.target===this) closeConf(); });
+</script>
+</body>
+</html>
