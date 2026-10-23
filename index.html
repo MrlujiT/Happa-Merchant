@@ -333,10 +333,17 @@ const S = {
    INIT
 ═══════════════════════════════ */
 (async function init() {
+  // Must check hash BEFORE getSession() — Supabase clears it after processing
+  const hash = window.location.hash;
+  if (hash.includes('type=invite') || hash.includes('type=signup') || hash.includes('type=recovery')) {
+    S.pendingPwdSetup = true;
+  }
+
   const { data: { session } } = await db.auth.getSession();
   if (session) {
     S.user = session.user;
-    await loadUserContext();
+    if (S.pendingPwdSetup) { showPage('setpwd'); }
+    else { await loadUserContext(); }
   } else {
     showPage('auth');
   }
@@ -352,12 +359,6 @@ const S = {
     }
     if (event === 'SIGNED_OUT') { S.user = null; showPage('auth'); }
   });
-
-  // Handle invite / magic link fragments
-  const hash = window.location.hash;
-  if (hash.includes('type=invite') || hash.includes('type=signup') || hash.includes('type=recovery')) {
-    S.pendingPwdSetup = true;
-  }
 
   // Enter key on auth inputs
   ['auth-email','auth-pwd'].forEach(id=>{
