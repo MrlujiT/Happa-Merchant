@@ -762,13 +762,17 @@ function renderMore(el) {
           <div class="more-ico" style="background:#0891b222">🚚</div>
           <div class="more-inf"><div class="more-nm">Suppliers</div><div class="more-mt">Manage your suppliers</div></div>
           <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showCustomers()">
+          <div class="more-ico" style="background:#7c3aed22">👥</div>
+          <div class="more-inf"><div class="more-nm">Customers</div><div class="more-mt">Manage contacts & phone numbers</div></div>
+          <span style="color:var(--txt3)">›</span></div>
         <div class="more-item" onclick="showTopClients()">
           <div class="more-ico" style="background:#d9770622">🏆</div>
-          <div class="more-inf"><div class="more-nm">Top Clients</div><div class="more-mt">Your best customers</div></div>
+          <div class="more-inf"><div class="more-nm">Top Clients</div><div class="more-mt">Your best customers by spend</div></div>
           <span style="color:var(--txt3)">›</span></div>
-        <div class="more-item" onclick="showStockOrders()">
+        <div class="more-item" onclick="showPurchasesDashboard()">
           <div class="more-ico" style="background:#0f766e22">📥</div>
-          <div class="more-inf"><div class="more-nm">Stock Orders</div><div class="more-mt">Record purchases from suppliers</div></div>
+          <div class="more-inf"><div class="more-nm">Purchases</div><div class="more-mt">Orders, supplier debt & spend history</div></div>
           <span style="color:var(--txt3)">›</span></div>
         <div class="more-item" onclick="showWhatsAppBroadcast()">
           <div class="more-ico" style="background:#25D36622">💬</div>
@@ -796,7 +800,7 @@ function renderMore(el) {
       <div class="clist">
         <div class="more-item" style="cursor:default">
           <div class="more-ico" style="background:var(--acc-d)">ℹ️</div>
-          <div class="more-inf"><div class="more-nm">Happa Merchant v1.2</div><div class="more-mt">Business intelligence for small shops</div></div>
+          <div class="more-inf"><div class="more-nm">Happa Merchant v1.3</div><div class="more-mt">Business intelligence for small shops</div></div>
         </div>
       </div>
     </div>
@@ -1748,6 +1752,244 @@ function openWa(phone, name) {
   if (!raw) { showToast('Write a message first', true); return; }
   const msg = raw.replace(/\{name\}/gi, name);
   window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+}
+
+/* ═══════════════════════════════
+   CUSTOMER MANAGEMENT
+═══════════════════════════════ */
+async function showCustomers() {
+  pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>Customers</h2></div><div class="sh-body"><div style="color:var(--txt2);text-align:center;padding:30px 0">Loading…</div></div>`);
+  // Refresh from DB
+  S.customers = await apiGet(`customers?shop_id=eq.${S.shop.id}&order=name`) || S.customers;
+
+  function renderCustList() {
+    const el = document.querySelector('.sh-body');
+    if (!el) return;
+    const rows = S.customers.map(c => {
+      const phone = (c.phone||'').replace(/\D/g,'').replace(/^0/,'254');
+      const waBtn = phone
+        ? `<a href="https://wa.me/${phone}" target="_blank" onclick="event.stopPropagation()"
+              style="font-size:11px;background:#25D36622;color:#25D366;padding:3px 8px;border-radius:20px;text-decoration:none;white-space:nowrap">💬</a>`
+        : '';
+      return `<div class="more-item" onclick="openEditCustomerSheet('${c.id}')">
+        <div class="more-ico" style="background:var(--acc-d)">👤</div>
+        <div class="more-inf">
+          <div class="more-nm">${esc(c.name)}</div>
+          <div class="more-mt">${c.phone||'<span style="color:var(--txt3)">No phone — tap to add</span>'}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">${waBtn}<span style="color:var(--txt3)">›</span></div>
+      </div>`;
+    }).join('');
+    el.innerHTML = `
+      <div style="color:var(--txt2);font-size:12px;margin-bottom:10px">${S.customers.length} customer${S.customers.length!==1?'s':''} · Tap to add/edit phone number</div>
+      <div class="clist">${rows || '<div style="color:var(--txt2);text-align:center;padding:20px 0">No customers yet — they are created when you record a sale</div>'}</div>
+      <button class="btn-g" onclick="popSheet()" style="margin-top:14px">Close</button>`;
+    addFab('+ New Customer', openAddCustomerSheet);
+  }
+  renderCustList();
+}
+
+function openAddCustomerSheet() {
+  pushSheet(`
+    <div class="sh-hand"></div>
+    <div class="sh-hdr"><h2>New Customer</h2></div>
+    <div class="sh-body">
+      <div class="fg-s"><label class="fl">Name *</label>
+        <input type="text" id="nc-name" class="fi" placeholder="e.g. Jane Wanjiku">
+      </div>
+      <div class="fg-s"><label class="fl">Phone (for WhatsApp)</label>
+        <input type="tel" id="nc-phone" class="fi" placeholder="e.g. 0712 345678">
+      </div>
+      <div class="fg-s"><label class="fl">Notes</label>
+        <input type="text" id="nc-notes" class="fi" placeholder="Optional">
+      </div>
+      <button class="btn-p" onclick="saveNewCustomer()">Save Customer ✓</button>
+      <button class="btn-g" onclick="popSheet()">Cancel</button>
+    </div>`);
+}
+
+async function saveNewCustomer() {
+  const name  = document.getElementById('nc-name')?.value?.trim();
+  const phone = document.getElementById('nc-phone')?.value?.trim();
+  const notes = document.getElementById('nc-notes')?.value?.trim();
+  if (!name) { showToast('Enter customer name', true); return; }
+  // Check dupe
+  if (S.customers.find(c => c.name.toLowerCase() === name.toLowerCase())) {
+    showToast('Customer already exists', true); return;
+  }
+  const btn = document.querySelector('.sh-body .btn-p');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  const { data, error } = await apiPost('customers', { shop_id: S.shop.id, name, phone: phone||null, notes: notes||null });
+  if (error) { showToast('Error: '+error.message, true); if(btn){btn.disabled=false;btn.textContent='Save Customer ✓';} return; }
+  if (data) S.customers.push(data);
+  S.customers.sort((a,b)=>a.name.localeCompare(b.name));
+  popSheet();
+  showToast(`✓ ${name} added`);
+  showCustomers();
+}
+
+function openEditCustomerSheet(cid) {
+  const c = S.customers.find(x=>x.id===cid);
+  if (!c) return;
+  pushSheet(`
+    <div class="sh-hand"></div>
+    <div class="sh-hdr"><h2>Edit Customer</h2></div>
+    <div class="sh-body">
+      <div class="fg-s"><label class="fl">Name *</label>
+        <input type="text" id="ec-name" class="fi" value="${esc(c.name)}">
+      </div>
+      <div class="fg-s"><label class="fl">Phone (for WhatsApp)</label>
+        <input type="tel" id="ec-phone" class="fi" value="${esc(c.phone||'')}">
+      </div>
+      <div class="fg-s"><label class="fl">Notes</label>
+        <input type="text" id="ec-notes" class="fi" value="${esc(c.notes||'')}">
+      </div>
+      <div style="background:var(--surf2);border-radius:10px;padding:10px 12px;margin-bottom:14px;font-size:13px">
+        <div style="color:var(--txt2)">Outstanding debt: <b style="${c.outstanding>0?'color:var(--red)':''}">${kes(c.outstanding||0)}</b></div>
+        <div style="color:var(--txt2);margin-top:4px">Total spent: <b>${kes(c.total_spent||0)}</b></div>
+      </div>
+      <button class="btn-p" onclick="saveEditCustomer('${cid}')">Save Changes ✓</button>
+      <button class="btn-g" onclick="popSheet()">Cancel</button>
+    </div>`);
+}
+
+async function saveEditCustomer(cid) {
+  const name  = document.getElementById('ec-name')?.value?.trim();
+  const phone = document.getElementById('ec-phone')?.value?.trim();
+  const notes = document.getElementById('ec-notes')?.value?.trim();
+  if (!name) { showToast('Enter customer name', true); return; }
+  const btn = document.querySelector('.sh-body .btn-p');
+  if (btn) { btn.disabled=true; btn.textContent='Saving…'; }
+  const { error } = await apiPatch('customers', `id=eq.${cid}`, { name, phone: phone||null, notes: notes||null });
+  if (error) { showToast('Error: '+error.message, true); if(btn){btn.disabled=false;btn.textContent='Save Changes ✓';} return; }
+  const local = S.customers.find(x=>x.id===cid);
+  if (local) { local.name=name; local.phone=phone||null; local.notes=notes||null; }
+  popSheet();
+  showToast('✓ Customer updated');
+  showCustomers();
+}
+
+/* ═══════════════════════════════
+   PURCHASES DASHBOARD
+═══════════════════════════════ */
+async function showPurchasesDashboard() {
+  pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>Purchases</h2></div><div class="sh-body"><div style="color:var(--txt2);text-align:center;padding:30px 0">Loading…</div></div>`);
+
+  const orders = await apiGet(`stock_orders?shop_id=eq.${S.shop.id}&order=order_date.desc`);
+  const all = orders || [];
+
+  // ── KPI calculations ──
+  const totalSpend   = all.reduce((s,o) => s + parseFloat(o.total_cost||0), 0);
+  const totalOwed    = all.reduce((s,o) => s + parseFloat(o.credit_amount||0), 0);
+  const orderCount   = all.length;
+
+  // ── Spend by supplier ──
+  const bySupplier = {};
+  all.forEach(o => {
+    const key = o.supplier_name || 'No supplier';
+    if (!bySupplier[key]) bySupplier[key] = { spend: 0, owed: 0 };
+    bySupplier[key].spend += parseFloat(o.total_cost||0);
+    bySupplier[key].owed  += parseFloat(o.credit_amount||0);
+  });
+  const supRows = Object.entries(bySupplier)
+    .sort((a,b) => b[1].spend - a[1].spend)
+    .slice(0,8)
+    .map(([name, v]) => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--bdr)">
+        <div>
+          <div style="font-weight:600;font-size:14px">${esc(name)}</div>
+          ${v.owed>0?`<div style="font-size:11px;color:var(--red)">Owes ${kes(v.owed)}</div>`:'<div style="font-size:11px;color:var(--grn)">Fully paid</div>'}
+        </div>
+        <div style="font-size:14px;font-weight:700">${kes(v.spend)}</div>
+      </div>`).join('');
+
+  // ── Last 8 weeks spend ──
+  const weekBuckets = {};
+  const now = new Date();
+  for (let i=7; i>=0; i--) {
+    const d = new Date(now); d.setDate(d.getDate() - i*7);
+    const wk = `W${d.toLocaleDateString('en-KE',{month:'short',day:'numeric'})}`;
+    weekBuckets[wk] = 0;
+  }
+  all.forEach(o => {
+    const d = new Date(o.order_date);
+    const diffDays = Math.floor((now-d)/(86400000));
+    if (diffDays > 56) return;
+    const wkIdx = Math.floor(diffDays/7);
+    const wkD = new Date(now); wkD.setDate(wkD.getDate() - wkIdx*7);
+    const wk = `W${wkD.toLocaleDateString('en-KE',{month:'short',day:'numeric'})}`;
+    if (weekBuckets[wk] !== undefined) weekBuckets[wk] += parseFloat(o.total_cost||0);
+  });
+  const wkLabels = Object.keys(weekBuckets);
+  const wkVals   = Object.values(weekBuckets);
+  const maxWk    = Math.max(...wkVals, 1);
+  const barChart = wkLabels.map((lbl,i) => {
+    const pct = Math.round(wkVals[i]/maxWk*100);
+    return `<div style="display:flex;flex-direction:column;align-items:center;flex:1;gap:4px">
+      <div style="font-size:9px;color:var(--txt2);text-align:center">${kes(wkVals[i]).replace('KES ','')}</div>
+      <div style="width:100%;background:var(--surf2);border-radius:4px;height:60px;display:flex;align-items:flex-end">
+        <div style="width:100%;background:var(--acc);border-radius:4px;height:${pct}%;min-height:${wkVals[i]>0?'4px':'0'}"></div>
+      </div>
+      <div style="font-size:8px;color:var(--txt3);text-align:center;line-height:1.1">${lbl.replace('W','')}</div>
+    </div>`;
+  }).join('');
+
+  // ── Recent orders list ──
+  const recentRows = all.slice(0,20).map(o => {
+    const pm = o.payment_method==='cash'?'💵':o.payment_method==='credit'?'📋':'💵📋';
+    const dt = new Date(o.order_date).toLocaleDateString('en-KE',{day:'numeric',month:'short',year:'2-digit'});
+    return `<div class="more-item">
+      <div class="more-ico" style="background:#0f766e22">📥</div>
+      <div class="more-inf">
+        <div class="more-nm">${esc(o.supplier_name||'No supplier')} ${pm}</div>
+        <div class="more-mt">${dt}${o.credit_amount>0?` · <span style="color:var(--red)">Owes ${kes(o.credit_amount)}</span>`:' · Paid'}</div>
+      </div>
+      <div style="font-weight:700;font-size:13px">${kes(o.total_cost)}</div>
+    </div>`;
+  }).join('');
+
+  const sheet = document.querySelector('.sh-body');
+  if (!sheet) return;
+  sheet.innerHTML = `
+    <!-- KPI tiles -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+      <div style="background:var(--surf);border:1px solid var(--bdr);border-radius:14px;padding:14px">
+        <div style="font-size:11px;color:var(--txt2);margin-bottom:4px">Total Spent</div>
+        <div style="font-size:20px;font-weight:800">${kes(totalSpend)}</div>
+      </div>
+      <div style="background:var(--surf);border:1px solid var(--bdr);border-radius:14px;padding:14px">
+        <div style="font-size:11px;color:var(--txt2);margin-bottom:4px">Owed to Suppliers</div>
+        <div style="font-size:20px;font-weight:800;color:${totalOwed>0?'var(--red)':'var(--grn)'}">${kes(totalOwed)}</div>
+      </div>
+      <div style="background:var(--surf);border:1px solid var(--bdr);border-radius:14px;padding:14px">
+        <div style="font-size:11px;color:var(--txt2);margin-bottom:4px">Orders Made</div>
+        <div style="font-size:20px;font-weight:800">${orderCount}</div>
+      </div>
+      <div style="background:var(--surf);border:1px solid var(--bdr);border-radius:14px;padding:14px">
+        <div style="font-size:11px;color:var(--txt2);margin-bottom:4px">Cash Paid Out</div>
+        <div style="font-size:20px;font-weight:800">${kes(totalSpend - totalOwed)}</div>
+      </div>
+    </div>
+
+    <!-- Weekly spend chart -->
+    <div style="background:var(--surf);border:1px solid var(--bdr);border-radius:14px;padding:14px;margin-bottom:16px">
+      <div style="font-size:12px;font-weight:700;margin-bottom:10px">Spend — Last 8 Weeks</div>
+      <div style="display:flex;gap:4px;align-items:flex-end">${barChart}</div>
+    </div>
+
+    <!-- Supplier breakdown -->
+    ${supRows?`<div style="background:var(--surf);border:1px solid var(--bdr);border-radius:14px;padding:14px;margin-bottom:16px">
+      <div style="font-size:12px;font-weight:700;margin-bottom:6px">By Supplier</div>
+      ${supRows}
+    </div>`:''}
+
+    <!-- Order history -->
+    <div class="sec-ttl" style="margin-bottom:8px">Order History</div>
+    <div class="clist">${recentRows||'<div style="color:var(--txt2);text-align:center;padding:20px 0">No orders yet</div>'}</div>
+
+    <button class="btn-g" onclick="popSheet()" style="margin-top:14px">Close</button>`;
+
+  addFab('+ Record Purchase', openNewOrderSheet);
 }
 
 /* ═══════════════════════════════
