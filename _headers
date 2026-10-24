@@ -1,0 +1,14 @@
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+
+/sw.js
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/manifest.json
+  Cache-Control: no-cache
+  Content-Type: application/manifest+json
+
+/admin-manifest.json
+  Cache-Control: no-cache
+  Content-Type: application/manifest+json
