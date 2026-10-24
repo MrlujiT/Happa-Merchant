@@ -774,9 +774,13 @@ function renderMore(el) {
           <div class="more-ico" style="background:#0f766e22">📥</div>
           <div class="more-inf"><div class="more-nm">Purchases</div><div class="more-mt">Orders, supplier debt & spend history</div></div>
           <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showCreatePromotion()">
+          <div class="more-ico" style="background:#f59e0b22">🎉</div>
+          <div class="more-inf"><div class="more-nm">Create Promotion</div><div class="more-mt">Discount products & blast via WhatsApp</div></div>
+          <span style="color:var(--txt3)">›</span></div>
         <div class="more-item" onclick="showWhatsAppBroadcast()">
           <div class="more-ico" style="background:#25D36622">💬</div>
-          <div class="more-inf"><div class="more-nm">Send WhatsApp</div><div class="more-mt">Message clients — promos & reminders</div></div>
+          <div class="more-inf"><div class="more-nm">Send WhatsApp</div><div class="more-mt">Custom message to all clients</div></div>
           <span style="color:var(--txt3)">›</span></div>
       </div>`:''}
 
@@ -800,7 +804,7 @@ function renderMore(el) {
       <div class="clist">
         <div class="more-item" style="cursor:default">
           <div class="more-ico" style="background:var(--acc-d)">ℹ️</div>
-          <div class="more-inf"><div class="more-nm">Happa Merchant v1.3</div><div class="more-mt">Business intelligence for small shops</div></div>
+          <div class="more-inf"><div class="more-nm">Happa Merchant v1.4</div><div class="more-mt">Business intelligence for small shops</div></div>
         </div>
       </div>
     </div>
@@ -1139,13 +1143,13 @@ function showInviteSheet() {
     <div class="sh-hdr"><h2>Add Staff</h2></div>
     <div class="sh-body">
       <p style="font-size:13px;color:var(--txt2);margin-bottom:16px;line-height:1.6">
-        Your staff member will receive a link to set up their account. They'll only see sales and recent transactions.
+        Enter their name and email. They'll receive a setup link by email — once they click it, they can log in to Happa Merchant and record sales.
       </p>
       <div class="fg-s"><label class="fl">Staff Member's Name *</label>
         <input type="text" id="inv-name" class="fi" placeholder="e.g. John Kariuki"></div>
       <div class="fg-s"><label class="fl">Their Email Address *</label>
         <input type="email" id="inv-email" class="fi" placeholder="johnk@email.com"></div>
-      <button class="btn-p" onclick="sendCashierInvite()">Send Invite</button>
+      <button class="btn-p" onclick="sendCashierInvite()">📧 Send Invite Email</button>
       <button class="btn-g" onclick="closeSaleSheet()">Cancel</button>
     </div>`;
   document.getElementById('sale-overlay').classList.add('on');
@@ -1156,19 +1160,29 @@ async function sendCashierInvite() {
   const email = document.getElementById('inv-email')?.value?.trim();
   if (!name || !email) { showToast('Fill in name and email', true); return; }
 
-  // Use return=minimal to avoid the SELECT policy which queries auth.users
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/invites`, {
+  const btn = document.querySelector('#sale-sheet .btn-p');
+  if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+
+  // Call edge function which sends the actual Supabase invite email
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/invite-staff`, {
     method: 'POST',
-    headers: { ...apiHeaders(), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-    body: JSON.stringify({ shop_id: S.shop.id, email, role: 'cashier', invited_by: S.user.id }),
+    headers: { ...apiHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ shop_id: S.shop.id, email, name, role: 'cashier' }),
   });
+
+  const payload = await res.json().catch(() => ({}));
+
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    showToast('Error: ' + (err.message || err.details || `HTTP ${res.status}`), true); return;
+    const msg = payload.error || `HTTP ${res.status}`;
+    showToast('Error: ' + msg, true);
+    if (btn) { btn.disabled = false; btn.textContent = '📧 Send Invite Email'; }
+    return;
   }
+
   closeSaleSheet();
-  showToast(`✓ Invite recorded for ${name}`);
-  showConf('Staff Added', `${name} (${email}) has been added. Go to the Admin app to send their login link.`, ()=>{});
+  const note = payload.note ? ' (they already have an account)' : '';
+  showToast(`✓ Invite sent to ${email}`);
+  showConf('Invite Sent! 🎉', `${name} will receive an email at ${email} with a link to set up their Happa Merchant account${note}. Once they sign in they can start recording sales for ${S.shop.name}.`, ()=>{});
 }
 
 /* ═══════════════════════════════
@@ -1752,6 +1766,166 @@ function openWa(phone, name) {
   if (!raw) { showToast('Write a message first', true); return; }
   const msg = raw.replace(/\{name\}/gi, name);
   window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+}
+
+/* ═══════════════════════════════
+   PROMOTIONS
+═══════════════════════════════ */
+function showCreatePromotion() {
+  // Build product checkboxes
+  const prods = S.products.map(p => `
+    <label style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--bdr);cursor:pointer">
+      <input type="checkbox" class="promo-prod-cb" value="${p.id}" style="width:18px;height:18px;accent-color:var(--acc)">
+      <span style="font-size:18px">${p.emoji||'📦'}</span>
+      <div style="flex:1">
+        <div style="font-weight:600;font-size:14px">${esc(p.name)}</div>
+        <div style="font-size:12px;color:var(--txt2)">${kes(p.sell_price)}</div>
+      </div>
+      <div class="promo-price-tag" data-id="${p.id}" style="font-size:12px;color:var(--acc);font-weight:700"></div>
+    </label>`).join('');
+
+  pushSheet(`
+    <div class="sh-hand"></div>
+    <div class="sh-hdr"><h2>Create Promotion</h2></div>
+    <div class="sh-body">
+      <div class="fg-s"><label class="fl">Promotion Title *</label>
+        <input type="text" id="promo-title" class="fi" placeholder="e.g. Weekend Special 🎉" oninput="updatePromoDraft()">
+      </div>
+      <div class="fg-s"><label class="fl">Discount</label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="number" id="promo-disc" class="fi" placeholder="e.g. 10" min="1" max="99" style="max-width:100px" oninput="updatePromoPrices();updatePromoDraft()">
+          <span style="color:var(--txt2)">% off</span>
+        </div>
+      </div>
+      <div class="sec-ttl" style="margin:14px 0 6px">Select Products *</div>
+      <div id="promo-prod-list">${prods}</div>
+
+      <div class="sec-ttl" style="margin:14px 0 6px">Your Message</div>
+      <textarea id="promo-draft" class="fi" rows="6"
+        style="resize:vertical;min-height:120px;font-size:13px;line-height:1.6"
+        placeholder="Fill in the title and select products to generate a draft…"></textarea>
+      <div style="font-size:11px;color:var(--txt3);margin-bottom:14px">You can edit the message before sending.</div>
+
+      <button class="btn-p" onclick="sendPromoBroadcast()">💬 Send via WhatsApp</button>
+      <button class="btn-g" onclick="popSheet()">Cancel</button>
+    </div>`);
+
+  // Wire up checkboxes to refresh draft
+  document.querySelectorAll('.promo-prod-cb').forEach(cb => {
+    cb.addEventListener('change', () => { updatePromoPrices(); updatePromoDraft(); });
+  });
+}
+
+function updatePromoPrices() {
+  const disc = parseFloat(document.getElementById('promo-disc')?.value||0);
+  document.querySelectorAll('.promo-prod-cb').forEach(cb => {
+    const p   = S.products.find(x=>x.id===cb.value);
+    const tag = document.querySelector(`.promo-price-tag[data-id="${cb.value}"]`);
+    if (!p || !tag) return;
+    if (cb.checked && disc > 0) {
+      const salePrice = Math.round(p.sell_price * (1 - disc/100));
+      tag.textContent = `→ ${kes(salePrice)}`;
+    } else {
+      tag.textContent = '';
+    }
+  });
+}
+
+function updatePromoDraft() {
+  const title = document.getElementById('promo-title')?.value?.trim();
+  const disc  = parseFloat(document.getElementById('promo-disc')?.value||0);
+  const selected = [...document.querySelectorAll('.promo-prod-cb:checked')]
+    .map(cb => S.products.find(x=>x.id===cb.value))
+    .filter(Boolean);
+
+  if (!title && !selected.length) {
+    document.getElementById('promo-draft').value = '';
+    return;
+  }
+
+  const shopName = S.shop.name;
+  let msg = `🎉 *${title || 'Special Offer'} at ${shopName}!*\n\n`;
+
+  if (selected.length) {
+    if (disc > 0) {
+      msg += `Get *${disc}% OFF* on:\n`;
+      selected.forEach(p => {
+        const salePrice = Math.round(p.sell_price * (1 - disc/100));
+        msg += `• ${p.emoji||'📦'} ${p.name} — ~~${kes(p.sell_price)}~~ *${kes(salePrice)}*\n`;
+      });
+    } else {
+      msg += `Featured items:\n`;
+      selected.forEach(p => {
+        msg += `• ${p.emoji||'📦'} ${p.name} — ${kes(p.sell_price)}\n`;
+      });
+    }
+    msg += `\n`;
+  }
+
+  msg += `📍 ${S.shop.location || shopName}\n`;
+  if (S.shop.mpesa_till) msg += `📱 Pay via M-Pesa Till: ${S.shop.mpesa_till}\n`;
+  msg += `\nDon't miss out — limited time offer! 🛒`;
+
+  document.getElementById('promo-draft').value = msg;
+}
+
+function sendPromoBroadcast() {
+  const msg = document.getElementById('promo-draft')?.value?.trim();
+  if (!msg) { showToast('Add a title and select products first', true); return; }
+
+  // Pop current sheet, push a customer picker with this message pre-loaded
+  const encodedMsg = encodeURIComponent(msg);
+  popSheet();
+
+  // Load customers with phones
+  const custs = (S.customers||[]).filter(c=>c.phone);
+  if (!custs.length) {
+    showToast('No customers with phone numbers yet — add them under Customers', true);
+    return;
+  }
+
+  pushSheet(`
+    <div class="sh-hand"></div>
+    <div class="sh-hdr"><h2>Send Promotion</h2></div>
+    <div class="sh-body">
+      <div style="background:var(--surf2);border-radius:10px;padding:10px 12px;font-size:12px;color:var(--txt2);margin-bottom:14px;white-space:pre-wrap;line-height:1.5">${esc(msg)}</div>
+      <div class="sec-ttl" style="margin-bottom:8px">Send to (${custs.length} customers with WhatsApp)</div>
+      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+        <button class="btn-sm" onclick="promoSelectAll(true)">Select All</button>
+        <button class="btn-sm" onclick="promoSelectAll(false)">Deselect All</button>
+      </div>
+      <div id="promo-send-list">
+        ${custs.map(c => {
+          const phone = (c.phone||'').replace(/\D/g,'').replace(/^0/,'254');
+          return `<label style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bdr);cursor:pointer">
+            <input type="checkbox" class="promo-send-cb" value="${phone}" data-name="${esc(c.name)}" checked style="width:18px;height:18px;accent-color:var(--acc)">
+            <div class="more-ico" style="background:#25D36622;width:32px;height:32px;font-size:16px">💬</div>
+            <div><div style="font-weight:600;font-size:14px">${esc(c.name)}</div><div style="font-size:12px;color:var(--txt2)">${c.phone}</div></div>
+          </label>`;
+        }).join('')}
+      </div>
+      <button class="btn-p" style="margin-top:14px" onclick="openPromoLinks('${encodedMsg}')">Open WhatsApp Chats ›</button>
+      <button class="btn-g" onclick="popSheet()">Cancel</button>
+    </div>`);
+}
+
+function promoSelectAll(state) {
+  document.querySelectorAll('.promo-send-cb').forEach(cb => cb.checked = state);
+}
+
+function openPromoLinks(encodedMsg) {
+  const selected = [...document.querySelectorAll('.promo-send-cb:checked')];
+  if (!selected.length) { showToast('Select at least one customer', true); return; }
+  const msg = decodeURIComponent(encodedMsg);
+  selected.forEach((cb, i) => {
+    const phone    = cb.value;
+    const name     = cb.getAttribute('data-name') || '';
+    const personal = msg.replace(/\{name\}/gi, name);
+    // Stagger slightly so browser doesn't block popups
+    setTimeout(() => window.open(`https://wa.me/${phone}?text=${encodeURIComponent(personal)}`, '_blank'), i * 300);
+  });
+  popSheet();
+  showToast(`✓ Opened ${selected.length} WhatsApp chat${selected.length!==1?'s':''}`);
 }
 
 /* ═══════════════════════════════
