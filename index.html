@@ -418,9 +418,15 @@ async function apiPatch(table, filter, body) {
     showPage('auth');
   }
 
-  db.auth.onAuthStateChange((event, session) => {
-    if (event === 'SIGNED_OUT') { currentSession = null; S.user = null; showPage('auth'); }
+  db.auth.onAuthStateChange(async (event, session) => {
     if (event === 'TOKEN_REFRESHED' && session) { currentSession = session; }
+    if (event === 'SIGNED_OUT') {
+      // Mobile PWAs fire SIGNED_OUT when screen sleeps — try to recover first
+      await new Promise(r => setTimeout(r, 500));
+      const { data } = await db.auth.getSession().catch(() => ({ data: null }));
+      if (data?.session) { currentSession = data.session; return; }
+      currentSession = null; S.user = null; showPage('auth');
+    }
   });
 
   // Enter key on auth inputs
@@ -702,15 +708,19 @@ async function renderDebts(el) {
       const days = d.due_date ? Math.ceil((new Date(d.due_date)-new Date())/86400000) : null;
       const overdue = days !== null && days < 0;
       const ini = (c?.name||'?').split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2);
+      const waMsg = encodeURIComponent(`Hi ${c?.name||''}, you have an outstanding balance of KES ${kes(d.balance).replace('KES ','').replace(',','')} at ${S.shop.name}. Please settle at your earliest convenience. Thank you!`);
+      const waPhone = (c?.phone||'').replace(/\D/g,'').replace(/^0/,'254');
+      const waLink  = waPhone ? `https://wa.me/${waPhone}?text=${waMsg}` : '';
       h += `<div class="dbi" onclick="openDebtPaySheet('${d.id}','${c?.name||''}',${d.balance})">
         <div class="db-av">${ini}</div>
         <div class="db-inf">
           <div class="db-nm">${c?.name||'Unknown'}</div>
-          <div class="db-mt">${c?.phone||''}${d.due_date?` · Due ${new Date(d.due_date).toLocaleDateString('en-KE',{day:'numeric',month:'short'})}`:''}</div>
+          <div class="db-mt">${c?.phone||'No phone'}${d.due_date?` · Due ${new Date(d.due_date).toLocaleDateString('en-KE',{day:'numeric',month:'short'})}`:''}</div>
         </div>
-        <div class="db-amt">
+        <div class="db-amt" style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
           <div class="db-val">${kes(d.balance)}</div>
           ${days!==null?`<div class="db-days" style="${overdue?'color:var(--red)':''}">${overdue?`${Math.abs(days)}d overdue`:`${days}d left`}</div>`:''}
+          ${waLink?`<a href="${waLink}" target="_blank" onclick="event.stopPropagation()" style="font-size:11px;background:#25D36622;color:#25D366;padding:2px 7px;border-radius:20px;text-decoration:none;white-space:nowrap">💬 Remind</a>`:''}
         </div>
       </div>`;
     });
@@ -756,6 +766,14 @@ function renderMore(el) {
           <div class="more-ico" style="background:#d9770622">🏆</div>
           <div class="more-inf"><div class="more-nm">Top Clients</div><div class="more-mt">Your best customers</div></div>
           <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showStockOrders()">
+          <div class="more-ico" style="background:#0f766e22">📥</div>
+          <div class="more-inf"><div class="more-nm">Stock Orders</div><div class="more-mt">Record purchases from suppliers</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showWhatsAppBroadcast()">
+          <div class="more-ico" style="background:#25D36622">💬</div>
+          <div class="more-inf"><div class="more-nm">Send WhatsApp</div><div class="more-mt">Message clients — promos & reminders</div></div>
+          <span style="color:var(--txt3)">›</span></div>
       </div>`:''}
 
       <div class="sec-ttl" style="margin-bottom:10px;margin-top:14px">Team</div>
@@ -778,7 +796,7 @@ function renderMore(el) {
       <div class="clist">
         <div class="more-item" style="cursor:default">
           <div class="more-ico" style="background:var(--acc-d)">ℹ️</div>
-          <div class="more-inf"><div class="more-nm">Happa Merchant v1.1</div><div class="more-mt">Business intelligence for small shops</div></div>
+          <div class="more-inf"><div class="more-nm">Happa Merchant v1.2</div><div class="more-mt">Business intelligence for small shops</div></div>
         </div>
       </div>
     </div>
@@ -798,6 +816,10 @@ function addToCart(pid) {
   const p = S.products.find(x=>x.id===pid);
   if (!p) return;
   const ex = S.cart.find(x=>x.product.id===pid);
+  const currentQty = ex ? ex.qty : 0;
+  if (p.stock != null && currentQty >= p.stock) {
+    showToast(`Only ${p.stock} ${p.unit||'units'} in stock`, true); return;
+  }
   if (ex) ex.qty++; else S.cart.push({product:p, qty:1});
   renderSaleSheet();
 }
@@ -810,7 +832,12 @@ function removeFromCart(pid) {
 function cartQty(pid, delta) {
   const item = S.cart.find(x=>x.product.id===pid);
   if (!item) return;
-  item.qty = Math.max(1, item.qty + delta);
+  const p = item.product;
+  const newQty = Math.max(1, item.qty + delta);
+  if (delta > 0 && p.stock != null && newQty > p.stock) {
+    showToast(`Only ${p.stock} ${p.unit||'units'} in stock`, true); return;
+  }
+  item.qty = newQty;
   renderSaleSheet();
 }
 
@@ -1125,18 +1152,19 @@ async function sendCashierInvite() {
   const email = document.getElementById('inv-email')?.value?.trim();
   if (!name || !email) { showToast('Fill in name and email', true); return; }
 
-  const { error } = await apiPost('invites', {
-    shop_id: S.shop.id, email, role: 'cashier', invited_by: S.user.id,
+  // Use return=minimal to avoid the SELECT policy which queries auth.users
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/invites`, {
+    method: 'POST',
+    headers: { ...apiHeaders(), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+    body: JSON.stringify({ shop_id: S.shop.id, email, role: 'cashier', invited_by: S.user.id }),
   });
-
-  if (error) { showToast('Error: ' + error.message, true); return; }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    showToast('Error: ' + (err.message || err.details || `HTTP ${res.status}`), true); return;
+  }
   closeSaleSheet();
   showToast(`✓ Invite recorded for ${name}`);
-  showConf(
-    'Invite Created',
-    `Go to the Happa Admin panel to send ${name} (${email}) their access link.`,
-    ()=>{}
-  );
+  showConf('Staff Added', `${name} (${email}) has been added. Go to the Admin app to send their login link.`, ()=>{});
 }
 
 /* ═══════════════════════════════
@@ -1222,10 +1250,55 @@ function stockRow(p) {
       <div class="st-pr">${kes(p.sell_price)} · ${margin}% margin</div>
     </div>
     <div class="st-lvl">
-      <div class="st-cnt" style="${isLow?'color:var(--red)':''}">${p.stock} ${p.unit}</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="st-cnt" style="${isLow?'color:var(--red)':''}">${p.stock} ${p.unit}</div>
+        <button class="btn-sm" style="font-size:11px;padding:3px 8px" onclick="event.stopPropagation();openRestockSheet('${p.id}')">+ Stock</button>
+      </div>
       <div class="st-bar"><div class="st-fill" style="width:${pct}%;background:${col}"></div></div>
     </div>
   </div>`;
+}
+
+function openRestockSheet(pid) {
+  const p = S.products.find(x=>x.id===pid);
+  if (!p) return;
+  pushSheet(`
+    <div class="sh-hand"></div>
+    <div class="sh-hdr"><h2>Add Stock — ${esc(p.name)}</h2></div>
+    <div class="sh-body">
+      <div style="text-align:center;font-size:40px;margin-bottom:4px">${p.emoji||'📦'}</div>
+      <div style="text-align:center;color:var(--txt2);margin-bottom:16px">Current stock: <b>${p.stock} ${p.unit}</b></div>
+      <div class="fg-s"><label class="fl">Quantity to Add *</label>
+        <input type="number" id="rst-qty" class="fi" placeholder="e.g. 50" min="1">
+      </div>
+      <div class="fg-s"><label class="fl">Cost per Unit (KES)</label>
+        <input type="number" id="rst-cost" class="fi" placeholder="Optional — updates buy price">
+      </div>
+      <div class="fg-s"><label class="fl">Notes</label>
+        <input type="text" id="rst-notes" class="fi" placeholder="e.g. Restocked from supplier">
+      </div>
+      <button class="btn-p" onclick="saveRestock('${pid}')">Add Stock ✓</button>
+      <button class="btn-g" onclick="popSheet()">Cancel</button>
+    </div>`);
+}
+
+async function saveRestock(pid) {
+  const p = S.products.find(x=>x.id===pid);
+  if (!p) return;
+  const qty  = parseFloat(document.getElementById('rst-qty')?.value||0);
+  const cost = parseFloat(document.getElementById('rst-cost')?.value||0);
+  if (!qty || qty <= 0) { showToast('Enter a valid quantity', true); return; }
+  const btn = document.querySelector('.sh-body .btn-p');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  const updates = { stock: p.stock + qty };
+  if (cost > 0) updates.buy_price = cost;
+  const { error } = await apiPatch('products', `id=eq.${pid}`, updates);
+  if (error) { showToast('Error: ' + error.message, true); if(btn){btn.disabled=false;btn.textContent='Add Stock ✓';} return; }
+  p.stock += qty;
+  if (cost > 0) p.buy_price = cost;
+  popSheet();
+  showToast(`✓ ${qty} ${p.unit} added to ${p.name}`);
+  showTab('stock');
 }
 
 function isToday(d) {
@@ -1456,6 +1529,225 @@ async function saveSupplier() {
   popSheet();
   showToast(`🚚 Supplier "${name}" added`);
   showSuppliers(); // refresh
+}
+
+/* ═══════════════════════════════
+   STOCK ORDERS (PURCHASES)
+═══════════════════════════════ */
+async function showStockOrders() {
+  pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>Stock Orders</h2></div><div class="sh-body"><div style="color:var(--txt2);text-align:center;padding:30px 0">Loading…</div></div>`);
+  const orders = await apiGet(`stock_orders?shop_id=eq.${S.shop.id}&order=order_date.desc&limit=50`);
+
+  let list = '';
+  (orders||[]).forEach(o => {
+    const pm = o.payment_method==='cash'?'💵 Cash':o.payment_method==='credit'?'📋 Credit':'💵+📋 Mixed';
+    list += `<div class="more-item">
+      <div class="more-ico" style="background:#0f766e22">📥</div>
+      <div class="more-inf">
+        <div class="more-nm">${esc(o.supplier_name||'No supplier')} · ${new Date(o.order_date).toLocaleDateString('en-KE',{day:'numeric',month:'short'})}</div>
+        <div class="more-mt">${kes(o.total_cost)} · ${pm}</div>
+      </div>
+    </div>`;
+  });
+
+  const sheet = document.querySelector('.sh-body');
+  if (!sheet) return;
+  sheet.innerHTML = `
+    <div class="clist">${list||'<div style="color:var(--txt2);text-align:center;padding:20px 0">No orders yet</div>'}</div>
+    <button class="btn-g" onclick="popSheet()">Close</button>`;
+  addFab('+ Record Purchase', openNewOrderSheet);
+}
+
+// State for current order being built
+S.orderItems = [];
+
+function openNewOrderSheet() {
+  S.orderItems = [];
+  // Load suppliers for picker
+  const supOpts = S.suppliers.map(s=>`<option value="${s.id}" data-name="${esc(s.name)}">${esc(s.name)}</option>`).join('');
+
+  pushSheet(`
+    <div class="sh-hand"></div>
+    <div class="sh-hdr"><h2>Record Purchase</h2></div>
+    <div class="sh-body">
+      <div class="fg-s"><label class="fl">Date</label>
+        <input type="date" id="ord-date" class="fi" value="${new Date().toISOString().slice(0,10)}">
+      </div>
+      <div class="fg-s"><label class="fl">Supplier (optional)</label>
+        <select id="ord-sup" class="fi"><option value="">— No supplier —</option>${supOpts}</select>
+      </div>
+
+      <div class="sec-ttl" style="margin:14px 0 8px">Items Ordered</div>
+      <div id="ord-items-list"></div>
+      <button class="btn-sm" style="width:100%;margin-bottom:14px" onclick="openOrderItemPicker()">+ Add Item</button>
+
+      <div class="sec-ttl" style="margin-bottom:8px">Payment</div>
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <button class="method-btn sel" onclick="setOrderPayment('cash')">💵 Cash</button>
+        <button class="method-btn" onclick="setOrderPayment('credit')">📋 Credit</button>
+        <button class="method-btn" onclick="setOrderPayment('mixed')">Mixed</button>
+      </div>
+      <div id="ord-cash-field" style="display:none">
+        <div class="fg-s"><label class="fl">Cash Paid (KES)</label>
+          <input type="number" id="ord-cash" class="fi" placeholder="Amount paid now">
+        </div>
+      </div>
+
+      <div class="fg-s"><label class="fl">Notes</label>
+        <input type="text" id="ord-notes" class="fi" placeholder="Optional notes">
+      </div>
+      <div id="ord-total-row" style="font-weight:700;font-size:15px;margin-bottom:12px;color:var(--txt)">Total: KES 0</div>
+      <button class="btn-p" onclick="saveStockOrder()">Save Order ✓</button>
+      <button class="btn-g" onclick="popSheet()">Cancel</button>
+    </div>`);
+  S.orderPayment = 'cash';
+  renderOrderItems();
+}
+
+function setOrderPayment(m) {
+  S.orderPayment = m;
+  document.querySelectorAll('#ord-items-list ~ .method-btn, .sh-body .method-btn').forEach(b => {
+    b.classList.toggle('sel', b.textContent.toLowerCase().includes(m==='cash'?'cash':m==='credit'?'credit':'mixed'));
+  });
+  const cf = document.getElementById('ord-cash-field');
+  if (cf) cf.style.display = m === 'mixed' ? 'block' : 'none';
+}
+
+function openOrderItemPicker() {
+  const prodOpts = S.products.map(p=>`<option value="${p.id}">${p.emoji||'📦'} ${esc(p.name)} (stock: ${p.stock})</option>`).join('');
+  pushSheet(`
+    <div class="sh-hand"></div>
+    <div class="sh-hdr"><h2>Add Item to Order</h2></div>
+    <div class="sh-body">
+      <div class="fg-s"><label class="fl">Product *</label>
+        <select id="oi-prod" class="fi"><option value="">Select product…</option>${prodOpts}</select>
+      </div>
+      <div class="fg-s"><label class="fl">Quantity *</label>
+        <input type="number" id="oi-qty" class="fi" placeholder="e.g. 24" min="1">
+      </div>
+      <div class="fg-s"><label class="fl">Cost per Unit (KES) *</label>
+        <input type="number" id="oi-cost" class="fi" placeholder="e.g. 45">
+      </div>
+      <button class="btn-p" onclick="addOrderItem()">Add to Order</button>
+      <button class="btn-g" onclick="popSheet()">Cancel</button>
+    </div>`);
+}
+
+function addOrderItem() {
+  const pid  = document.getElementById('oi-prod')?.value;
+  const qty  = parseFloat(document.getElementById('oi-qty')?.value||0);
+  const cost = parseFloat(document.getElementById('oi-cost')?.value||0);
+  const p    = S.products.find(x=>x.id===pid);
+  if (!p)    { showToast('Select a product', true); return; }
+  if (!qty || qty <= 0)  { showToast('Enter quantity', true); return; }
+  if (!cost || cost <= 0){ showToast('Enter cost per unit', true); return; }
+  const existing = S.orderItems.find(i=>i.product_id===pid);
+  if (existing) { existing.quantity += qty; existing.total_cost = existing.quantity * existing.unit_cost; }
+  else S.orderItems.push({ product_id: pid, product_name: p.name, quantity: qty, unit_cost: cost, total_cost: qty*cost, _product: p });
+  popSheet();
+  renderOrderItems();
+}
+
+function renderOrderItems() {
+  const el = document.getElementById('ord-items-list');
+  if (!el) return;
+  if (!S.orderItems.length) { el.innerHTML = '<div style="color:var(--txt2);font-size:13px;margin-bottom:8px">No items added yet</div>'; }
+  else {
+    el.innerHTML = S.orderItems.map((i,idx)=>`
+      <div class="more-item" style="margin-bottom:6px">
+        <div class="more-inf">
+          <div class="more-nm">${esc(i.product_name)}</div>
+          <div class="more-mt">${i.quantity} × ${kes(i.unit_cost)} = ${kes(i.total_cost)}</div>
+        </div>
+        <button class="btn-sm" style="color:var(--red);background:var(--red-d)" onclick="removeOrderItem(${idx})">✕</button>
+      </div>`).join('');
+  }
+  const total = S.orderItems.reduce((a,i)=>a+i.total_cost, 0);
+  const tr = document.getElementById('ord-total-row');
+  if (tr) tr.textContent = `Total: ${kes(total)}`;
+}
+
+function removeOrderItem(idx) {
+  S.orderItems.splice(idx, 1);
+  renderOrderItems();
+}
+
+async function saveStockOrder() {
+  if (!S.orderItems.length) { showToast('Add at least one item', true); return; }
+  const date  = document.getElementById('ord-date')?.value || new Date().toISOString().slice(0,10);
+  const supEl = document.getElementById('ord-sup');
+  const supId = supEl?.value || null;
+  const supName = supId ? (S.suppliers.find(s=>s.id===supId)?.name||null) : null;
+  const notes = document.getElementById('ord-notes')?.value.trim()||null;
+  const total = S.orderItems.reduce((a,i)=>a+i.total_cost, 0);
+  const pm    = S.orderPayment||'cash';
+  const cashPaid = pm==='cash' ? total : pm==='credit' ? 0 : parseFloat(document.getElementById('ord-cash')?.value||0);
+  const creditAmt = total - cashPaid;
+
+  const btn = document.querySelector('.sh-body .btn-p');
+  if (btn) { btn.disabled=true; btn.textContent='Saving…'; }
+
+  const { data: order, error: oe } = await apiPost('stock_orders', {
+    shop_id: S.shop.id, supplier_id: supId, supplier_name: supName,
+    order_date: date, total_cost: total, payment_method: pm,
+    cash_paid: cashPaid, credit_amount: creditAmt, notes,
+    recorded_by: S.user.id,
+  });
+  if (oe) { showToast('Error: '+oe.message,true); if(btn){btn.disabled=false;btn.textContent='Save Order ✓';} return; }
+
+  // Insert items and update stock
+  for (const item of S.orderItems) {
+    await apiPost('stock_order_items', {
+      order_id: order.id, product_id: item.product_id, product_name: item.product_name,
+      quantity: item.quantity, unit_cost: item.unit_cost, total_cost: item.total_cost,
+    });
+    await apiPatch('products', `id=eq.${item.product_id}`, { stock: (item._product.stock||0) + item.quantity, buy_price: item.unit_cost });
+    const local = S.products.find(x=>x.id===item.product_id);
+    if (local) { local.stock = (local.stock||0) + item.quantity; local.buy_price = item.unit_cost; }
+  }
+
+  popSheet(); popSheet(); // close item sheet + order sheet
+  S.orderItems = [];
+  showToast(`✓ Purchase recorded — ${kes(total)}`);
+  showStockOrders();
+}
+
+/* ═══════════════════════════════
+   WHATSAPP BROADCAST
+═══════════════════════════════ */
+async function showWhatsAppBroadcast() {
+  // Load all customers with phones
+  const custs = await apiGet(`customers?shop_id=eq.${S.shop.id}&phone=not.is.null&order=name`);
+  const list = (custs||[]).filter(c=>c.phone);
+
+  pushSheet(`
+    <div class="sh-hand"></div>
+    <div class="sh-hdr"><h2>Send WhatsApp</h2></div>
+    <div class="sh-body">
+      <div style="color:var(--txt2);font-size:13px;margin-bottom:12px">Compose your message below, then tap each customer to open WhatsApp.</div>
+      <div class="fg-s"><label class="fl">Your Message</label>
+        <textarea id="wa-msg" class="fi" rows="4" placeholder="Hi {name}, we have a special offer for you today…" style="resize:vertical;min-height:80px"></textarea>
+      </div>
+      <div class="sec-ttl" style="margin:14px 0 8px">Customers with WhatsApp (${list.length})</div>
+      <div id="wa-cust-list">
+        ${list.length ? list.map(c=>{
+          const phone = (c.phone||'').replace(/\D/g,'').replace(/^0/,'254');
+          return `<div class="more-item" onclick="openWa('${phone}','${esc(c.name).replace(/'/g,"\\'")}')">
+            <div class="more-ico" style="background:#25D36622">💬</div>
+            <div class="more-inf"><div class="more-nm">${esc(c.name)}</div><div class="more-mt">${c.phone}</div></div>
+            <span style="color:#25D366">›</span>
+          </div>`;
+        }).join('') : '<div style="color:var(--txt2);text-align:center;padding:20px 0">No customers with phone numbers yet.</div>'}
+      </div>
+      <button class="btn-g" onclick="popSheet()" style="margin-top:14px">Close</button>
+    </div>`);
+}
+
+function openWa(phone, name) {
+  const raw = document.getElementById('wa-msg')?.value?.trim();
+  if (!raw) { showToast('Write a message first', true); return; }
+  const msg = raw.replace(/\{name\}/gi, name);
+  window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
 }
 
 /* ═══════════════════════════════
