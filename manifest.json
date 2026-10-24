@@ -4,6 +4,7 @@
   "id": "happa-merchant",
   "description": "Njia smart ya ku-run bizna",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#080D1A",

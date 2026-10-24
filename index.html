@@ -501,7 +501,7 @@ async function loadUserContext() {
 
   if (!mems?.length) {
     const adm = await apiGet(`admins?select=user_id&user_id=eq.${S.user.id}&limit=1`);
-    if (adm?.length) { window.location.href = '/admin.html'; return; }
+    if (adm?.length) { window.location.href = '/admin/'; return; }
     showPage('noshop'); return;
   }
 

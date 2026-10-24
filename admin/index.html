@@ -1,0 +1,813 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#101724">
+<title>Happa Admin</title>
+<link rel="manifest" href="/admin-manifest.json">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.50.0/dist/umd/supabase.min.js"></script>
+<style>
+:root{
+  --bg:#080D1A;--surf:#101724;--surf2:#182030;--bdr:#263040;
+  --acc:#F5A623;--acc-d:rgba(245,166,35,.14);
+  --grn:#22C55E;--grn-d:rgba(34,197,94,.13);
+  --red:#EF4444;--red-d:rgba(239,68,68,.12);
+  --blu:#3B82F6;--pur:#A855F7;
+  --txt:#EEF2FF;--txt2:#8B9EC0;--txt3:#4B5E7A;
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);color:var(--txt)}
+#app{max-width:720px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column}
+
+/* AUTH */
+.auth-wrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 20px}
+.auth-logo{width:72px;height:72px;border-radius:18px;overflow:hidden;margin-bottom:16px}
+.auth-logo img{width:100%;height:100%;object-fit:cover}
+.auth-title{font-size:22px;font-weight:800;margin-bottom:4px}
+.auth-sub{font-size:13px;color:var(--txt2);margin-bottom:28px;text-align:center}
+.auth-card{background:var(--surf);border:1px solid var(--bdr);border-radius:16px;padding:24px;width:100%;max-width:400px}
+.fg{margin-bottom:14px}
+.fl{display:block;font-size:11px;font-weight:700;color:var(--txt2);margin-bottom:5px;letter-spacing:.03em;text-transform:uppercase}
+.fi{width:100%;padding:10px 13px;background:var(--surf2);border:1px solid var(--bdr);border-radius:10px;color:var(--txt);font-family:inherit;font-size:14px;outline:none;transition:border-color .15s}
+.fi:focus{border-color:var(--acc)}
+.fi::placeholder{color:var(--txt3)}
+select.fi{cursor:pointer}
+.btn-p{width:100%;padding:12px;background:var(--acc);color:#08122A;border:none;border-radius:11px;font-family:inherit;font-size:15px;font-weight:800;cursor:pointer;transition:opacity .15s}
+.btn-p:hover{opacity:.9}
+.btn-p:disabled{opacity:.5;cursor:default}
+.err-msg{font-size:12px;color:var(--red);margin-top:10px;display:none;text-align:center}
+
+/* HEADER */
+.hdr{background:var(--surf);border-bottom:1px solid var(--bdr);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.hdr-brand{display:flex;align-items:center;gap:10px}
+.hdr-logo{width:36px;height:36px;border-radius:10px;overflow:hidden}
+.hdr-logo img{width:100%;height:100%;object-fit:cover}
+.hdr-title{font-size:16px;font-weight:800}
+.hdr-sub{font-size:11px;color:var(--txt2)}
+.btn-s{padding:8px 16px;background:var(--surf2);border:1px solid var(--bdr);border-radius:9px;color:var(--txt2);font-family:inherit;font-size:13px;cursor:pointer;transition:background .15s}
+.btn-s:hover{background:var(--bdr)}
+
+/* MAIN */
+.main{padding:24px;flex:1}
+.page-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;gap:10px;flex-wrap:wrap}
+.page-ttl{font-size:20px;font-weight:800}
+.btn-acc{padding:9px 18px;background:var(--acc);color:#08122A;border:none;border-radius:9px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;transition:opacity .15s;white-space:nowrap}
+.btn-acc:hover{opacity:.9}
+
+/* STATS */
+.stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:24px}
+.sc{background:var(--surf);border:1px solid var(--bdr);border-radius:12px;padding:14px}
+.sc-lbl{font-size:11px;color:var(--txt2);margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em}
+.sc-val{font-size:26px;font-weight:800;font-variant-numeric:tabular-nums}
+.sc-sub{font-size:11px;color:var(--txt3);margin-top:2px}
+
+/* TABS */
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--bdr);margin-bottom:20px;overflow-x:auto}
+.tab{padding:10px 16px;font-family:inherit;font-size:13px;font-weight:600;color:var(--txt3);background:transparent;border:none;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s;white-space:nowrap}
+.tab.on{color:var(--acc);border-bottom-color:var(--acc)}
+
+/* TABLE */
+.table-wrap{overflow-x:auto;border-radius:14px;border:1px solid var(--bdr)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:var(--surf2);padding:10px 14px;text-align:left;font-size:10px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+td{padding:12px 14px;border-top:1px solid var(--bdr);vertical-align:middle}
+tr:hover td{background:rgba(255,255,255,.02)}
+.chip{display:inline-block;padding:2px 8px;border-radius:5px;font-size:10px;font-weight:700}
+.chip-g{background:var(--grn-d);color:var(--grn)}
+.chip-a{background:var(--acc-d);color:var(--acc)}
+.chip-r{background:var(--red-d);color:var(--red)}
+.chip-b{background:rgba(59,130,246,.14);color:var(--blu)}
+.chip-p{background:rgba(168,85,247,.14);color:var(--pur)}
+.act-btn{padding:5px 10px;border-radius:7px;font-family:inherit;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--bdr);background:var(--surf2);color:var(--txt2);transition:background .15s;margin-right:4px}
+.act-btn:last-child{margin-right:0}
+.act-btn:hover{background:var(--bdr)}
+.act-btn.danger{border-color:rgba(239,68,68,.3);color:var(--red)}
+.act-btn.danger:hover{background:var(--red-d)}
+.act-btn.primary{border-color:rgba(245,166,35,.3);color:var(--acc)}
+.act-btn.primary:hover{background:var(--acc-d)}
+
+/* CONFIRM INLINE */
+.confirm-row{display:none;align-items:center;gap:8px;margin-top:6px;padding:8px 10px;background:var(--red-d);border:1px solid rgba(239,68,68,.2);border-radius:8px}
+.confirm-row.on{display:flex}
+.confirm-row span{font-size:11px;color:var(--red);flex:1}
+.confirm-row button{padding:4px 10px;border-radius:6px;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;border:none}
+.confirm-yes{background:var(--red);color:#fff}
+.confirm-no{background:var(--surf2);color:var(--txt2);border:1px solid var(--bdr) !important}
+
+/* MODAL */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;display:none;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(6px)}
+.overlay.on{display:flex}
+.modal{background:var(--surf);border:1px solid var(--bdr);border-radius:18px;padding:28px;width:100%;max-width:440px;max-height:90vh;overflow-y:auto}
+.modal h2{font-size:18px;font-weight:700;margin-bottom:6px}
+.modal-sub{font-size:13px;color:var(--txt2);margin-bottom:20px}
+.modal-acts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:20px}
+.btn-g{background:transparent;border:1px solid var(--bdr);color:var(--txt2);border-radius:10px;padding:11px;font-family:inherit;font-size:14px;cursor:pointer;transition:background .15s}
+.btn-g:hover{background:var(--surf2)}
+
+/* TOAST */
+.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#0D2B1A;border:1px solid var(--grn);color:var(--grn);padding:10px 18px;border-radius:12px;font-size:13px;font-weight:700;z-index:300;opacity:0;transition:opacity .3s;white-space:nowrap;pointer-events:none;max-width:90vw;text-align:center}
+.toast.err{background:#2B0D0D;border-color:var(--red);color:var(--red)}
+.toast.on{opacity:1}
+
+/* EMPTY */
+.empty{padding:40px 20px;text-align:center;color:var(--txt2)}
+.empty-ico{font-size:36px;margin-bottom:12px}
+.empty p{font-size:13px;line-height:1.7}
+
+/* LOADER */
+.spin{display:inline-block;width:18px;height:18px;border:2px solid var(--bdr);border-top-color:var(--acc);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* BILLING CARD */
+.billing-grid{display:grid;grid-template-columns:1fr;gap:10px}
+.bill-card{background:var(--surf);border:1px solid var(--bdr);border-radius:12px;padding:16px}
+.bill-card-hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px}
+.bill-shop{font-size:14px;font-weight:700}
+.bill-loc{font-size:11px;color:var(--txt3);margin-top:2px}
+.bill-meta{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.bill-stat{background:var(--surf2);border-radius:8px;padding:8px 12px;font-size:11px;color:var(--txt2)}
+.bill-stat strong{display:block;font-size:16px;font-weight:800;color:var(--txt);font-variant-numeric:tabular-nums}
+.bill-actions{display:flex;gap:8px;flex-wrap:wrap}
+.progress-bar{height:4px;background:var(--surf2);border-radius:2px;margin-top:8px}
+.progress-fill{height:4px;border-radius:2px;transition:width .3s}
+
+@media(max-width:600px){
+  .stat-row{grid-template-columns:1fr 1fr}
+  .main{padding:16px}
+  .hdr{padding:12px 16px}
+}
+</style>
+</head>
+<body>
+<!-- Admin PWA install bar -->
+<div id="admin-install-bar" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:999;background:#1a2035;border-top:1px solid #263040;padding:12px 16px;align-items:center;gap:12px;justify-content:space-between">
+  <div style="font-size:13px;color:#e2e8f0"><strong>Install Happa Admin</strong><br><span style="font-size:11px;color:#94a3b8">Add to home screen for quick access</span></div>
+  <button onclick="installAdminApp()" style="background:#CC0000;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">Install</button>
+</div>
+<div id="app">
+
+  <!-- AUTH PAGE -->
+  <div id="page-auth" style="flex:1;display:flex;flex-direction:column">
+    <div class="auth-wrap">
+      <div class="auth-logo"><img src="/happa-logo.jpg" alt="Happa"></div>
+      <div class="auth-title">Happa Admin</div>
+      <div class="auth-sub">Super-admin panel — Njau only</div>
+      <div class="auth-card">
+        <div class="fg"><label class="fl">Email</label>
+          <input class="fi" id="auth-email" type="email" placeholder="your@email.com" autocomplete="email"></div>
+        <div class="fg" style="margin-bottom:18px"><label class="fl">Password</label>
+          <input class="fi" id="auth-pwd" type="password" placeholder="Password" autocomplete="current-password"></div>
+        <button class="btn-p" id="auth-btn" onclick="doLogin()">Sign In</button>
+        <div class="err-msg" id="auth-err"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN ADMIN -->
+  <div id="page-admin" style="display:none;flex-direction:column;min-height:100vh">
+    <header class="hdr">
+      <div class="hdr-brand">
+        <div class="hdr-logo"><img src="/happa-logo.jpg" alt="Happa"></div>
+        <div>
+          <div class="hdr-title">Happa Admin</div>
+          <div class="hdr-sub" id="hdr-email">admin</div>
+        </div>
+      </div>
+      <button class="btn-s" onclick="doLogout()">Sign Out</button>
+    </header>
+
+    <div class="main">
+      <div class="page-hdr">
+        <div class="page-ttl">Dashboard</div>
+        <button class="btn-acc" onclick="showInviteModal()">+ Invite Shop Owner</button>
+      </div>
+
+      <div class="stat-row" id="stats-row">
+        <div class="sc"><div class="sc-lbl">Shops</div><div class="sc-val" id="stat-shops">—</div><div class="sc-sub">total</div></div>
+        <div class="sc"><div class="sc-lbl">On Trial</div><div class="sc-val" id="stat-trial">—</div><div class="sc-sub">active trials</div></div>
+        <div class="sc"><div class="sc-lbl">Paying</div><div class="sc-val" id="stat-paying">—</div><div class="sc-sub">active subs</div></div>
+        <div class="sc"><div class="sc-lbl">Sales Today</div><div class="sc-val" id="stat-sales">—</div><div class="sc-sub">transactions</div></div>
+      </div>
+
+      <div class="tabs">
+        <button class="tab on" onclick="switchTab('shops')">Shops</button>
+        <button class="tab" onclick="switchTab('billing')">Billing</button>
+        <button class="tab" onclick="switchTab('invites')">Pending Invites</button>
+        <button class="tab" onclick="switchTab('users')">All Users</button>
+      </div>
+
+      <div id="tab-content"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- INVITE MODAL -->
+<div class="overlay" id="invite-overlay">
+  <div class="modal">
+    <h2>Invite Shop Owner</h2>
+    <div class="modal-sub">An email invite will be sent. They set their password, then land straight into their shop.</div>
+    <div class="fg"><label class="fl">Owner's Name *</label>
+      <input class="fi" id="inv-name" type="text" placeholder="e.g. Mama Njeri"></div>
+    <div class="fg"><label class="fl">Email Address *</label>
+      <input class="fi" id="inv-email" type="email" placeholder="owner@gmail.com"></div>
+    <div class="fg"><label class="fl">Shop Name *</label>
+      <input class="fi" id="inv-shopname" type="text" placeholder="e.g. Mama Njeri's Mart"></div>
+    <div class="fg"><label class="fl">Business Type</label>
+      <select class="fi" id="inv-biztype">
+        <option value="goods">Goods (shop / supermarket)</option>
+        <option value="services">Services (salon / barber)</option>
+        <option value="mixed">Mixed (restaurant / cafe)</option>
+      </select></div>
+    <div class="fg"><label class="fl">Location (optional)</label>
+      <input class="fi" id="inv-location" type="text" placeholder="e.g. Ngara, Nairobi"></div>
+    <div class="fg"><label class="fl">Monthly Rate (KES)</label>
+      <select class="fi" id="inv-rate">
+        <option value="">90-day free trial (set rate later)</option>
+        <option value="149">KES 149/month</option>
+        <option value="249">KES 249/month</option>
+        <option value="349">KES 349/month</option>
+        <option value="499">KES 499/month</option>
+      </select></div>
+    <div class="err-msg" id="inv-err"></div>
+    <div class="modal-acts">
+      <button class="btn-g" onclick="closeModal()">Cancel</button>
+      <button class="btn-p" id="inv-btn" onclick="sendOwnerInvite()" style="margin-top:0">Send Invite</button>
+    </div>
+  </div>
+</div>
+
+<!-- BILLING EDIT MODAL -->
+<div class="overlay" id="billing-overlay">
+  <div class="modal">
+    <h2 id="bill-modal-title">Update Billing</h2>
+    <div class="modal-sub" id="bill-modal-sub">Manage subscription status and rate for this shop.</div>
+    <input type="hidden" id="bill-sub-id">
+    <div class="fg"><label class="fl">Status</label>
+      <select class="fi" id="bill-status">
+        <option value="trial">Trial</option>
+        <option value="active">Active (paying)</option>
+        <option value="suspended">Suspended</option>
+        <option value="cancelled">Cancelled</option>
+      </select></div>
+    <div class="fg"><label class="fl">Monthly Rate (KES)</label>
+      <select class="fi" id="bill-rate">
+        <option value="">Not set</option>
+        <option value="149">KES 149</option>
+        <option value="249">KES 249</option>
+        <option value="349">KES 349</option>
+        <option value="499">KES 499</option>
+      </select></div>
+    <div class="fg"><label class="fl">Next Billing Date</label>
+      <input class="fi" id="bill-next" type="date"></div>
+    <div class="fg"><label class="fl">Notes</label>
+      <input class="fi" id="bill-notes" type="text" placeholder="e.g. Owner paid via M-Pesa"></div>
+    <div class="err-msg" id="bill-err"></div>
+    <div class="modal-acts">
+      <button class="btn-g" onclick="closeModal()">Cancel</button>
+      <button class="btn-p" id="bill-btn" onclick="saveBilling()" style="margin-top:0">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- SHARE INVITE MODAL -->
+<div class="overlay" id="share-overlay">
+  <div class="modal">
+    <h2>✓ Shop Created</h2>
+    <div class="modal-sub" id="share-subtitle">Share these login details with the owner.</div>
+    <div style="background:rgba(0,0,0,.2);border:1px solid var(--bdr);border-radius:10px;padding:12px 14px;margin:14px 0;display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:11px;color:var(--txt3);width:68px;flex-shrink:0">Login URL</span>
+        <span id="share-url" style="font-size:11px;color:var(--txt);flex:1">https://happa-merchant.netlify.app</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:11px;color:var(--txt3);width:68px;flex-shrink:0">Email</span>
+        <span id="share-email-val" style="font-size:11px;color:var(--txt);flex:1;word-break:break-all"></span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:11px;color:var(--txt3);width:68px;flex-shrink:0">Password</span>
+        <span id="share-pwd-val" style="font-size:13px;font-weight:700;color:var(--acc,#F59E0B);flex:1;letter-spacing:.5px"></span>
+      </div>
+    </div>
+    <div id="share-copy-msg" style="color:#4ade80;font-size:12px;display:none;margin-bottom:8px">✓ Copied!</div>
+    <button onclick="copyCredentials()" style="width:100%;padding:10px;background:rgba(255,255,255,.08);color:var(--txt);font-weight:600;border:1px solid var(--bdr);border-radius:10px;cursor:pointer;font-size:13px;margin-bottom:8px">📋 Copy Login Details</button>
+    <button onclick="whatsappInvite()" style="width:100%;padding:12px;background:#25D366;color:#fff;font-weight:700;border:none;border-radius:10px;cursor:pointer;font-size:14px;margin-bottom:14px">📱 Share via WhatsApp</button>
+    <div class="modal-acts"><button class="btn-p" onclick="closeModal()">Done</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+
+const SUPABASE_URL = 'https://zxucpsdfcokkjtcgygna.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp4dWNwc2RmY29ra2p0Y2d5Z25hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI3NDc0NzUsImV4cCI6MjEwODMyMzQ3NX0.6JH4kLkge4D-8SCYLIGh7zmAvX0exJILThhOQ79BusA';
+const EDGE_URL = `${SUPABASE_URL}/functions/v1`;
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let currentUser    = null;
+let currentSession = null;
+
+// ── RAW POSTGREST HELPERS (bypasses supabase-js client for data queries) ──
+function apiHeaders(extras = {}) {
+  return {
+    'Authorization': `Bearer ${currentSession?.access_token ?? ''}`,
+    'apikey': SUPABASE_KEY,
+    'Accept': 'application/json',
+    ...extras,
+  };
+}
+async function apiGet(path) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers: apiHeaders() });
+  if (!res.ok) return [];
+  return res.json().catch(() => []);
+}
+async function apiCount(table, filter = '') {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=*${filter}`, {
+    method: 'HEAD', headers: apiHeaders({ 'Prefer': 'count=exact' }),
+  });
+  const cr = res.headers.get('content-range');
+  return cr ? (parseInt(cr.split('/')[1]) || 0) : 0;
+}
+async function apiDelete(table, id) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, {
+    method: 'DELETE', headers: apiHeaders(),
+  });
+  return res.ok;
+}
+let currentTab     = 'shops';
+let pendingDeleteId = null;
+
+// ── INIT ──
+(async function init() {
+  // Race getSession against 3s timeout — it can hang indefinitely
+  const session = await Promise.race([
+    db.auth.getSession().then(r => r.data?.session ?? null).catch(() => null),
+    new Promise(r => setTimeout(() => r(null), 3000)),
+  ]);
+  if (session) { currentUser = session.user; currentSession = session; await checkAdminAndLoad(); }
+  else show('page-auth');
+
+  db.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'SIGNED_IN')  { currentUser = session.user; currentSession = session; await checkAdminAndLoad(); }
+    if (event === 'SIGNED_OUT') { currentUser = null; currentSession = null; show('page-auth'); }
+  });
+
+  document.getElementById('auth-email').addEventListener('keydown', e=>{ if(e.key==='Enter') document.getElementById('auth-pwd').focus(); });
+  document.getElementById('auth-pwd').addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
+})();
+
+async function checkAdminAndLoad() {
+  if (currentUser.email !== 'njautheinvestmentsconsultant@gmail.com') {
+    showToast('Access denied — admin only', true);
+    await db.auth.signOut(); return;
+  }
+  document.getElementById('hdr-email').textContent = currentUser.email;
+  show('page-admin');
+  await loadStats();
+  switchTab('shops');
+}
+
+// ── AUTH ──
+async function doLogin() {
+  const email = document.getElementById('auth-email').value.trim();
+  const pwd   = document.getElementById('auth-pwd').value;
+  const btn   = document.getElementById('auth-btn');
+  const err   = document.getElementById('auth-err');
+  if (!email || !pwd) { showErr(err, 'Enter your email and password'); return; }
+  btn.disabled = true; btn.textContent = 'Signing in…';
+  const { data, error } = await db.auth.signInWithPassword({ email, password: pwd });
+  btn.disabled = false; btn.textContent = 'Sign In';
+  if (error) { showErr(err, error.message); return; }
+  if (data?.session) { currentUser = data.session.user; currentSession = data.session; await checkAdminAndLoad(); }
+}
+
+async function doLogout() {
+  try {
+    await fetch(`${SUPABASE_URL}/auth/v1/logout?scope=local`, {
+      method: 'POST', headers: apiHeaders(),
+    });
+  } catch(e) { /* ignore */ }
+  currentUser = null; currentSession = null;
+  show('page-auth');
+}
+
+// ── STATS ──
+async function loadStats() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const [shopsC, salesC, subs] = await Promise.all([
+    apiCount('shops'),
+    apiCount('sales', `&recorded_at=gte.${today.toISOString()}`),
+    apiGet('subscriptions?select=status'),
+  ]);
+  const trials = Array.isArray(subs) ? subs.filter(s=>s.status==='trial').length : 0;
+  const paying = Array.isArray(subs) ? subs.filter(s=>s.status==='active').length : 0;
+  document.getElementById('stat-shops').textContent  = shopsC;
+  document.getElementById('stat-trial').textContent  = trials;
+  document.getElementById('stat-paying').textContent = paying;
+  document.getElementById('stat-sales').textContent  = salesC;
+}
+
+// ── TABS ──
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach((t,i) => {
+    const labels = ['shops','billing','invites','users'];
+    t.classList.toggle('on', labels[i] === tab);
+  });
+  if (tab === 'shops')   renderShops();
+  if (tab === 'billing') renderBilling();
+  if (tab === 'invites') renderInvites();
+  if (tab === 'users')   renderUsers();
+}
+
+// ── SHOPS TAB ──
+async function renderShops() {
+  const el = document.getElementById('tab-content');
+  el.innerHTML = '<div style="padding:20px;color:var(--txt2)"><span class="spin"></span>Loading…</div>';
+
+  const shops = await apiGet('shops?select=*,shop_members(count),subscriptions(status,trial_end,monthly_rate)&order=created_at.desc');
+
+  if (!shops?.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-ico">🏪</div><p>No shops yet.<br>Invite a shop owner to get started.</p></div>`;
+    return;
+  }
+
+  el.innerHTML = `<div class="table-wrap"><table>
+    <thead><tr>
+      <th>Shop</th><th>Type</th><th>Location</th><th>Members</th><th>Sub</th><th>Actions</th>
+    </tr></thead>
+    <tbody id="shops-tbody">${shops.map(s => {
+      const sub    = s.subscriptions?.[0];
+      const status = sub?.status || 'trial';
+      const daysLeft = sub?.trial_end ? Math.max(0, Math.ceil((new Date(sub.trial_end) - new Date()) / 86400000)) : null;
+      const subLabel = status === 'active'
+        ? `KES ${sub?.monthly_rate ?? '?'}/mo`
+        : status === 'trial'
+        ? (daysLeft !== null ? `${daysLeft}d left` : 'Trial')
+        : status;
+      const subChip = status === 'active' ? 'chip-g'
+        : status === 'trial' ? 'chip-a'
+        : 'chip-r';
+      return `<tr id="row-${s.id}">
+        <td><strong>${s.name}</strong></td>
+        <td><span class="chip ${s.business_type==='goods'?'chip-g':s.business_type==='services'?'chip-b':'chip-a'}">${s.business_type}</span></td>
+        <td style="color:var(--txt2)">${s.location||'—'}</td>
+        <td>${s.shop_members?.[0]?.count||0}</td>
+        <td><span class="chip ${subChip}">${subLabel}</span></td>
+        <td>
+          <button class="act-btn danger" onclick="confirmDeleteShop('${s.id}','${s.name.replace(/'/g,"\\'")}')">Remove</button>
+        </td>
+      </tr>
+      <tr id="confirm-${s.id}" style="display:none">
+        <td colspan="6">
+          <div class="confirm-row on">
+            <span>⚠️ Remove <strong>${s.name}</strong>? All data, sales, and staff will be deleted permanently.</span>
+            <button class="confirm-yes" onclick="deleteShop('${s.id}')">Yes, Remove</button>
+            <button class="confirm-no" onclick="cancelDelete('${s.id}')">Cancel</button>
+          </div>
+        </td>
+      </tr>`;
+    }).join('')}
+    </tbody>
+  </table></div>
+  <div style="margin-top:12px;text-align:right">
+    <button class="act-btn primary" onclick="showInviteModal()">+ Invite Shop Owner</button>
+  </div>`;
+}
+
+function confirmDeleteShop(id, name) {
+  // Hide any other open confirmations
+  document.querySelectorAll('[id^="confirm-"]').forEach(r => r.style.display = 'none');
+  const row = document.getElementById(`confirm-${id}`);
+  if (row) row.style.display = '';
+}
+
+function cancelDelete(id) {
+  const row = document.getElementById(`confirm-${id}`);
+  if (row) row.style.display = 'none';
+}
+
+async function deleteShop(id) {
+  const ok = await apiDelete('shops', id);
+  if (!ok) { showToast('Error removing shop', true); return; }
+  showToast('Shop removed');
+  await loadStats();
+  renderShops();
+}
+
+// ── BILLING TAB ──
+async function renderBilling() {
+  const el = document.getElementById('tab-content');
+  el.innerHTML = '<div style="padding:20px;color:var(--txt2)"><span class="spin"></span>Loading…</div>';
+
+  const subs = await apiGet('subscriptions?select=*,shops(name,location)&order=trial_end.asc');
+
+  if (!subs?.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-ico">💳</div><p>No subscription records yet.</p></div>`;
+    return;
+  }
+
+  const now = new Date();
+  const rows = subs.map(s => {
+    const shop     = s.shops;
+    const trialEnd = new Date(s.trial_end);
+    const daysLeft = Math.max(0, Math.ceil((trialEnd - now) / 86400000));
+    const totalDays= 90;
+    const usedDays = Math.max(0, totalDays - daysLeft);
+    const pct      = Math.min(100, Math.round((usedDays / totalDays) * 100));
+    const barColor = daysLeft < 14 ? 'var(--red)' : daysLeft < 30 ? 'var(--acc)' : 'var(--grn)';
+
+    const statusChip = s.status === 'active'
+      ? '<span class="chip chip-g">Active</span>'
+      : s.status === 'trial'
+      ? `<span class="chip chip-a">Trial</span>`
+      : s.status === 'suspended'
+      ? '<span class="chip chip-r">Suspended</span>'
+      : '<span class="chip chip-p">Cancelled</span>';
+
+    return `<div class="bill-card">
+      <div class="bill-card-hdr">
+        <div>
+          <div class="bill-shop">${shop?.name || '—'}</div>
+          <div class="bill-loc">${shop?.location || 'No location'}</div>
+        </div>
+        ${statusChip}
+      </div>
+      <div class="bill-meta">
+        <div class="bill-stat"><strong>${daysLeft}d</strong>trial left</div>
+        <div class="bill-stat"><strong>${s.monthly_rate ? 'KES '+s.monthly_rate : '—'}</strong>monthly rate</div>
+        <div class="bill-stat"><strong>${s.next_billing ? new Date(s.next_billing).toLocaleDateString('en-KE',{day:'numeric',month:'short'}) : '—'}</strong>next billing</div>
+      </div>
+      ${s.status === 'trial' ? `<div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${barColor}"></div></div>` : ''}
+      ${s.notes ? `<div style="font-size:11px;color:var(--txt3);margin-top:8px">📝 ${s.notes}</div>` : ''}
+      <div class="bill-actions" style="margin-top:12px">
+        <button class="act-btn primary" onclick="openBillingModal('${s.id}','${(shop?.name||'').replace(/'/g,"\\'")}','${s.status}',${s.monthly_rate||'null'},'${s.next_billing||''}','${(s.notes||'').replace(/'/g,"\\'")}')">Edit Billing</button>
+      </div>
+    </div>`;
+  });
+
+  el.innerHTML = `<div class="billing-grid">${rows.join('')}</div>`;
+}
+
+function openBillingModal(subId, shopName, status, rate, nextBilling, notes) {
+  document.getElementById('bill-modal-title').textContent = shopName;
+  document.getElementById('bill-modal-sub').textContent = 'Manage subscription for ' + shopName;
+  document.getElementById('bill-sub-id').value = subId;
+  document.getElementById('bill-status').value = status;
+  document.getElementById('bill-rate').value = rate || '';
+  document.getElementById('bill-next').value = nextBilling || '';
+  document.getElementById('bill-notes').value = notes || '';
+  document.getElementById('billing-overlay').classList.add('on');
+}
+
+async function saveBilling() {
+  const subId     = document.getElementById('bill-sub-id').value;
+  const status    = document.getElementById('bill-status').value;
+  const rate      = document.getElementById('bill-rate').value;
+  const nextDate  = document.getElementById('bill-next').value;
+  const notes     = document.getElementById('bill-notes').value.trim();
+  const btn       = document.getElementById('bill-btn');
+  const err       = document.getElementById('bill-err');
+
+  btn.disabled = true; btn.textContent = 'Saving…';
+
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/subscriptions?id=eq.${subId}`, {
+    method: 'PATCH',
+    headers: { ...apiHeaders(), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+    body: JSON.stringify({ status, monthly_rate: rate ? parseInt(rate) : null, next_billing: nextDate || null, notes: notes || null, updated_at: new Date().toISOString() }),
+  });
+
+  btn.disabled = false; btn.textContent = 'Save';
+
+  if (!res.ok) { showErr(err, 'Save failed'); return; }
+  closeModal();
+  showToast('Billing updated');
+  await loadStats();
+  renderBilling();
+}
+
+// ── INVITES TAB ──
+async function renderInvites() {
+  const el = document.getElementById('tab-content');
+  el.innerHTML = '<div style="padding:20px;color:var(--txt2)"><span class="spin"></span>Loading…</div>';
+
+  const invites = await apiGet('invites?select=*&used=eq.false&order=created_at.desc');
+
+  if (!invites?.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-ico">📬</div><p>No pending invites.</p></div>`;
+    return;
+  }
+
+  el.innerHTML = `<div class="table-wrap"><table>
+    <thead><tr><th>Email</th><th>Role</th><th>Sent</th><th>Expires</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody>${invites.map(inv => {
+      const expired = new Date(inv.expires_at) < new Date();
+      return `<tr>
+        <td>${inv.email||'—'}</td>
+        <td><span class="chip ${inv.role==='owner'?'chip-a':'chip-b'}">${inv.role}</span></td>
+        <td style="color:var(--txt3)">${new Date(inv.created_at).toLocaleDateString('en-KE',{day:'numeric',month:'short'})}</td>
+        <td style="color:${expired?'var(--red)':'var(--txt3)'}">${new Date(inv.expires_at).toLocaleDateString('en-KE',{day:'numeric',month:'short'})}</td>
+        <td><span class="chip ${expired?'chip-r':'chip-g'}">${expired?'expired':'pending'}</span></td>
+        <td><button class="act-btn danger" onclick="deleteInvite('${inv.id}')">Delete</button></td>
+      </tr>`;
+    }).join('')}
+    </tbody>
+  </table></div>`;
+}
+
+async function deleteInvite(id) {
+  const ok = await apiDelete('invites', id);
+  if (!ok) { showToast('Error deleting invite', true); return; }
+  showToast('Invite deleted');
+  renderInvites();
+}
+
+// ── USERS TAB ──
+async function renderUsers() {
+  const el = document.getElementById('tab-content');
+  el.innerHTML = '<div style="padding:20px;color:var(--txt2)"><span class="spin"></span>Loading…</div>';
+
+  const members = await apiGet('shop_members?select=*,shops(name)&order=joined_at.desc');
+
+  if (!members?.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-ico">👥</div><p>No users yet.</p></div>`;
+    return;
+  }
+
+  el.innerHTML = `<div class="table-wrap"><table>
+    <thead><tr><th>Name</th><th>Role</th><th>Shop</th><th>Phone</th><th>Joined</th></tr></thead>
+    <tbody>${members.map(m => `
+      <tr>
+        <td><strong>${m.name}</strong></td>
+        <td><span class="chip ${m.role==='owner'?'chip-a':'chip-b'}">${m.role}</span></td>
+        <td>${m.shops?.name||'—'}</td>
+        <td style="color:var(--txt2)">${m.phone||'—'}</td>
+        <td style="color:var(--txt3)">${m.joined_at ? new Date(m.joined_at).toLocaleDateString('en-KE',{day:'numeric',month:'short',year:'2-digit'}) : 'Pending'}</td>
+      </tr>`).join('')}
+    </tbody>
+  </table></div>`;
+}
+
+// ── INVITE OWNER ──
+function showInviteModal() {
+  document.getElementById('invite-overlay').classList.add('on');
+}
+
+async function sendOwnerInvite() {
+  const name     = document.getElementById('inv-name').value.trim();
+  const email    = document.getElementById('inv-email').value.trim();
+  const shopname = document.getElementById('inv-shopname').value.trim();
+  const biztype  = document.getElementById('inv-biztype').value;
+  const location = document.getElementById('inv-location').value.trim();
+  const rate     = document.getElementById('inv-rate').value;
+  const err      = document.getElementById('inv-err');
+  const btn      = document.getElementById('inv-btn');
+
+  if (!name || !email || !shopname) { showErr(err, 'Name, email, and shop name are required'); return; }
+
+  btn.disabled = true; btn.textContent = 'Sending invite…';
+
+  try {
+    // Use cached session — avoids hanging getSession() call
+    const session = currentSession;
+    if (!session) throw new Error('Session expired — please sign in again');
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 30000);
+
+    let result;
+    try {
+      const res = await fetch(`${EDGE_URL}/send-invite`, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+          'apikey': SUPABASE_KEY,
+        },
+        body: JSON.stringify({
+          ownerName: name, email, shopName: shopname,
+          bizType: biztype, location: location || null,
+          monthlyRate: rate || null,
+        }),
+      });
+      clearTimeout(timer);
+      result = await res.json();
+      if (!res.ok && !result.shopId) {
+        throw new Error(result.error || `Server error (HTTP ${res.status})`);
+      }
+    } catch (fetchErr) {
+      clearTimeout(timer);
+      throw new Error(fetchErr.name === 'AbortError' ? 'Request timed out after 30s' : fetchErr.message);
+    }
+
+    btn.disabled = false; btn.textContent = 'Send Invite';
+    closeModal();
+
+    if (result.tempPassword) {
+      showShareModal(result.email || email, shopname, result.tempPassword, result.loginUrl || 'https://happa-merchant.netlify.app');
+    } else if (result.success) {
+      showToast(`✓ Shop created for "${shopname}"`);
+    } else {
+      showToast(`Shop created but something went wrong — check Supabase logs`, true);
+    }
+
+    await loadStats();
+    switchTab('shops');
+
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Send Invite';
+    showErr(err, e.message);
+  }
+}
+
+// ── SHARE INVITE ──
+let _sharePwd = ''; let _shareName = ''; let _shareEmail = ''; let _shareLoginUrl = '';
+function showShareModal(email, shopName, tempPassword, loginUrl) {
+  _sharePwd = tempPassword || ''; _shareName = shopName;
+  _shareEmail = email; _shareLoginUrl = loginUrl || 'https://happa-merchant.netlify.app';
+  document.getElementById('share-subtitle').textContent = `"${shopName}" is ready — share these login details with ${email}`;
+  document.getElementById('share-email-val').textContent = email;
+  document.getElementById('share-pwd-val').textContent = tempPassword;
+  document.getElementById('share-copy-msg').style.display = 'none';
+  document.getElementById('share-overlay').classList.add('on');
+}
+function copyCredentials() {
+  const text = `Happa Merchant Login\nURL: ${_shareLoginUrl}\nEmail: ${_shareEmail}\nPassword: ${_sharePwd}`;
+  navigator.clipboard.writeText(text).then(() => {
+    const m = document.getElementById('share-copy-msg');
+    m.style.display = 'block'; setTimeout(() => m.style.display = 'none', 2000);
+  }).catch(() => {
+    const el = document.createElement('textarea');
+    el.value = text; document.body.appendChild(el); el.select();
+    document.execCommand('copy'); document.body.removeChild(el);
+    const m = document.getElementById('share-copy-msg');
+    m.style.display = 'block'; setTimeout(() => m.style.display = 'none', 2000);
+  });
+}
+function whatsappInvite() {
+  const msg = encodeURIComponent(
+    `Hi! 🛍️ Your shop *${_shareName}* is ready on Happa Merchant.\n\n` +
+    `Login here: ${_shareLoginUrl}\n` +
+    `📧 Email: ${_shareEmail}\n` +
+    `🔑 Password: ${_sharePwd}\n\n` +
+    `Please change your password after first login.`
+  );
+  window.open(`https://wa.me/?text=${msg}`, '_blank');
+}
+
+// ── UTILITIES ──
+function show(id) {
+  ['page-auth','page-admin'].forEach(p => {
+    const el = document.getElementById(p);
+    el.style.display = el.id === id ? 'flex' : 'none';
+  });
+}
+
+function showErr(el, msg) {
+  el.textContent = msg; el.style.display = 'block';
+  setTimeout(()=>el.style.display='none', 8000);
+}
+
+function closeModal() {
+  document.querySelectorAll('.overlay').forEach(o => o.classList.remove('on'));
+}
+
+let _toastTimer;
+function showToast(msg, isErr) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast on' + (isErr ? ' err' : '');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => t.classList.remove('on'), 4500);
+}
+
+document.querySelectorAll('.overlay').forEach(o => {
+  o.addEventListener('click', e => { if (e.target === o) closeModal(); });
+});
+
+// ── ADMIN PWA INSTALL PROMPT ──
+let _adminInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  _adminInstallPrompt = e;
+  const bar = document.getElementById('admin-install-bar');
+  if (bar) bar.style.display = 'flex';
+});
+window.addEventListener('appinstalled', () => {
+  const bar = document.getElementById('admin-install-bar');
+  if (bar) bar.style.display = 'none';
+  _adminInstallPrompt = null;
+});
+function installAdminApp() {
+  if (!_adminInstallPrompt) return;
+  _adminInstallPrompt.prompt();
+  _adminInstallPrompt.userChoice.then(() => { _adminInstallPrompt = null; });
+}
+</script>
+</body>
+</html>
