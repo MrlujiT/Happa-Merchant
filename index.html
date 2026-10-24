@@ -398,11 +398,6 @@ async function apiPatch(table, filter, body) {
    INIT
 ═══════════════════════════════ */
 (async function init() {
-  // Persist ?merchant=1 bypass to sessionStorage before URL gets cleaned
-  if (new URLSearchParams(window.location.search).get('merchant') === '1') {
-    try { sessionStorage.setItem('happa_force_merchant', '1'); } catch(e){}
-  }
-
   // Must check hash BEFORE getSession() — Supabase clears it after processing
   const hash = window.location.hash;
   if (hash.includes('type=invite') || hash.includes('type=signup') || hash.includes('type=recovery')) {
@@ -505,12 +500,8 @@ async function loadUserContext() {
   const mems = await apiGet(`shop_members?select=*,shops(*)&user_id=eq.${S.user.id}&limit=1`);
 
   if (!mems?.length) {
-    let forceMerchant = false;
-    try { forceMerchant = sessionStorage.getItem('happa_force_merchant') === '1'; } catch(e){}
-    if (!forceMerchant) {
-      const adm = await apiGet(`admins?select=user_id&user_id=eq.${S.user.id}&limit=1`);
-      if (adm?.length) { window.location.href = '/admin.html'; return; }
-    }
+    const adm = await apiGet(`admins?select=user_id&user_id=eq.${S.user.id}&limit=1`);
+    if (adm?.length) { window.location.href = '/admin.html'; return; }
     showPage('noshop'); return;
   }
 

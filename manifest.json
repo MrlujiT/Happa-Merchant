@@ -1,6 +1,7 @@
 {
   "name": "Happa Merchant",
-  "short_name": "Happa",
+  "short_name": "Merchant",
+  "id": "happa-merchant",
   "description": "Njia smart ya ku-run bizna",
   "start_url": "/",
   "display": "standalone",
