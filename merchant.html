@@ -1,0 +1,614 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#101724">
+<title>Happa Merchant</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+<style>
+:root{
+  --bg:#080D1A;--surf:#101724;--surf2:#182030;--bdr:#263040;
+  --acc:#F5A623;--acc-d:rgba(245,166,35,.14);
+  --grn:#22C55E;--grn-d:rgba(34,197,94,.13);
+  --red:#EF4444;--red-d:rgba(239,68,68,.12);
+  --wa:#25D366;
+  --txt:#EEF2FF;--txt2:#8B9EC0;--txt3:#4B5E7A;
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);color:var(--txt);-webkit-font-smoothing:antialiased}
+
+/* AUTH */
+.auth-wrap{min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 20px}
+.auth-logo{width:68px;height:68px;border-radius:18px;overflow:hidden;margin-bottom:14px}
+.auth-logo img{width:100%;height:100%;object-fit:cover}
+.auth-title{font-size:22px;font-weight:800;margin-bottom:4px}
+.auth-sub{font-size:13px;color:var(--txt2);margin-bottom:28px;text-align:center}
+.auth-card{background:var(--surf);border:1px solid var(--bdr);border-radius:16px;padding:24px;width:100%;max-width:400px}
+.fg{margin-bottom:14px}
+.fl{display:block;font-size:11px;font-weight:700;color:var(--txt2);margin-bottom:5px;letter-spacing:.03em;text-transform:uppercase}
+.fi{width:100%;padding:10px 13px;background:var(--surf2);border:1px solid var(--bdr);border-radius:10px;color:var(--txt);font-family:inherit;font-size:14px;outline:none;transition:border-color .15s}
+.fi:focus{border-color:var(--acc)}
+.fi::placeholder{color:var(--txt3)}
+select.fi{cursor:pointer}
+.btn-p{width:100%;padding:12px;background:var(--acc);color:#08122A;border:none;border-radius:11px;font-family:inherit;font-size:15px;font-weight:800;cursor:pointer;transition:opacity .15s;margin-top:4px}
+.btn-p:hover{opacity:.9}
+.btn-p:disabled{opacity:.5;cursor:default}
+.err-msg{font-size:12px;color:var(--red);margin-top:10px;text-align:center;min-height:16px}
+
+/* PORTAL SHELL */
+#portal{display:none;flex-direction:column;height:100dvh;overflow:hidden}
+.hdr{background:var(--surf);border-bottom:1px solid var(--bdr);padding:14px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.hdr-brand{display:flex;align-items:center;gap:10px}
+.hdr-logo{width:34px;height:34px;border-radius:10px;overflow:hidden}
+.hdr-logo img{width:100%;height:100%;object-fit:cover}
+.hdr-title{font-size:15px;font-weight:800}
+.hdr-sub{font-size:11px;color:var(--txt2)}
+.btn-s{padding:7px 14px;background:var(--surf2);border:1px solid var(--bdr);border-radius:9px;color:var(--txt2);font-family:inherit;font-size:12px;font-weight:600;cursor:pointer}
+.tabs-bar{background:var(--surf);border-bottom:1px solid var(--bdr);display:flex;overflow-x:auto;scrollbar-width:none;flex-shrink:0}
+.tabs-bar::-webkit-scrollbar{display:none}
+.tab{flex-shrink:0;padding:11px 18px;font-family:inherit;font-size:13px;font-weight:600;color:var(--txt3);background:transparent;border:none;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .15s;white-space:nowrap}
+.tab.on{color:var(--acc);border-bottom-color:var(--acc)}
+.body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.page{display:none;padding:20px}
+.page.on{display:block}
+.page-ttl{font-size:18px;font-weight:800;margin-bottom:16px}
+
+/* SALE BUILDER */
+.sale-section{margin-bottom:20px}
+.sec-lbl{font-size:11px;font-weight:700;color:var(--txt2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px}
+.customer-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+/* product picker */
+.prod-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-bottom:10px}
+.prod-btn{background:var(--surf);border:1px solid var(--bdr);border-radius:11px;padding:12px;text-align:left;cursor:pointer;font-family:inherit;transition:border-color .15s;position:relative}
+.prod-btn:hover{border-color:var(--acc)}
+.prod-btn.in-cart{border-color:var(--acc);background:var(--acc-d)}
+.prod-emoji{font-size:22px;margin-bottom:6px}
+.prod-name{font-size:12px;font-weight:700;margin-bottom:2px}
+.prod-price{font-size:11px;color:var(--txt2)}
+.prod-stock{font-size:10px;color:var(--txt3);margin-top:2px}
+.cart-badge{position:absolute;top:6px;right:8px;background:var(--acc);color:#08122A;font-size:10px;font-weight:800;border-radius:99px;padding:1px 6px}
+
+/* custom item */
+.custom-row{display:grid;grid-template-columns:1fr 80px 90px auto;gap:8px;align-items:center;margin-bottom:8px}
+.btn-icon{width:36px;height:36px;border-radius:9px;background:var(--red-d);border:1px solid rgba(239,68,68,.25);color:var(--red);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit;flex-shrink:0}
+.btn-add-item{background:transparent;border:1px dashed var(--bdr);border-radius:9px;padding:9px;width:100%;font-family:inherit;font-size:13px;color:var(--txt3);cursor:pointer;transition:border-color .15s,color .15s}
+.btn-add-item:hover{border-color:var(--acc);color:var(--acc)}
+
+/* cart summary */
+.cart-card{background:var(--surf);border:1px solid var(--bdr);border-radius:14px;padding:16px;margin-bottom:16px}
+.cart-empty{text-align:center;color:var(--txt3);font-size:13px;padding:20px}
+.cart-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--bdr);gap:8px}
+.cart-row:last-of-type{border-bottom:none}
+.cart-item-info{flex:1}
+.cart-item-name{font-size:13px;font-weight:600}
+.cart-item-sub{font-size:11px;color:var(--txt2)}
+.cart-item-total{font-size:14px;font-weight:700;white-space:nowrap}
+.cart-qty{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.qty-btn{width:26px;height:26px;border-radius:7px;background:var(--surf2);border:1px solid var(--bdr);color:var(--txt);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit}
+.qty-val{font-size:13px;font-weight:700;min-width:20px;text-align:center}
+.cart-total-row{display:flex;justify-content:space-between;align-items:center;padding-top:12px;margin-top:4px;border-top:2px solid var(--bdr)}
+.cart-total-lbl{font-size:13px;font-weight:700;color:var(--txt2)}
+.cart-total-val{font-size:22px;font-weight:800;color:var(--acc)}
+
+/* payment */
+.pay-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.pay-opt{background:var(--surf);border:1.5px solid var(--bdr);border-radius:11px;padding:12px;text-align:center;cursor:pointer;font-family:inherit;font-size:13px;font-weight:700;color:var(--txt2);transition:all .15s}
+.pay-opt.on{border-color:var(--acc);color:var(--acc);background:var(--acc-d)}
+
+/* action btn */
+.btn-record{width:100%;padding:14px;background:var(--acc);color:#08122A;border:none;border-radius:11px;font-family:inherit;font-size:15px;font-weight:800;cursor:pointer;transition:opacity .15s;display:flex;align-items:center;justify-content:center;gap:8px}
+.btn-record:hover{opacity:.9}
+.btn-record:disabled{opacity:.5;cursor:default}
+.btn-wa-receipt{width:100%;padding:14px;background:var(--wa);border:none;border-radius:11px;font-family:inherit;font-size:15px;font-weight:800;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;transition:opacity .15s;margin-top:10px}
+.btn-wa-receipt:hover{opacity:.9}
+.btn-new-sale{width:100%;padding:12px;background:var(--surf2);border:1px solid var(--bdr);border-radius:11px;font-family:inherit;font-size:14px;font-weight:700;color:var(--txt2);cursor:pointer;margin-top:8px}
+
+/* TODAY */
+.stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px}
+.sc{background:var(--surf);border:1px solid var(--bdr);border-radius:12px;padding:14px}
+.sc-lbl{font-size:11px;color:var(--txt2);margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em}
+.sc-val{font-size:20px;font-weight:800;font-variant-numeric:tabular-nums}
+.sale-card{background:var(--surf);border:1px solid var(--bdr);border-radius:12px;padding:14px;margin-bottom:10px}
+.sale-card-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;gap:8px}
+.sale-card-name{font-size:13px;font-weight:700}
+.sale-card-total{font-size:15px;font-weight:800;color:var(--acc);white-space:nowrap}
+.sale-card-meta{font-size:11px;color:var(--txt2);display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px}
+.chip{display:inline-block;padding:2px 8px;border-radius:5px;font-size:10px;font-weight:700}
+.chip-g{background:var(--grn-d);color:var(--grn)}
+.chip-a{background:var(--acc-d);color:var(--acc)}
+.sale-items-list{font-size:12px;color:var(--txt2);line-height:1.8}
+.btn-wa-re{padding:6px 12px;background:rgba(37,211,102,.12);border:1px solid rgba(37,211,102,.3);border-radius:8px;font-family:inherit;font-size:11px;font-weight:700;color:var(--wa);cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:5px}
+
+/* PRODUCTS */
+.prod-list{display:flex;flex-direction:column;gap:8px}
+.prod-row{background:var(--surf);border:1px solid var(--bdr);border-radius:12px;padding:14px;display:flex;align-items:center;gap:12px}
+.prod-row-emoji{font-size:24px}
+.prod-row-info{flex:1}
+.prod-row-name{font-size:14px;font-weight:700}
+.prod-row-meta{font-size:11px;color:var(--txt2);margin-top:2px}
+.prod-row-price{font-size:15px;font-weight:800;color:var(--acc)}
+
+/* receipt state */
+.receipt-card{background:var(--surf);border:1px solid var(--grn-d);border-radius:14px;padding:20px;text-align:center;margin-bottom:16px}
+.receipt-icon{font-size:36px;margin-bottom:8px}
+.receipt-title{font-size:16px;font-weight:800;color:var(--grn);margin-bottom:4px}
+.receipt-sub{font-size:13px;color:var(--txt2);margin-bottom:16px}
+.receipt-breakdown{text-align:left;background:var(--surf2);border-radius:10px;padding:14px;margin-bottom:4px}
+.receipt-line{display:flex;justify-content:space-between;font-size:13px;padding:4px 0;border-bottom:1px solid var(--bdr)}
+.receipt-line:last-child{border-bottom:none;font-weight:800;font-size:14px;color:var(--acc);padding-top:8px}
+
+/* empty */
+.empty{text-align:center;padding:40px 20px;color:var(--txt3)}
+.empty-icon{font-size:32px;margin-bottom:10px}
+.empty-text{font-size:13px;line-height:1.6}
+
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--surf2);border:1px solid var(--bdr);color:var(--txt);padding:9px 18px;border-radius:10px;font-size:13px;font-weight:600;z-index:999;opacity:0;transition:opacity .2s;pointer-events:none;white-space:nowrap}
+#toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="auth-wrap">
+    <div class="auth-logo"><img src="/happa-logo.jpg" alt="Happa"></div>
+    <div class="auth-title">Happa Merchant</div>
+    <div class="auth-sub">Sign in to record sales &amp; send receipts</div>
+    <div class="auth-card">
+      <div class="fg">
+        <label class="fl" for="lp">Business Phone</label>
+        <input class="fi" id="lp" type="tel" placeholder="+254 7XX XXX XXX" autocomplete="tel">
+      </div>
+      <div class="fg">
+        <label class="fl" for="lpin">PIN</label>
+        <input class="fi" id="lpin" type="password" inputmode="numeric" maxlength="8" placeholder="Enter PIN" autocomplete="current-password">
+      </div>
+      <div class="err-msg" id="login-err"></div>
+      <button class="btn-p" id="login-btn" onclick="doLogin()">Sign In</button>
+    </div>
+  </div>
+</div>
+
+<!-- PORTAL -->
+<div id="portal">
+  <div class="hdr">
+    <div class="hdr-brand">
+      <div class="hdr-logo"><img src="/happa-logo.jpg" alt=""></div>
+      <div>
+        <div class="hdr-title" id="hdr-name">Shop</div>
+        <div class="hdr-sub" id="hdr-sub">Happa Merchant</div>
+      </div>
+    </div>
+    <button class="btn-s" onclick="doLogout()">Sign Out</button>
+  </div>
+
+  <div class="tabs-bar">
+    <button class="tab on" onclick="switchTab('sale',this)">New Sale</button>
+    <button class="tab" onclick="switchTab('today',this)">Today</button>
+    <button class="tab" onclick="switchTab('products',this)">Products</button>
+  </div>
+
+  <div class="body">
+
+    <!-- NEW SALE -->
+    <div class="page on" id="page-sale">
+
+      <!-- success state -->
+      <div id="sale-success" style="display:none">
+        <div class="receipt-card">
+          <div class="receipt-icon">🧾</div>
+          <div class="receipt-title">Sale Recorded!</div>
+          <div class="receipt-sub" id="receipt-sub">KES 0 · Walk-in customer</div>
+          <div class="receipt-breakdown" id="receipt-breakdown"></div>
+        </div>
+        <a class="btn-wa-receipt" id="wa-receipt-btn" href="#" target="_blank">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+          Send WhatsApp Receipt
+        </a>
+        <button class="btn-new-sale" onclick="resetSale()">+ New Sale</button>
+      </div>
+
+      <!-- sale form -->
+      <div id="sale-form">
+        <!-- customer -->
+        <div class="sale-section">
+          <div class="sec-lbl">Customer</div>
+          <div class="customer-row">
+            <div>
+              <label class="fl" for="cust-name">Name</label>
+              <input class="fi" id="cust-name" type="text" placeholder="Walk-in">
+            </div>
+            <div>
+              <label class="fl" for="cust-phone">Phone (for receipt)</label>
+              <input class="fi" id="cust-phone" type="tel" placeholder="+254…">
+            </div>
+          </div>
+        </div>
+
+        <!-- products from catalog -->
+        <div class="sale-section" id="catalog-section" style="display:none">
+          <div class="sec-lbl">From your catalog — tap to add</div>
+          <div class="prod-grid" id="prod-grid"></div>
+        </div>
+
+        <!-- custom items -->
+        <div class="sale-section">
+          <div class="sec-lbl">Custom items</div>
+          <div id="custom-items"></div>
+          <button class="btn-add-item" onclick="addCustomRow()">+ Add item</button>
+        </div>
+
+        <!-- cart -->
+        <div class="sale-section">
+          <div class="sec-lbl">Cart</div>
+          <div class="cart-card" id="cart-card">
+            <div class="cart-empty">No items added yet</div>
+          </div>
+        </div>
+
+        <!-- payment -->
+        <div class="sale-section">
+          <div class="sec-lbl">Payment method</div>
+          <div class="pay-row">
+            <button class="pay-opt on" id="pay-cash" onclick="setPayment('cash')">💵 Cash</button>
+            <button class="pay-opt" id="pay-mpesa" onclick="setPayment('mpesa')">📱 M-Pesa</button>
+          </div>
+          <div id="mpesa-code-wrap" style="display:none">
+            <label class="fl" for="mpesa-code">M-Pesa Transaction Code</label>
+            <input class="fi" id="mpesa-code" type="text" placeholder="e.g. PGK8XZ1234" style="text-transform:uppercase">
+          </div>
+        </div>
+
+        <div class="err-msg" id="sale-err" style="text-align:left;margin-bottom:12px"></div>
+        <button class="btn-record" id="record-btn" onclick="recordSale()">
+          <span>🧾</span> Record Sale
+        </button>
+      </div>
+    </div>
+
+    <!-- TODAY -->
+    <div class="page" id="page-today">
+      <div class="page-ttl">Today's Sales</div>
+      <div class="stat-row">
+        <div class="sc"><div class="sc-lbl">Sales</div><div class="sc-val" id="t-count">—</div></div>
+        <div class="sc"><div class="sc-lbl">Revenue</div><div class="sc-val" style="color:var(--acc)" id="t-revenue">—</div></div>
+        <div class="sc"><div class="sc-lbl">Profit</div><div class="sc-val" style="color:var(--grn)" id="t-profit">—</div></div>
+      </div>
+      <div id="today-list"></div>
+    </div>
+
+    <!-- PRODUCTS -->
+    <div class="page" id="page-products">
+      <div class="page-ttl">Your Products</div>
+      <div class="prod-list" id="prod-list"></div>
+    </div>
+
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const SUPABASE_URL = 'https://zxucpsdfcokkjtcgygna.supabase.co';
+const ANON_KEY     = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp4dWNwc2RmY29ra2p0Y2d5Z25hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI3NDc0NzUsImV4cCI6MjEwODMyMzQ3NX0.6JH4kLkge4D-8SCYLIGh7zmAvX0exJILThhOQ79BusA';
+const FN           = (n) => `${SUPABASE_URL}/functions/v1/${n}`;
+
+let _shop = null, _products = [], _cart = [], _payMethod = 'cash', _creds = {};
+
+/* ── AUTH ── */
+async function doLogin() {
+  const phone = document.getElementById('lp').value.trim();
+  const pin   = document.getElementById('lpin').value.trim();
+  const err   = document.getElementById('login-err');
+  const btn   = document.getElementById('login-btn');
+  err.textContent = '';
+  if (!phone || !pin) { err.textContent = 'Enter your phone and PIN'; return; }
+  btn.disabled = true; btn.textContent = 'Signing in…';
+  try {
+    const res  = await fetch(FN('merchant-auth'), {
+      method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${ANON_KEY}`},
+      body: JSON.stringify({ phone, pin })
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) { err.textContent = data.error || 'Sign-in failed'; return; }
+    _shop = data.shop; _products = data.products || [];
+    _creds = { phone, pin };
+    try { localStorage.setItem('happa_merchant', JSON.stringify({ shop:_shop, phone, pin })); } catch(_){}
+    showPortal();
+  } catch(e) { err.textContent = 'Network error — try again'; }
+  finally { btn.disabled = false; btn.textContent = 'Sign In'; }
+}
+
+function doLogout() {
+  try { localStorage.removeItem('happa_merchant'); } catch(_){}
+  _shop = null; _products = []; _cart = [];
+  document.getElementById('portal').style.display = 'none';
+  document.getElementById('login-screen').style.display = '';
+}
+
+/* ── PORTAL INIT ── */
+function showPortal() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('portal').style.display = 'flex';
+  document.getElementById('hdr-name').textContent = _shop.name;
+  document.getElementById('hdr-sub').textContent = cap(_shop.business_type || '') + (_shop.location ? ` · ${_shop.location}` : '');
+  renderCatalog();
+  renderProducts();
+  loadToday();
+}
+
+/* ── CATALOG ── */
+function renderCatalog() {
+  const wrap = document.getElementById('catalog-section');
+  const grid = document.getElementById('prod-grid');
+  if (!_products.length) { wrap.style.display = 'none'; return; }
+  wrap.style.display = '';
+  grid.innerHTML = _products.map(p => `
+    <button class="prod-btn" id="pb-${p.id}" onclick="toggleProduct('${p.id}')">
+      <div class="prod-emoji">${p.emoji || '📦'}</div>
+      <div class="prod-name">${esc(p.name)}</div>
+      <div class="prod-price">KES ${fmt(p.sell_price)}</div>
+      ${!p.is_service ? `<div class="prod-stock">Stock: ${p.stock}</div>` : ''}
+    </button>`).join('');
+}
+
+function toggleProduct(id) {
+  const p = _products.find(x => x.id === id);
+  if (!p) return;
+  const existing = _cart.find(c => c.product_id === id);
+  if (existing) {
+    existing.qty++;
+    existing.total = existing.qty * existing.unit_price;
+  } else {
+    _cart.push({ product_id:p.id, name:p.name, emoji:p.emoji||'📦', unit_price:p.sell_price, buy_price:p.buy_price||0, qty:1, total:p.sell_price, _type:'catalog' });
+  }
+  renderCart();
+  updateCatalogBadges();
+}
+
+function updateCatalogBadges() {
+  _products.forEach(p => {
+    const btn = document.getElementById(`pb-${p.id}`);
+    if (!btn) return;
+    const item = _cart.find(c => c.product_id === p.id);
+    btn.classList.toggle('in-cart', !!item);
+    const existing = btn.querySelector('.cart-badge');
+    if (existing) existing.remove();
+    if (item) { const b = document.createElement('span'); b.className='cart-badge'; b.textContent=item.qty; btn.appendChild(b); }
+  });
+}
+
+/* ── CUSTOM ITEMS ── */
+let _customIdx = 0;
+function addCustomRow() {
+  const idx = _customIdx++;
+  const div = document.createElement('div');
+  div.className = 'custom-row'; div.id = `cr-${idx}`;
+  div.innerHTML = `
+    <input class="fi" placeholder="Item name" oninput="syncCustom(${idx})" id="cn-${idx}">
+    <input class="fi" type="number" placeholder="Qty" value="1" min="1" oninput="syncCustom(${idx})" id="cq-${idx}" style="padding:10px 8px">
+    <input class="fi" type="number" placeholder="Price" min="0" oninput="syncCustom(${idx})" id="cp-${idx}" style="padding:10px 8px">
+    <button class="btn-icon" onclick="removeCustomRow(${idx})">✕</button>`;
+  document.getElementById('custom-items').appendChild(div);
+}
+
+function syncCustom(idx) {
+  const name  = document.getElementById(`cn-${idx}`)?.value.trim();
+  const qty   = parseFloat(document.getElementById(`cq-${idx}`)?.value) || 0;
+  const price = parseFloat(document.getElementById(`cp-${idx}`)?.value) || 0;
+  const key   = `custom-${idx}`;
+  const pos   = _cart.findIndex(c => c._key === key);
+  if (!name || !price) { if (pos >= 0) { _cart.splice(pos, 1); renderCart(); } return; }
+  const item = { _key:key, name, emoji:'📦', unit_price:price, buy_price:0, qty, total:qty*price, _type:'custom' };
+  if (pos >= 0) _cart[pos] = item; else _cart.push(item);
+  renderCart();
+}
+
+function removeCustomRow(idx) {
+  document.getElementById(`cr-${idx}`)?.remove();
+  const key = `custom-${idx}`;
+  const pos = _cart.findIndex(c => c._key === key);
+  if (pos >= 0) { _cart.splice(pos, 1); renderCart(); }
+}
+
+/* ── CART ── */
+function renderCart() {
+  const card = document.getElementById('cart-card');
+  if (!_cart.length) { card.innerHTML = '<div class="cart-empty">No items added yet</div>'; return; }
+  const grand = _cart.reduce((s,i) => s+i.total, 0);
+  card.innerHTML = _cart.map((item, idx) => `
+    <div class="cart-row">
+      <div class="cart-item-info">
+        <div class="cart-item-name">${item.emoji} ${esc(item.name)}</div>
+        <div class="cart-item-sub">KES ${fmt(item.unit_price)} each</div>
+      </div>
+      <div class="cart-qty">
+        <button class="qty-btn" onclick="changeQty(${idx},-1)">−</button>
+        <div class="qty-val">${item.qty}</div>
+        <button class="qty-btn" onclick="changeQty(${idx},1)">+</button>
+      </div>
+      <div class="cart-item-total">KES ${fmt(item.total)}</div>
+    </div>`).join('') +
+    `<div class="cart-total-row"><div class="cart-total-lbl">Total</div><div class="cart-total-val">KES ${fmt(grand)}</div></div>`;
+}
+
+function changeQty(idx, delta) {
+  _cart[idx].qty = Math.max(1, _cart[idx].qty + delta);
+  _cart[idx].total = _cart[idx].qty * _cart[idx].unit_price;
+  renderCart();
+  updateCatalogBadges();
+}
+
+/* ── PAYMENT ── */
+function setPayment(m) {
+  _payMethod = m;
+  document.getElementById('pay-cash').classList.toggle('on', m==='cash');
+  document.getElementById('pay-mpesa').classList.toggle('on', m==='mpesa');
+  document.getElementById('mpesa-code-wrap').style.display = m==='mpesa' ? '' : 'none';
+}
+
+/* ── RECORD SALE ── */
+async function recordSale() {
+  const err = document.getElementById('sale-err');
+  err.textContent = '';
+  if (!_cart.length) { err.textContent = 'Add at least one item'; return; }
+  const btn = document.getElementById('record-btn');
+  btn.disabled = true; btn.innerHTML = '<span>⏳</span> Recording…';
+  const custName  = document.getElementById('cust-name').value.trim() || 'Walk-in';
+  const custPhone = document.getElementById('cust-phone').value.trim();
+  const mpesaCode = document.getElementById('mpesa-code').value.trim().toUpperCase();
+  if (_payMethod === 'mpesa' && !mpesaCode) { err.textContent = 'Enter M-Pesa transaction code'; btn.disabled=false; btn.innerHTML='<span>🧾</span> Record Sale'; return; }
+  try {
+    const res  = await fetch(FN('record-sale'), {
+      method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${ANON_KEY}`},
+      body: JSON.stringify({
+        shop_id: _shop.id, phone: _creds.phone, pin: _creds.pin,
+        items: _cart, payment_method: _payMethod,
+        mpesa_code: mpesaCode || null, customer_name: custName,
+        customer_phone: custPhone || null
+      })
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) { err.textContent = data.error || 'Failed to record sale'; return; }
+    showReceipt(data, custPhone);
+    loadToday();
+  } catch(e) { err.textContent = 'Network error — try again'; }
+  finally { btn.disabled=false; btn.innerHTML='<span>🧾</span> Record Sale'; }
+}
+
+function showReceipt(data, custPhone) {
+  const grand = data.grand_total;
+  document.getElementById('receipt-sub').textContent = `KES ${fmt(grand)} · ${data.customer_name}${data.payment_method==='mpesa'?' · M-Pesa':''}`;
+  const items = data.items || [];
+  document.getElementById('receipt-breakdown').innerHTML =
+    items.map(i => `<div class="receipt-line"><span>${i.product_emoji||'📦'} ${esc(i.product_name)} ×${i.qty}</span><span>KES ${fmt(i.total)}</span></div>`).join('') +
+    `<div class="receipt-line"><span>Total</span><span>KES ${fmt(grand)}</span></div>`;
+
+  // Build WhatsApp receipt message
+  const dateStr = new Date().toLocaleDateString('en-KE', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  const itemLines = items.map(i => `${i.product_emoji||'📦'} ${i.product_name} ×${i.qty} — KES ${fmt(i.total)}`).join('\n');
+  const msg = `🧾 *Receipt from ${data.shop_name}*\n📅 ${dateStr}\n\n${itemLines}\n${'─'.repeat(28)}\n*Total: KES ${fmt(grand)}*\n💳 ${data.payment_method === 'mpesa' ? `M-Pesa${data.mpesa_code?` (${data.mpesa_code})`:''}` : 'Cash'}\n\nThank you! 🙏`;
+  const wa = custPhone ? custPhone.replace(/[^0-9]/g,'') : '';
+  document.getElementById('wa-receipt-btn').href = wa
+    ? `https://wa.me/${wa}?text=${encodeURIComponent(msg)}`
+    : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+
+  document.getElementById('sale-form').style.display = 'none';
+  document.getElementById('sale-success').style.display = '';
+}
+
+function resetSale() {
+  _cart = []; _payMethod = 'cash';
+  document.getElementById('cust-name').value = '';
+  document.getElementById('cust-phone').value = '';
+  document.getElementById('mpesa-code').value = '';
+  document.getElementById('custom-items').innerHTML = '';
+  document.getElementById('sale-err').textContent = '';
+  setPayment('cash');
+  renderCart();
+  updateCatalogBadges();
+  document.getElementById('sale-form').style.display = '';
+  document.getElementById('sale-success').style.display = 'none';
+}
+
+/* ── TODAY ── */
+async function loadToday() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const sb_url = `${SUPABASE_URL}/rest/v1/sales?shop_id=eq.${_shop.id}&recorded_at=gte.${today.toISOString()}&order=recorded_at.desc`;
+  try {
+    const res = await fetch(sb_url, { headers:{ 'apikey': ANON_KEY, 'Authorization': `Bearer ${ANON_KEY}` } });
+    const rows = await res.json();
+    renderToday(Array.isArray(rows) ? rows : []);
+  } catch(_) {}
+}
+
+function renderToday(rows) {
+  const totalRev  = rows.reduce((s,r) => s+Number(r.total||0), 0);
+  const totalProf = rows.reduce((s,r) => s+Number(r.profit||0), 0);
+  document.getElementById('t-count').textContent = countBaskets(rows);
+  document.getElementById('t-revenue').textContent = `${fmt(totalRev)}`;
+  document.getElementById('t-profit').textContent = `${fmt(totalProf)}`;
+
+  const list = document.getElementById('today-list');
+  if (!rows.length) { list.innerHTML = '<div class="empty"><div class="empty-icon">🛒</div><div class="empty-text">No sales yet today.<br>Record your first sale!</div></div>'; return; }
+
+  // Group by basket_id (or individual if no basket)
+  const baskets = {};
+  rows.forEach(r => {
+    const key = r.basket_id || r.id;
+    if (!baskets[key]) baskets[key] = { items:[], total:0, profit:0, payment_method:r.payment_method, mpesa_code:r.mpesa_code, customer_name:r.customer_name, recorded_at:r.recorded_at };
+    baskets[key].items.push(r);
+    baskets[key].total  += Number(r.total||0);
+    baskets[key].profit += Number(r.profit||0);
+  });
+
+  list.innerHTML = Object.values(baskets).map(b => {
+    const t = new Date(b.recorded_at).toLocaleTimeString('en-KE', { hour:'2-digit', minute:'2-digit' });
+    const pm = b.payment_method === 'mpesa' ? `📱 M-Pesa${b.mpesa_code?` · ${b.mpesa_code}`:''}` : '💵 Cash';
+    const itemSummary = b.items.map(i => `${i.product_emoji||'📦'} ${i.product_name} ×${i.qty}`).join('  ·  ');
+    return `<div class="sale-card">
+      <div class="sale-card-top">
+        <div>
+          <div class="sale-card-name">${esc(b.customer_name||'Walk-in')}</div>
+          <div class="sale-card-meta"><span>🕐 ${t}</span><span>${pm}</span></div>
+        </div>
+        <div class="sale-card-total">KES ${fmt(b.total)}</div>
+      </div>
+      <div class="sale-items-list">${esc(itemSummary)}</div>
+    </div>`;
+  }).join('');
+}
+
+function countBaskets(rows) {
+  const s = new Set(rows.map(r => r.basket_id || r.id));
+  return s.size;
+}
+
+/* ── PRODUCTS ── */
+function renderProducts() {
+  const list = document.getElementById('prod-list');
+  if (!_products.length) { list.innerHTML = '<div class="empty"><div class="empty-icon">📦</div><div class="empty-text">No products added yet.<br>Ask your Happa admin to add them.</div></div>'; return; }
+  list.innerHTML = _products.map(p => `
+    <div class="prod-row">
+      <div class="prod-row-emoji">${p.emoji||'📦'}</div>
+      <div class="prod-row-info">
+        <div class="prod-row-name">${esc(p.name)}</div>
+        <div class="prod-row-meta">${p.is_service?'Service':'Stock: '+p.stock} · ${p.unit}</div>
+      </div>
+      <div class="prod-row-price">KES ${fmt(p.sell_price)}</div>
+    </div>`).join('');
+}
+
+/* ── NAV ── */
+function switchTab(name, el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('on'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
+  document.getElementById(`page-${name}`)?.classList.add('on');
+  if (el) el.classList.add('on');
+  if (name === 'today') loadToday();
+}
+
+/* ── HELPERS ── */
+function fmt(n) { return Number(n||0).toLocaleString('en-KE'); }
+function cap(s) { return s ? s.charAt(0).toUpperCase()+s.slice(1) : ''; }
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+/* ── BOOT ── */
+document.addEventListener('DOMContentLoaded', () => {
+  ['lp','lpin'].forEach(id => document.getElementById(id)?.addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); }));
+  try {
+    const s = JSON.parse(localStorage.getItem('happa_merchant')||'{}');
+    if (s.shop && s.phone && s.pin) { _shop=s.shop; _creds={phone:s.phone,pin:s.pin}; showPortal(); }
+  } catch(_) {}
+});
+</script>
+</body>
+</html>
