@@ -430,11 +430,11 @@ async function apiPatch(table, filter, body) {
 ═══════════════════════════════ */
 (async function init() {
   const urlParams = new URLSearchParams(window.location.search);
-  console.log('[Happa v22] init(), search:', window.location.search);
+  // DEBUG BANNER — remove after testing
+  (function(){const b=document.createElement('div');b.id='dbg-banner';b.style.cssText='position:fixed;top:0;left:0;right:0;background:#d00;color:#fff;padding:6px 12px;font-size:11px;z-index:99999;font-family:monospace';b.textContent='[v22] search='+window.location.search;document.body.prepend(b);})();
 
   // If ?ref=CODE — agent referral link; show Get Started form, skip login
   const refCode = urlParams.get('ref');
-  console.log('[Happa v22] refCode:', refCode);
   if (refCode) {
     history.replaceState({}, '', window.location.pathname); // clean URL
     await showReferralLanding(refCode);
