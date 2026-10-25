@@ -703,7 +703,7 @@ async function loadUserContext() {
   }
 
   if (S.isAirbnb) {
-    await loadUnits();
+    await Promise.all([loadUnits(), loadHosts()]);
   } else {
     await Promise.all([loadProducts(), loadCustomers(), loadSuppliers()]);
   }
@@ -726,6 +726,10 @@ async function loadSuppliers() {
 
 async function loadUnits() {
   S.units = await apiGet(`units?shop_id=eq.${S.shop.id}&active=eq.true&order=name`) || [];
+}
+
+async function loadHosts() {
+  S.hosts = await apiGet(`hosts?shop_id=eq.${S.shop.id}&order=name`) || [];
 }
 
 /* ═══════════════════════════════
@@ -765,7 +769,8 @@ async function renderAirbnbHome(el) {
       <div class="alert-sub">${lowSupplies.slice(0,2).map(s=>(s.emoji||'🧻')+' '+s.name).join(', ')}${lowSupplies.length>2?'…':''}</div></div>
       <span style="color:var(--txt3);font-size:20px">›</span></div>`;
 
-  h += `<button class="fab" onclick="openBookingSheet()"><span style="font-size:22px">+</span> Record a Booking</button>`;
+  h += `<button class="fab" onclick="openBookingSheet()"><span style="font-size:22px">+</span> Record a Booking</button>
+  <button class="fab" onclick="openCommissionSheet()" style="background:var(--surf2);color:var(--txt);border:1.5px solid var(--bdr);margin-top:10px"><span style="font-size:18px">🤝</span> Record a Commission</button>`;
 
   h += `<div class="chart-card"><div class="chart-ttl">Revenue — Last 7 Days</div><div class="bar-wrap">`;
   days.forEach(d => {
@@ -823,6 +828,23 @@ async function renderUnits(el) {
    BOOKINGS TAB
 ═══════════════════════════════ */
 async function renderBookings(el) {
+  const subTab = S.bookingSubTab || 'bookings';
+
+  // Sub-tab toggle (always shown)
+  let h = `<div style="display:flex;gap:8px;padding:14px 16px 0">
+    <button style="flex:1;padding:9px 0;border-radius:10px;border:1.5px solid ${subTab==='bookings'?'var(--acc)':'var(--bdr)'};background:${subTab==='bookings'?'var(--acc-d)':'var(--surf)'};color:${subTab==='bookings'?'var(--acc)':'var(--txt2)'};font-size:13px;font-weight:600;cursor:pointer"
+      onclick="S.bookingSubTab='bookings';renderTab('bookings')">📅 Bookings</button>
+    <button style="flex:1;padding:9px 0;border-radius:10px;border:1.5px solid ${subTab==='commissions'?'var(--acc)':'var(--bdr)'};background:${subTab==='commissions'?'var(--acc-d)':'var(--surf)'};color:${subTab==='commissions'?'var(--acc)':'var(--txt2)'};font-size:13px;font-weight:600;cursor:pointer"
+      onclick="S.bookingSubTab='commissions';renderTab('bookings')">🤝 Commissions</button>
+  </div>`;
+
+  if (subTab === 'commissions') {
+    h += await buildCommissionsHtml();
+    h += '<div style="height:8px"></div>';
+    el.innerHTML = h;
+    return;
+  }
+
   const filter = S.salesFilter || 'today';
   let from = filter === 'today' ? todayStart() : filter === 'week' ? sevenDaysAgo() : '2000-01-01';
   const bk = await apiGet(`bookings?shop_id=eq.${S.shop.id}&recorded_at=gte.${from}&order=recorded_at.desc`);
@@ -830,7 +852,7 @@ async function renderBookings(el) {
   const rev = sum(bk, 'total');
   const nights = (bk||[]).reduce((a,b)=>a+(b.nights||0),0);
 
-  let h = `<div class="frow">
+  h += `<div class="frow">
     <button class="fchip ${filter==='today'?'on':''}" onclick="setSF('today')">Today</button>
     <button class="fchip ${filter==='week'?'on':''}" onclick="setSF('week')">This Week</button>
     <button class="fchip ${filter==='all'?'on':''}" onclick="setSF('all')">All Time</button>
@@ -862,6 +884,47 @@ async function renderBookings(el) {
   }
   h += '<div style="height:8px"></div>';
   el.innerHTML = h;
+}
+
+async function buildCommissionsHtml() {
+  const filter = S.salesFilter || 'today';
+  let from = filter === 'today' ? todayStart() : filter === 'week' ? sevenDaysAgo() : '2000-01-01';
+  const cms = await apiGet(`commissions?shop_id=eq.${S.shop.id}&recorded_at=gte.${from}&order=recorded_at.desc`);
+
+  const total = sum(cms, 'amount');
+
+  let h = `<div class="frow">
+    <button class="fchip ${filter==='today'?'on':''}" onclick="setSF('today')">Today</button>
+    <button class="fchip ${filter==='week'?'on':''}" onclick="setSF('week')">This Week</button>
+    <button class="fchip ${filter==='all'?'on':''}" onclick="setSF('all')">All Time</button>
+  </div>
+  <div class="stats">
+    <div class="scard"><div class="scard-lbl">Commissions</div><div class="scard-val" style="font-size:14px">${kshort(total)}</div><div class="scard-sub">KES earned</div></div>
+    <div class="scard"><div class="scard-lbl">Count</div><div class="scard-val">${cms?.length||0}</div><div class="scard-sub">referrals</div></div>
+    <div class="scard"><div class="scard-lbl">Avg</div><div class="scard-val" style="font-size:13px">${cms?.length?kshort(total/cms.length):'—'}</div><div class="scard-sub">per deal</div></div>
+  </div>
+  <button class="fab" onclick="openCommissionSheet()" style="background:var(--surf2);color:var(--txt);border:1.5px solid var(--bdr)"><span style="font-size:18px">🤝</span> Record a Commission</button>`;
+
+  if (cms?.length) {
+    h += `<div class="clist" style="margin-top:10px">`;
+    cms.forEach(c => {
+      const dt = new Date(c.recorded_at);
+      const dtStr = dt.toLocaleDateString('en-KE',{day:'numeric',month:'short'}) + ' ' + dt.toLocaleTimeString('en-KE',{hour:'2-digit',minute:'2-digit'});
+      const meth = c.payment_method === 'mpesa' ? '📱 M-Pesa' : '💵 Cash';
+      const prop = [c.house_number, c.apartment_name, c.size].filter(Boolean).join(' · ');
+      h += `<div class="txi">
+        <div class="txi-ico">🤝</div>
+        <div class="txi-inf">
+          <div class="txi-nm">${esc(c.host_name||'Host')}${c.guest_name?' → '+esc(c.guest_name):''}</div>
+          <div class="txi-sub">${prop?esc(prop)+' · ':''}${meth} · ${dtStr}</div>
+        </div>
+        <div class="txi-amt">${kes(c.amount)}</div></div>`;
+    });
+    h += `</div>`;
+  } else {
+    h += `<div class="empty"><div class="empty-ico">🤝</div><p>No commissions in this period.</p></div>`;
+  }
+  return h;
 }
 
 /* ═══════════════════════════════
@@ -1265,6 +1328,201 @@ async function saveBooking(forceOverride) {
   }
 }
 
+/* ═══════════════════════════════
+   COMMISSION SHEET
+═══════════════════════════════ */
+function openCommissionSheet() {
+  const hostOptions = (S.hosts||[]).map(h =>
+    `<option value="${h.id}" data-name="${esc(h.name)}" data-apt="${esc(h.apartment_name||'')}">${esc(h.name)}${h.apartment_name?' — '+esc(h.apartment_name):''}</option>`
+  ).join('');
+
+  pushSheet(`
+    <div class="sh-hand"></div>
+    <div class="sh-hdr"><h2>🤝 Record a Commission</h2></div>
+    <div class="sh-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+        <div><label class="fl">House Number</label>
+          <input id="cm-hnum" class="fi" placeholder="e.g. A4, 12B"></div>
+        <div><label class="fl">Size</label>
+          <select id="cm-size" class="fi" style="appearance:auto;-webkit-appearance:auto">
+            <option value="">— Select —</option>
+            <option value="Bedsitter">Bedsitter</option>
+            <option value="Studio">Studio</option>
+            <option value="1BR">1 Bedroom</option>
+            <option value="2BR">2 Bedrooms</option>
+            <option value="3BR">3 Bedrooms</option>
+            <option value="4BR+">4BR+</option>
+          </select></div>
+      </div>
+      <div class="fg-s"><label class="fl">Apartment Name</label>
+        <input id="cm-apt" class="fi" placeholder="e.g. Kilimani Heights"></div>
+      <div class="fg-s"><label class="fl">Guest Name</label>
+        <input id="cm-guest" class="fi" placeholder="e.g. John Kamau"></div>
+      <div class="fg-s">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <label class="fl" style="margin:0">Host (referred to) *</label>
+          <button onclick="showAddHostSheet(true)" style="background:none;border:none;color:var(--acc);font-size:13px;font-weight:600;cursor:pointer;padding:0">+ Add Host</button>
+        </div>
+        ${hostOptions ? `<select id="cm-host-sel" class="fi" style="appearance:auto;-webkit-appearance:auto;margin-bottom:6px" onchange="
+          const o=this.options[this.selectedIndex];
+          if(o.value){document.getElementById('cm-host-inp').value=o.dataset.name;
+          if(o.dataset.apt&&!document.getElementById('cm-apt').value)document.getElementById('cm-apt').value=o.dataset.apt;}">
+          <option value="">— Pick saved host —</option>${hostOptions}
+        </select>` : ''}
+        <input type="text" id="cm-host-inp" class="fi" placeholder="Type host name">
+      </div>
+      <div class="fg-s"><label class="fl">Commission Amount (KES) *</label>
+        <input type="number" id="cm-amount" class="fi" placeholder="e.g. 3000" min="1" inputmode="numeric"></div>
+      <label class="fl">Payment Received Via</label>
+      <div class="method-row" style="grid-template-columns:1fr 1fr;margin-bottom:14px">
+        <button class="method-btn sel" id="cm-cash" onclick="document.getElementById('cm-cash').classList.add('sel');document.getElementById('cm-mpesa').classList.remove('sel');document.getElementById('cm-mpesa-row').style.display='none'"><span class="m-ico">💵</span>Cash</button>
+        <button class="method-btn" id="cm-mpesa" onclick="document.getElementById('cm-mpesa').classList.add('sel');document.getElementById('cm-cash').classList.remove('sel');document.getElementById('cm-mpesa-row').style.display='block'"><span class="m-ico">📱</span>M-Pesa</button>
+      </div>
+      <div id="cm-mpesa-row" style="display:none;margin-bottom:14px">
+        <label class="fl">M-Pesa Code</label>
+        <input type="text" id="cm-mpesa-code" class="fi" placeholder="e.g. SJK4L9M2QP" oninput="this.value=this.value.toUpperCase()">
+      </div>
+      <button class="btn-p" onclick="saveCommission()">✅ Save Commission</button>
+      <button class="btn-g" onclick="popSheet()">Cancel</button>
+    </div>`);
+  document.getElementById('sale-overlay').classList.add('on');
+}
+
+async function saveCommission() {
+  const houseNum  = document.getElementById('cm-hnum')?.value.trim();
+  const size      = document.getElementById('cm-size')?.value;
+  const aptName   = document.getElementById('cm-apt')?.value.trim();
+  const guestName = document.getElementById('cm-guest')?.value.trim();
+  const hostName  = document.getElementById('cm-host-inp')?.value.trim();
+  const amount    = parseFloat(document.getElementById('cm-amount')?.value);
+  const isMpesa   = document.getElementById('cm-mpesa')?.classList.contains('sel');
+  const mpesaCode = isMpesa ? (document.getElementById('cm-mpesa-code')?.value.trim().toUpperCase()) : null;
+
+  if (!hostName) { showToast('Enter the host name', true); return; }
+  if (!amount || amount <= 0) { showToast('Enter commission amount', true); return; }
+  if (isMpesa && !mpesaCode) { showToast('Enter M-Pesa code', true); return; }
+
+  const matchedHost = (S.hosts||[]).find(h => h.name.toLowerCase() === hostName.toLowerCase());
+
+  const btn = document.querySelector('#sale-sheet .btn-p');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
+  const { error } = await apiPost('commissions', {
+    shop_id: S.shop.id,
+    host_id: matchedHost?.id || null,
+    host_name: hostName,
+    guest_name: guestName || null,
+    apartment_name: aptName || null,
+    house_number: houseNum || null,
+    size: size || null,
+    amount,
+    payment_method: isMpesa ? 'mpesa' : 'cash',
+    mpesa_code: mpesaCode || null,
+    recorded_by: S.user.id,
+  });
+
+  if (error) {
+    showToast('Error: ' + error.message, true);
+    if (btn) { btn.disabled = false; btn.textContent = '✅ Save Commission'; }
+    return;
+  }
+
+  closeSaleSheet();
+  showToast(`✓ Commission saved — ${kes(amount)}`);
+  S.bookingSubTab = 'commissions';
+  showTab('bookings');
+}
+
+/* ═══════════════════════════════
+   HOST MANAGEMENT
+═══════════════════════════════ */
+function showAddHostSheet(fromCommission) {
+  pushSheet(`
+    <div class="sh-hand"></div>
+    <div class="sh-hdr"><h2>Add a Host</h2></div>
+    <div class="sh-body">
+      <div class="fg-s"><label class="fl">Host Name *</label>
+        <input id="host-name" class="fi" placeholder="e.g. Jane Wanjiku"></div>
+      <div class="fg-s"><label class="fl">Phone</label>
+        <input id="host-phone" class="fi" type="tel" placeholder="e.g. 0712 345 678"></div>
+      <div class="fg-s"><label class="fl">Apartment / Property Name</label>
+        <input id="host-apt" class="fi" placeholder="e.g. Kilimani Heights"></div>
+      <button class="btn-p" onclick="saveHost(${fromCommission?'true':'false'})">Save Host ✓</button>
+      <button class="btn-g" onclick="popSheet()">Cancel</button>
+    </div>`);
+}
+
+async function saveHost(returnToCommission) {
+  const name  = document.getElementById('host-name')?.value.trim();
+  const phone = document.getElementById('host-phone')?.value.trim();
+  const apt   = document.getElementById('host-apt')?.value.trim();
+
+  if (!name) { showToast('Enter host name', true); return; }
+  if ((S.hosts||[]).find(h => h.name.toLowerCase() === name.toLowerCase())) {
+    showToast('Host already saved', true); return;
+  }
+
+  const btn = document.querySelector('#sale-sheet .btn-p');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
+  const { data, error } = await apiPost('hosts', {
+    shop_id: S.shop.id, name, phone: phone||null, apartment_name: apt||null
+  });
+
+  if (error) {
+    showToast('Error: ' + error.message, true);
+    if (btn) { btn.disabled = false; btn.textContent = 'Save Host ✓'; }
+    return;
+  }
+
+  const newHost = Array.isArray(data) ? data[0] : data;
+  if (newHost) S.hosts = [...(S.hosts||[]), newHost];
+  showToast('✓ Host added — ' + name);
+  popSheet(); // go back (either to commission sheet or hosts list)
+  if (returnToCommission) {
+    // refresh the host dropdown in the commission sheet
+    const sel = document.getElementById('cm-host-sel');
+    if (sel && newHost) {
+      const opt = document.createElement('option');
+      opt.value = newHost.id;
+      opt.dataset.name = newHost.name;
+      opt.dataset.apt = newHost.apartment_name||'';
+      opt.textContent = newHost.name + (newHost.apartment_name?' — '+newHost.apartment_name:'');
+      sel.appendChild(opt);
+      sel.value = newHost.id;
+      document.getElementById('cm-host-inp').value = newHost.name;
+      if (newHost.apartment_name && !document.getElementById('cm-apt')?.value)
+        document.getElementById('cm-apt').value = newHost.apartment_name;
+    } else if (newHost) {
+      document.getElementById('cm-host-inp').value = newHost.name;
+    }
+  }
+}
+
+async function showHosts() {
+  await loadHosts();
+  let rows = (S.hosts||[]).map(h => `
+    <div class="more-item">
+      <div class="more-ico" style="background:#7c3aed22;font-size:20px">🏠</div>
+      <div class="more-inf">
+        <div class="more-nm">${esc(h.name)}</div>
+        <div class="more-mt">${[h.apartment_name, h.phone].filter(Boolean).map(esc).join(' · ')}</div>
+      </div>
+    </div>`).join('');
+
+  pushSheet(`
+    <div class="sh-hand"></div>
+    <div class="sh-hdr"><h2>Hosts (${(S.hosts||[]).length})</h2></div>
+    <div class="sh-body">
+      ${(S.hosts||[]).length
+        ? `<div class="clist">${rows}</div>`
+        : '<div class="empty"><div class="empty-ico">🏠</div><p>No hosts yet. Add hosts to quickly pick them when recording commissions.</p></div>'}
+      <button class="btn-p" onclick="showAddHostSheet(false)" style="margin-top:14px">+ Add Host</button>
+      <button class="btn-g" onclick="popSheet()">Close</button>
+    </div>`);
+  document.getElementById('sale-overlay').classList.add('on');
+}
+
 function showPausedPage(reason) {
   const reasonHtml = reason ? `<p style="margin-top:10px;font-size:14px;color:var(--txt);background:var(--surf2);border-radius:10px;padding:12px;white-space:pre-line">${esc(reason)}</p>` : '';
   document.getElementById('page-loading').innerHTML = `
@@ -1501,6 +1759,10 @@ function renderMore(el) {
         <div class="more-item" onclick="showAddUnitSheet()">
           <div class="more-ico" style="background:var(--acc-d)">🛏️</div>
           <div class="more-inf"><div class="more-nm">Add Unit</div><div class="more-mt">Add an apartment or room to rent</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showHosts()">
+          <div class="more-ico" style="background:#7c3aed22">🏠</div>
+          <div class="more-inf"><div class="more-nm">Hosts</div><div class="more-mt">Manage hosts you refer guests to</div></div>
           <span style="color:var(--txt3)">›</span></div>
         <div class="more-item" onclick="showTab('supplies')">
           <div class="more-ico" style="background:#0891b222">🧻</div>
