@@ -13,7 +13,11 @@ jobs:
         with:
           node-version: '20'
       - name: Deploy
-        run: npx wrangler@3 deploy --verbose 2>&1
+        run: |
+          npx wrangler@3 deploy 2>&1 || true
+          echo "--- WRANGLER LOGS ---"
+          cat ~/.config/wrangler/logs/*.log 2>/dev/null || echo "No log file found"
+          npx wrangler@3 deploy 2>&1
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: "9a626e9f532467918c229f392fbc67a2"
