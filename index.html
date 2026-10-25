@@ -430,9 +430,11 @@ async function apiPatch(table, filter, body) {
 ═══════════════════════════════ */
 (async function init() {
   const urlParams = new URLSearchParams(window.location.search);
+  console.log('[Happa v22] init(), search:', window.location.search);
 
   // If ?ref=CODE — agent referral link; show Get Started form, skip login
   const refCode = urlParams.get('ref');
+  console.log('[Happa v22] refCode:', refCode);
   if (refCode) {
     history.replaceState({}, '', window.location.pathname); // clean URL
     await showReferralLanding(refCode);
