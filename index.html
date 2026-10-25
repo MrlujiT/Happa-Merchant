@@ -512,10 +512,18 @@ async function loadUserContext() {
       showPage('loading');
       document.getElementById('page-loading').innerHTML =
         '<div class="loader"><div class="spin"></div><div class="loader-msg">Setting up your account…</div></div>';
-      const r = await fetch(`${SUPABASE_URL}/functions/v1/accept-invite`, {
-        method: 'POST', headers: apiHeaders(),
-      });
-      const payload = await r.json().catch(()=>({}));
+      let r, payload;
+      try {
+        r = await fetch(`${SUPABASE_URL}/functions/v1/accept-invite`, {
+          method: 'POST', headers: apiHeaders(),
+        });
+        payload = await r.json().catch(()=>({}));
+      } catch (e) {
+        showPage('noshop');
+        document.getElementById('page-noshop').querySelector('.auth-sub').textContent =
+          'Network error setting up your account. Please refresh and try again.';
+        return;
+      }
       if (r.ok) {
         // Re-run context load now that membership row exists
         await loadUserContext(); return;
@@ -848,7 +856,7 @@ function renderMore(el) {
       <div class="clist">
         <div class="more-item" style="cursor:default">
           <div class="more-ico" style="background:var(--acc-d)">ℹ️</div>
-          <div class="more-inf"><div class="more-nm">Happa Merchant v1.6</div><div class="more-mt">Business intelligence for small shops</div></div>
+          <div class="more-inf"><div class="more-nm">Happa Merchant v1.7</div><div class="more-mt">Business intelligence for small shops</div></div>
         </div>
       </div>
     </div>
