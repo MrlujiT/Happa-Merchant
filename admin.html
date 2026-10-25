@@ -196,7 +196,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <div class="main">
       <div class="page-hdr">
         <div class="page-ttl">Dashboard</div>
-        <button class="btn-acc" onclick="showInviteModal()">+ Invite Shop Owner</button>
+        <button class="btn-acc" onclick="showInviteModal()">+ Invite Business Owner</button>
       </div>
 
       <div class="stat-row" id="stats-row">
@@ -222,7 +222,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
 <!-- INVITE MODAL -->
 <div class="overlay" id="invite-overlay">
   <div class="modal">
-    <h2>Invite Shop Owner</h2>
+    <h2>Invite Business Owner</h2>
     <div class="modal-sub">An email invite will be sent. They set their password, then land straight into their shop.</div>
     <div class="fg"><label class="fl">Owner's Name *</label>
       <input class="fi" id="inv-name" type="text" placeholder="e.g. Mama Njeri"></div>
@@ -554,7 +554,7 @@ async function renderShops() {
     </tbody>
   </table></div>
   <div style="margin-top:12px;text-align:right">
-    <button class="act-btn primary" onclick="showInviteModal()">+ Invite Shop Owner</button>
+    <button class="act-btn primary" onclick="showInviteModal()">+ Invite Business Owner</button>
   </div>`;
 }
 

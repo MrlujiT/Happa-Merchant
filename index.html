@@ -1043,7 +1043,7 @@ function applyMonthlyRate() {
   if (mr) { document.getElementById('bk-rate').value = mr; calcBookingTotal(); }
 }
 
-async function saveBooking() {
+async function saveBooking(forceOverride) {
   const unitSel   = document.getElementById('bk-unit');
   const unitId    = unitSel?.value;
   const unitName  = unitSel?.options[unitSel.selectedIndex]?.text?.split(' — ')[0];
@@ -1063,6 +1063,46 @@ async function saveBooking() {
 
   const total = nights * rate;
 
+  // ── Overlap check (skip if host has already approved override) ──
+  if (!forceOverride) {
+    const overlaps = await apiGet(
+      `bookings?unit_id=eq.${unitId}&check_in=lt.${checkOut}&check_out=gt.${checkIn}&select=guest_name,check_in,check_out`
+    );
+    if (overlaps?.length) {
+      const clash = overlaps[0];
+      const clashGuest = clash.guest_name || 'Another guest';
+      const clashIn    = clash.check_in;
+      const clashOut   = clash.check_out;
+      // Show overlap warning inside current sheet
+      const body = document.querySelector('.sh-body');
+      if (body) {
+        const warn = document.createElement('div');
+        warn.id = 'bk-overlap-warn';
+        warn.style.cssText = 'background:var(--red-d);border:1px solid var(--red);border-radius:12px;padding:14px;margin-bottom:14px';
+        warn.innerHTML = `
+          <div style="font-weight:700;color:var(--red);margin-bottom:6px">⚠️ Unit Already Booked</div>
+          <div style="font-size:13px;color:var(--txt2);margin-bottom:10px">
+            <b>${esc(clashGuest)}</b> has this unit from <b>${clashIn}</b> to <b>${clashOut}</b>.
+          </div>
+          <div style="display:flex;gap:8px">
+            <button onclick="this.closest('#bk-overlap-warn').remove()"
+              style="flex:1;padding:10px;border:none;border-radius:10px;background:var(--surf2);cursor:pointer;font-size:13px">
+              ✕ Cancel
+            </button>
+            <button onclick="saveBooking(true)"
+              style="flex:1;padding:10px;border:none;border-radius:10px;background:var(--red);color:#fff;cursor:pointer;font-size:13px;font-weight:700">
+              ⚠️ Approve Double Booking
+            </button>
+          </div>`;
+        // Remove any existing warning first
+        document.getElementById('bk-overlap-warn')?.remove();
+        body.insertBefore(warn, body.firstChild);
+        body.scrollTop = 0;
+      }
+      return;
+    }
+  }
+
   await fetch(`${SUPABASE_URL}/rest/v1/bookings`, {
     method: 'POST',
     headers: { ...apiHeaders(), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
@@ -1072,11 +1112,12 @@ async function saveBooking() {
       check_in: checkIn, check_out: checkOut, nights, rate, total,
       payment_method: payment, mpesa_code: mpesa||null, notes: notes||null,
       recorded_by: S.user.id,
+      double_booking_override: forceOverride || false,
     })
   });
 
   closeSaleSheet();
-  showToast(`✓ Booking saved — ${kes(total)}`);
+  showToast(`✓ Booking saved — ${kes(total)}${forceOverride?' (double booking approved)':''}`);
   showTab('bookings');
 }
 
@@ -1321,9 +1362,29 @@ function renderMore(el) {
           <div class="more-ico" style="background:#0891b222">🧻</div>
           <div class="more-inf"><div class="more-nm">House Supplies</div><div class="more-mt">Track consumables per unit</div></div>
           <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showAirbnbGuests()">
+          <div class="more-ico" style="background:#7c3aed22">👥</div>
+          <div class="more-inf"><div class="more-nm">Guests</div><div class="more-mt">All guests from booking history</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showAirbnbTopGuests()">
+          <div class="more-ico" style="background:#d9770622">🏆</div>
+          <div class="more-inf"><div class="more-nm">Top Guests</div><div class="more-mt">Your highest-spending guests</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showAirbnbDebts()">
+          <div class="more-ico" style="background:var(--red-d)">📋</div>
+          <div class="more-inf"><div class="more-nm">Debts</div><div class="more-mt">Bookings with outstanding balance</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showAirbnbPromotion()">
+          <div class="more-ico" style="background:#f59e0b22">🎉</div>
+          <div class="more-inf"><div class="more-nm">Create Promotion</div><div class="more-mt">Blast a special offer via WhatsApp</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showAirbnbWhatsApp()">
+          <div class="more-ico" style="background:#25D36622">💬</div>
+          <div class="more-inf"><div class="more-nm">Send WhatsApp</div><div class="more-mt">Custom message to all guests</div></div>
+          <span style="color:var(--txt3)">›</span></div>
         <div class="more-item" onclick="showExpenses()">
           <div class="more-ico" style="background:#7c3aed22">💸</div>
-          <div class="more-inf"><div class="more-nm">Expenses</div><div class="more-mt">Track cleaning, maintenance & costs</div></div>
+          <div class="more-inf"><div class="more-nm">Expenses</div><div class="more-mt">Track cleaning, maintenance & costs per unit</div></div>
           <span style="color:var(--txt3)">›</span></div>
         <div class="more-item" onclick="showBusinessHealth()">
           <div class="more-ico" style="background:#16a34a22">💰</div>
@@ -1391,7 +1452,7 @@ function renderMore(el) {
       <div class="clist">
         <div class="more-item" style="cursor:default">
           <div class="more-ico" style="background:var(--acc-d)">ℹ️</div>
-          <div class="more-inf"><div class="more-nm">Happa Merchant v2.1</div><div class="more-mt">Business intelligence for small shops</div></div>
+          <div class="more-inf"><div class="more-nm">Happa Merchant v2.2</div><div class="more-mt">Business intelligence for small shops</div></div>
         </div>
       </div>
     </div>
@@ -2156,20 +2217,38 @@ function catEmoji(cat) {
   return {Rent:'🏠',Utilities:'💡',Stock:'📦',Transport:'🚗',Salaries:'👷',Other:'💸'}[cat]||'💸';
 }
 
-async function showExpenses() {
+async function showExpenses(filterUnitId) {
   pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>Expenses</h2></div><div class="sh-body"><div style="color:var(--txt2);text-align:center;padding:30px 0">Loading…</div></div>`);
-  const rows = await apiGet(`expenses?shop_id=eq.${S.shop.id}&order=expense_date.desc&limit=100`);
-  const thisMonth = rows?.filter(r => r.expense_date?.startsWith(new Date().toISOString().slice(0,7)))||[];
+
+  const [rows, units] = await Promise.all([
+    apiGet(`expenses?shop_id=eq.${S.shop.id}&order=expense_date.desc&limit=200${filterUnitId?'&unit_id=eq.'+filterUnitId:''}`),
+    S.isAirbnb ? apiGet(`units?shop_id=eq.${S.shop.id}&active=eq.true&order=name`) : Promise.resolve(null),
+  ]);
+
+  const thisMonth  = (rows||[]).filter(r => r.expense_date?.startsWith(new Date().toISOString().slice(0,7)));
   const monthTotal = thisMonth.reduce((a,r)=>a+parseFloat(r.amount||0),0);
   const allTotal   = (rows||[]).reduce((a,r)=>a+parseFloat(r.amount||0),0);
 
+  // Unit filter chips for Airbnb
+  let filterBar = '';
+  if (S.isAirbnb && units?.length) {
+    filterBar = `<div class="frow" style="margin-bottom:12px">
+      <button class="fchip ${!filterUnitId?'on':''}" onclick="showExpenses()">All</button>
+      ${units.map(u=>`<button class="fchip ${filterUnitId===u.id?'on':''}" onclick="showExpenses('${u.id}')">${esc(u.name)}</button>`).join('')}
+    </div>`;
+  }
+
+  const unitMap = {};
+  (units||[]).forEach(u => { unitMap[u.id] = u.name; });
+
   let list = '';
   (rows||[]).forEach(r => {
+    const unitLabel = r.unit_id && unitMap[r.unit_id] ? `🛏️ ${esc(unitMap[r.unit_id])} · ` : '';
     list += `<div class="more-item">
       <div class="more-ico" style="background:#7c3aed22;font-size:20px">${catEmoji(r.category)}</div>
       <div class="more-inf">
         <div class="more-nm">${esc(r.description||r.category)}</div>
-        <div class="more-mt">${r.category} · ${r.expense_date||''}</div>
+        <div class="more-mt">${unitLabel}${r.category} · ${r.expense_date||''}</div>
       </div>
       <div style="font-size:13px;font-weight:700;color:var(--red)">${kes(r.amount)}</div>
     </div>`;
@@ -2178,40 +2257,49 @@ async function showExpenses() {
   const sheet = document.querySelector('.sh-body');
   if (!sheet) return;
   sheet.innerHTML = `
+    ${filterBar}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
       <div style="background:var(--surf2);border-radius:12px;padding:14px;text-align:center">
         <div style="font-size:11px;color:var(--txt2);margin-bottom:4px">This Month</div>
         <div style="font-size:18px;font-weight:800;color:var(--red)">${kes(monthTotal)}</div>
       </div>
       <div style="background:var(--surf2);border-radius:12px;padding:14px;text-align:center">
-        <div style="font-size:11px;color:var(--txt2);margin-bottom:4px">All Time</div>
+        <div style="font-size:11px;color:var(--txt2);margin-bottom:4px">${filterUnitId?'Filtered':'All Time'}</div>
         <div style="font-size:18px;font-weight:800;color:var(--red)">${kes(allTotal)}</div>
       </div>
     </div>
     <div class="clist">${list||'<div style="color:var(--txt2);text-align:center;padding:20px 0">No expenses recorded yet</div>'}</div>
     <button class="btn-g" onclick="popSheet()">Close</button>`;
 
-  // FAB
-  addFab('+ Add Expense', openAddExpenseSheet);
+  addFab('+ Add Expense', () => openAddExpenseSheet(filterUnitId));
 }
 
-function openAddExpenseSheet() {
+function openAddExpenseSheet(presetUnitId) {
   const today = new Date().toISOString().slice(0,10);
+  const unitPicker = S.isAirbnb && S.units?.length
+    ? `<div class="fg-s"><label class="fl">Unit (optional)</label>
+        <select id="exp-unit" class="fi" style="appearance:auto">
+          <option value="">— General / whole property —</option>
+          ${(S.units||[]).map(u=>`<option value="${u.id}" ${presetUnitId===u.id?'selected':''}>${esc(u.name)}</option>`).join('')}
+        </select></div>`
+    : '';
+  const airbnbCats = S.isAirbnb
+    ? `<option>Cleaning</option><option>Maintenance</option><option>Laundry</option><option>Toiletries</option><option>Utilities</option><option>Internet</option><option>Rent</option><option>Salaries</option><option selected>Other</option>`
+    : `<option>Rent</option><option>Utilities</option><option>Stock</option><option>Transport</option><option>Salaries</option><option selected>Other</option>`;
+
   pushSheet(`
     <div class="sh-hand"></div>
     <div class="sh-hdr"><h2>Add Expense</h2></div>
     <div class="sh-body">
+      ${unitPicker}
       <div class="fg-s"><label class="fl">Category</label>
-        <select id="exp-cat" class="fi">
-          <option>Rent</option><option>Utilities</option><option>Stock</option>
-          <option>Transport</option><option>Salaries</option><option selected>Other</option>
-        </select>
+        <select id="exp-cat" class="fi" style="appearance:auto">${airbnbCats}</select>
       </div>
       <div class="fg-s"><label class="fl">Amount (KES)</label>
         <input type="number" id="exp-amt" class="fi" placeholder="0" min="1" inputmode="decimal">
       </div>
       <div class="fg-s"><label class="fl">Description</label>
-        <input type="text" id="exp-desc" class="fi" placeholder="e.g. Monthly rent payment">
+        <input type="text" id="exp-desc" class="fi" placeholder="${S.isAirbnb?'e.g. Checkout cleaning — Unit 2':'e.g. Monthly rent payment'}">
       </div>
       <div class="fg-s"><label class="fl">Date</label>
         <input type="date" id="exp-date" class="fi" value="${today}">
@@ -2222,22 +2310,194 @@ function openAddExpenseSheet() {
 }
 
 async function saveExpense() {
-  const cat  = document.getElementById('exp-cat')?.value;
-  const amt  = parseFloat(document.getElementById('exp-amt')?.value||0);
-  const desc = document.getElementById('exp-desc')?.value.trim();
-  const date = document.getElementById('exp-date')?.value;
+  const cat    = document.getElementById('exp-cat')?.value;
+  const amt    = parseFloat(document.getElementById('exp-amt')?.value||0);
+  const desc   = document.getElementById('exp-desc')?.value.trim();
+  const date   = document.getElementById('exp-date')?.value;
+  const unitId = document.getElementById('exp-unit')?.value || null;
   if (!amt || amt <= 0) { showToast('Enter a valid amount', true); return; }
   const btn = document.querySelector('.sh-body .btn-p');
   if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
   const { error } = await apiPost('expenses', {
     shop_id: S.shop.id, category: cat, description: desc||null,
     amount: amt, expense_date: date||new Date().toISOString().slice(0,10),
-    recorded_by: S.user.id,
+    recorded_by: S.user.id, unit_id: unitId||null,
   });
   if (error) { showToast('Error: ' + error.message, true); if(btn){btn.disabled=false;btn.textContent='Save Expense';} return; }
   popSheet();
   showToast(`${catEmoji(cat)} Expense saved — ${kes(amt)}`);
-  showExpenses(); // refresh
+  showExpenses(unitId||undefined);
+}
+
+/* ═══════════════════════════════
+   AIRBNB GUEST FEATURES
+═══════════════════════════════ */
+
+// Build a deduplicated guest list from booking history
+async function buildGuestList() {
+  const bk = await apiGet(`bookings?shop_id=eq.${S.shop.id}&select=guest_name,guest_phone,total,nights,unit_name,recorded_at&order=recorded_at.desc&limit=2000`);
+  const map = {};
+  (bk||[]).forEach(b => {
+    const key = (b.guest_phone||b.guest_name||'').toLowerCase();
+    if (!key) return;
+    if (!map[key]) map[key] = { name: b.guest_name, phone: b.guest_phone, total: 0, nights: 0, visits: 0, lastUnit: b.unit_name };
+    map[key].total   += parseFloat(b.total||0);
+    map[key].nights  += b.nights||0;
+    map[key].visits  += 1;
+  });
+  return Object.values(map);
+}
+
+async function showAirbnbGuests() {
+  pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>Guests</h2></div><div class="sh-body"><div style="color:var(--txt2);text-align:center;padding:30px 0">Loading…</div></div>`);
+  const guests = await buildGuestList();
+
+  let list = guests.length
+    ? guests.sort((a,b)=>b.total-a.total).map(g => `
+      <div class="more-item">
+        <div class="more-ico" style="background:#7c3aed22;font-size:20px">👤</div>
+        <div class="more-inf">
+          <div class="more-nm">${esc(g.name||'Guest')}</div>
+          <div class="more-mt">${g.visits} stay${g.visits!==1?'s':''} · ${g.nights} nights · ${esc(g.lastUnit||'')}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+          <div style="font-size:13px;font-weight:700">${kes(g.total)}</div>
+          ${g.phone?`<a href="https://wa.me/254${g.phone.replace(/^0/,'').replace(/\D/g,'')}?text=${encodeURIComponent('Hi '+esc(g.name||'there')+'! Thanks for staying with us. We hope to host you again soon. 🏠')}" target="_blank" style="background:#25D366;color:#fff;border-radius:8px;padding:3px 9px;font-size:11px;text-decoration:none">WhatsApp</a>`:''}
+        </div>
+      </div>`).join('')
+    : '<div style="color:var(--txt2);text-align:center;padding:20px 0">No guests recorded yet</div>';
+
+  const sheet = document.querySelector('.sh-body');
+  if (sheet) sheet.innerHTML = `
+    <div style="margin-bottom:8px;color:var(--txt2);font-size:13px">${guests.length} guest${guests.length!==1?'s':''} from booking history</div>
+    <div class="clist">${list}</div>
+    <button class="btn-g" onclick="popSheet()">Close</button>`;
+}
+
+async function showAirbnbTopGuests() {
+  pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>Top Guests</h2></div><div class="sh-body"><div style="color:var(--txt2);text-align:center;padding:30px 0">Loading…</div></div>`);
+  const all = (await buildGuestList()).sort((a,b)=>b.total-a.total).slice(0,10);
+  const maxT = Math.max(...all.map(g=>g.total),1);
+
+  let list = all.map((g,i) => {
+    const pct = Math.max(6, Math.round(g.total/maxT*100));
+    return `<div style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px">
+        <span>${i===0?'🥇':i===1?'🥈':i===2?'🥉':'  '} <b>${esc(g.name||'Guest')}</b></span>
+        <span style="font-weight:700">${kes(g.total)}</span>
+      </div>
+      <div style="background:var(--surf2);border-radius:6px;height:8px;overflow:hidden">
+        <div style="width:${pct}%;height:100%;background:var(--acc);border-radius:6px"></div>
+      </div>
+      <div style="font-size:11px;color:var(--txt2);margin-top:3px">${g.visits} stay${g.visits!==1?'s':''} · ${g.nights} nights</div>
+    </div>`;
+  }).join('');
+
+  const sheet = document.querySelector('.sh-body');
+  if (sheet) sheet.innerHTML = `
+    <div class="clist">${list||'<div style="color:var(--txt2);text-align:center;padding:20px 0">No bookings yet</div>'}</div>
+    <button class="btn-g" onclick="popSheet()">Close</button>`;
+}
+
+async function showAirbnbDebts() {
+  pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>Outstanding Debts</h2></div><div class="sh-body"><div style="color:var(--txt2);text-align:center;padding:30px 0">Loading…</div></div>`);
+  const bk = await apiGet(`bookings?shop_id=eq.${S.shop.id}&payment_method=eq.debt&order=recorded_at.desc`);
+  const total = sum(bk,'total');
+
+  let list = (bk||[]).map(b => `
+    <div class="more-item">
+      <div class="more-ico" style="background:var(--red-d)">📋</div>
+      <div class="more-inf">
+        <div class="more-nm">${esc(b.guest_name||'Guest')} · ${esc(b.unit_name||'Unit')}</div>
+        <div class="more-mt">${b.nights} nights · ${b.check_in||''} → ${b.check_out||''}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+        <div style="font-size:14px;font-weight:700;color:var(--red)">${kes(b.total)}</div>
+        ${b.guest_phone?`<a href="https://wa.me/254${b.guest_phone.replace(/^0/,'').replace(/\D/g,'')}?text=${encodeURIComponent('Hi '+esc(b.guest_name||'there')+'! Just a reminder — your stay balance of KES '+Math.round(b.total||0).toLocaleString()+' is outstanding. Kindly settle at your earliest convenience. 🏠')}" target="_blank" style="background:#25D366;color:#fff;border-radius:8px;padding:3px 9px;font-size:11px;text-decoration:none">Remind</a>`:''}
+      </div>
+    </div>`).join('');
+
+  const sheet = document.querySelector('.sh-body');
+  if (sheet) sheet.innerHTML = `
+    <div style="background:var(--red-d);border-radius:12px;padding:14px;text-align:center;margin-bottom:16px">
+      <div style="font-size:11px;color:var(--txt2);margin-bottom:4px">Total Outstanding</div>
+      <div style="font-size:22px;font-weight:800;color:var(--red)">${kes(total)}</div>
+    </div>
+    <div class="clist">${list||'<div style="color:var(--txt2);text-align:center;padding:20px 0">No outstanding debts 🎉</div>'}</div>
+    <button class="btn-g" onclick="popSheet()">Close</button>`;
+}
+
+function showAirbnbPromotion() {
+  pushSheet(`
+    <div class="sh-hand"></div>
+    <div class="sh-hdr"><h2>Create Promotion</h2></div>
+    <div class="sh-body">
+      <div class="fg-s"><label class="fl">Promotion Title</label>
+        <input id="promo-title" class="fi" placeholder="e.g. Long-stay Special — 20% off"></div>
+      <div class="fg-s"><label class="fl">Offer Description</label>
+        <textarea id="promo-body" class="fi" rows="3" placeholder="e.g. Book for 7+ nights and get 20% off the nightly rate. Valid through December."></textarea></div>
+      <div class="fg-s"><label class="fl">Your WhatsApp / Contact</label>
+        <input id="promo-contact" class="fi" type="tel" placeholder="e.g. 0712 345 678"></div>
+      <div id="promo-preview" style="background:var(--surf2);border-radius:12px;padding:14px;margin-bottom:14px;font-size:13px;white-space:pre-wrap;display:none"></div>
+      <button class="btn-g" onclick="previewAirbnbPromo()">👁 Preview Message</button>
+      <button class="btn-p" id="promo-blast" style="display:none" onclick="blastAirbnbPromo()">📤 Send to All Guests via WhatsApp</button>
+      <button class="btn-g" onclick="popSheet()">Cancel</button>
+    </div>`);
+}
+
+async function previewAirbnbPromo() {
+  const title   = document.getElementById('promo-title')?.value?.trim();
+  const body    = document.getElementById('promo-body')?.value?.trim();
+  const contact = document.getElementById('promo-contact')?.value?.trim();
+  if (!title || !body) { showToast('Enter a title and description', true); return; }
+  const msg = `🏠 *${title}*\n\n${body}${contact?'\n\n📞 '+contact:''}`;
+  const preview = document.getElementById('promo-preview');
+  if (preview) { preview.style.display=''; preview.textContent=msg; }
+  const btn = document.getElementById('promo-blast');
+  if (btn) btn.style.display='';
+}
+
+async function blastAirbnbPromo() {
+  const title   = document.getElementById('promo-title')?.value?.trim();
+  const body    = document.getElementById('promo-body')?.value?.trim();
+  const contact = document.getElementById('promo-contact')?.value?.trim();
+  const msg = `🏠 *${title}*\n\n${body}${contact?'\n\n📞 '+contact:''}`;
+  const guests = (await buildGuestList()).filter(g=>g.phone);
+  if (!guests.length) { showToast('No guests with phone numbers yet', true); return; }
+
+  // Open WhatsApp links for each guest
+  guests.forEach((g, i) => {
+    const num = '254' + g.phone.replace(/^0/,'').replace(/\D/g,'');
+    const url = `https://wa.me/${num}?text=${encodeURIComponent(msg)}`;
+    setTimeout(() => window.open(url, '_blank'), i * 500);
+  });
+  showToast(`📤 Opening WhatsApp for ${guests.length} guest${guests.length!==1?'s':''}…`);
+}
+
+function showAirbnbWhatsApp() {
+  pushSheet(`
+    <div class="sh-hand"></div>
+    <div class="sh-hdr"><h2>Send WhatsApp</h2></div>
+    <div class="sh-body">
+      <p style="color:var(--txt2);font-size:13px;margin-bottom:16px">Compose a message and send it to all guests who have a phone number.</p>
+      <div class="fg-s"><label class="fl">Message *</label>
+        <textarea id="wa-msg" class="fi" rows="5" placeholder="Type your message here…"></textarea></div>
+      <button class="btn-p" onclick="sendAirbnbWhatsApp()">📤 Send to All Guests</button>
+      <button class="btn-g" onclick="popSheet()">Cancel</button>
+    </div>`);
+}
+
+async function sendAirbnbWhatsApp() {
+  const msg = document.getElementById('wa-msg')?.value?.trim();
+  if (!msg) { showToast('Enter a message', true); return; }
+  const guests = (await buildGuestList()).filter(g=>g.phone);
+  if (!guests.length) { showToast('No guests with phone numbers yet', true); return; }
+  guests.forEach((g, i) => {
+    const num = '254' + g.phone.replace(/^0/,'').replace(/\D/g,'');
+    setTimeout(() => window.open(`https://wa.me/${num}?text=${encodeURIComponent(msg)}`, '_blank'), i * 500);
+  });
+  showToast(`📤 Opening ${guests.length} WhatsApp chat${guests.length!==1?'s':''}…`);
+  popSheet();
 }
 
 /* ═══════════════════════════════
