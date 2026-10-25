@@ -417,7 +417,7 @@ let currentTab = 'shops';
   else show('page-auth');
 
   db.auth.onAuthStateChange(async (event, session) => {
-    if (event === 'SIGNED_IN')  { currentUser = session.user; currentSession = session; await checkAdminAndLoad(); }
+    if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') { currentUser = session.user; currentSession = session; if (event === 'SIGNED_IN') await checkAdminAndLoad(); }
     if (event === 'SIGNED_OUT') { currentUser = null; currentSession = null; show('page-auth'); }
   });
 
@@ -687,7 +687,7 @@ async function saveResetPassword() {
     // Call edge function to reset password with service role
     const res = await fetch(`${EDGE_URL}/reset-password`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentSession.access_token}`, 'apikey': SUPABASE_KEY },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${(await db.auth.getSession()).data?.session?.access_token || currentSession?.access_token}`, 'apikey': SUPABASE_KEY },
       body: JSON.stringify({ user_id: userId, new_password: newPwd }),
     });
     const data = await res.json().catch(() => ({}));
@@ -876,7 +876,7 @@ async function saveResetPasswordDirect(userId) {
   try {
     const res = await fetch(`${EDGE_URL}/reset-password`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentSession.access_token}`, 'apikey': SUPABASE_KEY },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${(await db.auth.getSession()).data?.session?.access_token || currentSession?.access_token}`, 'apikey': SUPABASE_KEY },
       body: JSON.stringify({ user_id: userId, new_password: newPwd }),
     });
     const data = await res.json().catch(() => ({}));
@@ -910,8 +910,11 @@ async function sendOwnerInvite() {
   btn.disabled = true; btn.textContent = 'Sending invite…';
 
   try {
-    const session = currentSession;
+    // Always get the freshest token — avoids stale session after 1h+ idle
+    const { data: freshData } = await db.auth.getSession();
+    const session = freshData?.session || currentSession;
     if (!session) throw new Error('Session expired — please sign in again');
+    currentSession = session; // keep in sync
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 30000);
 
