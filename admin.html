@@ -531,6 +531,7 @@ function switchTab(tab) {
 
 // ── AGENTS TAB ──
 const APP_URL = 'https://happa-merchant.njautheinvestmentsconsultant.workers.dev';
+function kes(n) { return 'KES ' + Math.round(n||0).toLocaleString('en-KE'); }
 
 async function renderAgents() {
   const el = document.getElementById('tab-content');
