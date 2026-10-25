@@ -1117,6 +1117,12 @@ function openBookingSheet() {
         <input id="bk-mpesa" class="fi" placeholder="e.g. QK1234ABCD" style="text-transform:uppercase"></div>
       <div class="fg-s"><label class="fl">Notes</label>
         <input id="bk-notes" class="fi" placeholder="e.g. Door code 1234, Wi-Fi: Kilimani5G"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surf2);border-radius:12px;margin-bottom:14px;cursor:pointer"
+           onclick="this.querySelector('input').click()">
+        <span style="font-size:14px;color:var(--txt)">📱 Send WhatsApp Receipt</span>
+        <input type="checkbox" id="bk-receipt" onclick="event.stopPropagation()"
+               style="width:18px;height:18px;accent-color:#25D366;cursor:pointer;flex-shrink:0">
+      </div>
       <button class="btn-p" onclick="saveBooking()">✅ Save Booking</button>
       <button class="btn-g" onclick="popSheet()">Cancel</button>
     </div>`);
@@ -1244,9 +1250,19 @@ async function saveBooking(forceOverride) {
     })
   });
 
+  const sendReceipt = document.getElementById('bk-receipt')?.checked;
   closeSaleSheet();
   showToast(`✓ Booking saved — ${kes(total)}${forceOverride?' (double booking approved)':''}`);
   showTab('bookings');
+
+  if (sendReceipt) {
+    const now = new Date().toLocaleString('en-KE',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+    const methodStr = payment==='mpesa' ? `📱 M-Pesa (${mpesa||'—'})` : payment==='debt' ? '📋 Balance Due' : '💵 Cash';
+    const guestLine = guest ? `👤 Guest: ${guest}\n` : '';
+    const phoneLine = phone ? `📞 ${phone}\n` : '';
+    const receipt = `🧾 *Booking Receipt — ${S.shop.name}*\n📅 ${now}\n\n🛏️ ${unitName||'Unit'}\n${guestLine}${phoneLine}📆 Check-in: ${checkIn}\n📆 Check-out: ${checkOut}\n🌙 ${nights} night${nights!==1?'s':''} × KES ${rate.toLocaleString()}\n${'─'.repeat(28)}\n*Total: KES ${total.toLocaleString()}*\n${methodStr}\n\nThank you! 🙏`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(receipt)}`, '_blank');
+  }
 }
 
 function showPausedPage(reason) {
@@ -1591,7 +1607,7 @@ function renderMore(el) {
    RECORD SALE — MULTI-ITEM CART
 ═══════════════════════════════ */
 function openSaleSheet() {
-  S.cart = []; S.smethod = 'cash';
+  S.cart = []; S.smethod = 'cash'; S.sendReceipt = false;
   renderSaleSheet();
   document.getElementById('sale-overlay').classList.add('on');
 }
@@ -1690,6 +1706,14 @@ function renderSaleSheet() {
     <div id="debt-field" style="display:${S.smethod==='debt'?'block':'none'};margin-bottom:14px">
       <label class="fl">Due Date</label>
       <input type="date" id="debt-due" class="fi" value="${dateInDays(30)}">
+    </div>
+
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surf2);border-radius:12px;margin-bottom:14px;cursor:pointer"
+         onclick="S.sendReceipt=!S.sendReceipt;renderSaleSheet()">
+      <span style="font-size:14px;color:var(--txt)">📱 Send WhatsApp Receipt</span>
+      <div style="width:40px;height:22px;border-radius:11px;background:${S.sendReceipt?'#25D366':'var(--bdr)'};transition:.2s;position:relative;flex-shrink:0">
+        <div style="position:absolute;width:16px;height:16px;border-radius:50%;background:#fff;top:3px;${S.sendReceipt?'left:21px':'left:3px'};transition:.2s"></div>
+      </div>
     </div>
 
     <div class="tot-box">
@@ -1792,10 +1816,24 @@ async function confirmSale() {
   }
 
   const cartTot = getCartTotal();
+  const cartSnapshot = S.cart.map(i => ({...i}));
+  const receiptRequested = S.sendReceipt;
+  const receiptMethod = S.smethod;
+  const receiptMpesa = mpesaCode;
+  const receiptCust = custName;
   closeSaleSheet();
   S.cart = [];
   showToast(`✓ ${savedCount} item${savedCount!==1?'s':''} sold — ${kes(cartTot)}`);
   showTab(S.tab);
+
+  if (receiptRequested) {
+    const now = new Date().toLocaleString('en-KE',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+    const lines = cartSnapshot.map(i => `${i.product.emoji||'📦'} ${i.product.name} ×${i.qty} — KES ${(i.product.sell_price*i.qty).toLocaleString()}`).join('\n');
+    const methodStr = receiptMethod==='mpesa' ? `📱 M-Pesa (${receiptMpesa})` : receiptMethod==='debt' ? '📋 Debt' : '💵 Cash';
+    const header = receiptCust && receiptCust !== 'Walk-in' ? `For: ${receiptCust}\n` : '';
+    const receipt = `🧾 *Receipt from ${S.shop.name}*\n📅 ${now}\n\n${header}${lines}\n${'─'.repeat(28)}\n*Total: KES ${cartTot.toLocaleString()}*\n${methodStr}\n\nThank you! 🙏`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(receipt)}`, '_blank');
+  }
 }
 
 function closeSaleSheet() {
