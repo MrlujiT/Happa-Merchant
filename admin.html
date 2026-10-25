@@ -530,85 +530,175 @@ function switchTab(tab) {
 }
 
 // ── AGENTS TAB ──
+const APP_URL = 'https://happa-merchant.njautheinvestmentsconsultant.workers.dev';
+
 async function renderAgents() {
   const el = document.getElementById('tab-content');
   el.innerHTML = '<div style="padding:20px;color:var(--txt2)"><span class="spin"></span>Loading…</div>';
 
-  const [agents, shops] = await Promise.all([
+  const [agents, shops, leads] = await Promise.all([
     apiGet('agents?order=name'),
     apiGet('shops?select=id,name,business_type,agent_id,subscriptions(status,monthly_rate)&order=name'),
+    apiGet('leads?select=agent_id,status&order=created_at.desc'),
   ]);
 
-  const thisMonth = new Date();
-  thisMonth.setDate(1);
-  const monthKey = thisMonth.toISOString().slice(0,10); // e.g. 2026-10-01
+  const thisMonth = new Date(); thisMonth.setDate(1);
+  const monthKey   = thisMonth.toISOString().slice(0,10);
   const monthLabel = thisMonth.toLocaleDateString('en-KE',{month:'long',year:'numeric'});
 
-  // Fetch commission payments for this month
   const payments = await apiGet(`commission_payments?month=eq.${monthKey}`);
-  const paidMap  = {}; // agent_id → payment record
+  const paidMap  = {};
   (payments||[]).forEach(p => { paidMap[p.agent_id] = p; });
 
-  const agentRows = (agents||[]).map(a => {
-    const myShops = (shops||[]).filter(s => s.agent_id === a.id);
-    const activeShops = myShops.filter(s => {
-      const sub = s.subscriptions?.[0];
-      return sub?.status === 'active';
-    });
-    const commission = activeShops.reduce((sum, s) => {
-      const rate = s.subscriptions?.[0]?.monthly_rate || 0;
-      return sum + Math.round(rate * 0.20);
-    }, 0);
-    const paid   = paidMap[a.id];
-    const paidBadge = paid?.paid
-      ? `<span class="chip chip-g">Paid ${kes(paid.amount)}</span>`
-      : commission > 0
-        ? `<span class="chip chip-a">Due ${kes(commission)}</span>`
-        : `<span class="chip" style="background:var(--surf2);color:var(--txt2)">KES 0</span>`;
+  // leads by agent
+  const leadsMap = {};
+  (leads||[]).forEach(l => {
+    if (!leadsMap[l.agent_id]) leadsMap[l.agent_id] = { total:0, new:0 };
+    leadsMap[l.agent_id].total++;
+    if (l.status === 'new') leadsMap[l.agent_id].new++;
+  });
 
-    return `<tr>
-      <td><strong>${a.name}</strong><br><span style="font-size:11px;color:var(--txt3)">${a.phone||a.email||'—'}</span></td>
-      <td style="text-align:center">${myShops.length}<br><span style="font-size:11px;color:var(--txt3)">${activeShops.length} active</span></td>
-      <td>${paidBadge}</td>
-      <td onclick="event.stopPropagation()" style="white-space:nowrap">
-        ${commission > 0 && !paid?.paid
-          ? `<button class="act-btn primary" onclick="markCommissionPaid('${a.id}','${a.name.replace(/'/g,"\\'")}',${commission},'${monthKey}','${monthLabel}')">Mark Paid</button>`
-          : ''}
-        <button class="act-btn info" onclick="showAgentShops('${a.id}','${a.name.replace(/'/g,"\\'")}')">Shops</button>
-        <button class="act-btn danger" onclick="deactivateAgent('${a.id}','${a.name.replace(/'/g,"\\'")}')">Remove</button>
-      </td>
-    </tr>`;
+  const agentCards = (agents||[]).map(a => {
+    const myShops    = (shops||[]).filter(s => s.agent_id === a.id);
+    const activeShops= myShops.filter(s => s.subscriptions?.[0]?.status === 'active');
+    const commission = activeShops.reduce((sum,s) => sum + Math.round((s.subscriptions?.[0]?.monthly_rate||0)*0.20),0);
+    const paid       = paidMap[a.id];
+    const myLeads    = leadsMap[a.id] || { total:0, new:0 };
+    const refLink    = `${APP_URL}/?ref=${encodeURIComponent(a.ref_code||a.id)}`;
+    const nameEsc    = (a.name||'').replace(/'/g,"\\'");
+
+    const commBadge = paid?.paid
+      ? `<span class="chip chip-g" style="font-size:11px">Paid ${kes(paid.amount)}</span>`
+      : commission > 0
+        ? `<span class="chip chip-a" style="font-size:11px">Due ${kes(commission)}</span>`
+        : `<span class="chip" style="background:var(--surf3,var(--surf2));color:var(--txt2);font-size:11px">KES 0</span>`;
+
+    return `
+    <div style="background:var(--surf2);border-radius:16px;padding:16px;margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;gap:8px">
+        <div>
+          <div style="font-weight:800;font-size:15px">${a.name}</div>
+          <div style="font-size:11px;color:var(--txt3)">${a.phone||a.email||'No contact'}</div>
+        </div>
+        <div style="text-align:right">${commBadge}</div>
+      </div>
+
+      <!-- Ref link -->
+      <div style="background:var(--bg);border:1px solid var(--bdr);border-radius:10px;padding:10px 12px;margin-bottom:10px">
+        <div style="font-size:10px;font-weight:700;color:var(--txt2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">Referral Link</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="font-size:11px;color:var(--acc);font-weight:600;word-break:break-all;flex:1">${refLink}</div>
+          <button class="act-btn primary" style="flex-shrink:0;white-space:nowrap" onclick="copyRefLink('${refLink}',this)">Copy</button>
+        </div>
+      </div>
+
+      <!-- Stats row -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">
+        <div style="text-align:center;background:var(--bg);border-radius:10px;padding:8px">
+          <div style="font-size:18px;font-weight:800">${myLeads.total}</div>
+          <div style="font-size:10px;color:var(--txt2);text-transform:uppercase;letter-spacing:.4px">Leads${myLeads.new>0?`<br><span style="color:var(--acc)">${myLeads.new} new</span>`:''}</div>
+        </div>
+        <div style="text-align:center;background:var(--bg);border-radius:10px;padding:8px">
+          <div style="font-size:18px;font-weight:800">${myShops.length}</div>
+          <div style="font-size:10px;color:var(--txt2);text-transform:uppercase;letter-spacing:.4px">Shops<br><span style="color:var(--grn)">${activeShops.length} active</span></div>
+        </div>
+        <div style="text-align:center;background:var(--bg);border-radius:10px;padding:8px">
+          <div style="font-size:18px;font-weight:800;color:${commission>0?'var(--grn)':'var(--txt)'}">${kes(commission)}</div>
+          <div style="font-size:10px;color:var(--txt2);text-transform:uppercase;letter-spacing:.4px">${monthLabel.split(' ')[0]}</div>
+        </div>
+      </div>
+
+      <!-- Action buttons -->
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${myLeads.total > 0 ? `<button class="act-btn info" onclick="showAgentLeads('${a.id}','${nameEsc}')">View Leads</button>` : ''}
+        ${myShops.length > 0 ? `<button class="act-btn info" onclick="showAgentShops('${a.id}','${nameEsc}')">Shops</button>` : ''}
+        ${commission > 0 && !paid?.paid ? `<button class="act-btn primary" onclick="markCommissionPaid('${a.id}','${nameEsc}',${commission},'${monthKey}','${monthLabel}')">Mark Paid</button>` : ''}
+        <button class="act-btn danger" onclick="deactivateAgent('${a.id}','${nameEsc}')" style="margin-left:auto">Remove</button>
+      </div>
+    </div>`;
   }).join('');
 
+  const totalDue = (agents||[]).reduce((sum,a) => {
+    const active = (shops||[]).filter(s => s.agent_id===a.id && s.subscriptions?.[0]?.status==='active');
+    return sum + active.reduce((s2,s) => s2+Math.round((s.subscriptions?.[0]?.monthly_rate||0)*0.20),0);
+  },0);
+  const totalLeads = (leads||[]).length;
+  const newLeads   = (leads||[]).filter(l=>l.status==='new').length;
+
   el.innerHTML = `
-    <div style="background:var(--surf2);border-radius:14px;padding:14px 16px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-      <div>
-        <div style="font-size:12px;color:var(--txt2);font-weight:600;text-transform:uppercase;letter-spacing:.4px">Commission Rate</div>
-        <div style="font-size:22px;font-weight:900;color:var(--acc)">20%</div>
-        <div style="font-size:11px;color:var(--txt3)">of monthly subscription — per active account</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px">
+      <div style="background:var(--surf2);border-radius:12px;padding:12px;text-align:center">
+        <div style="font-size:20px;font-weight:900;color:var(--acc)">20%</div>
+        <div style="font-size:10px;color:var(--txt2);text-transform:uppercase;letter-spacing:.4px">Commission</div>
       </div>
-      <div style="text-align:right">
-        <div style="font-size:12px;color:var(--txt2);font-weight:600;text-transform:uppercase;letter-spacing:.4px">${monthLabel}</div>
-        <div style="font-size:20px;font-weight:800;color:var(--grn)">${kes(
-          (agents||[]).reduce((sum,a) => {
-            const active = (shops||[]).filter(s => s.agent_id===a.id && s.subscriptions?.[0]?.status==='active');
-            return sum + active.reduce((s2,s) => s2 + Math.round((s.subscriptions?.[0]?.monthly_rate||0)*0.20),0);
-          },0)
-        )}</div>
-        <div style="font-size:11px;color:var(--txt3)">total commissions due</div>
+      <div style="background:var(--surf2);border-radius:12px;padding:12px;text-align:center">
+        <div style="font-size:20px;font-weight:900;color:var(--grn)">${kes(totalDue)}</div>
+        <div style="font-size:10px;color:var(--txt2);text-transform:uppercase;letter-spacing:.4px">${monthLabel.split(' ')[0]} Due</div>
+      </div>
+      <div style="background:var(--surf2);border-radius:12px;padding:12px;text-align:center">
+        <div style="font-size:20px;font-weight:900;color:${newLeads>0?'var(--acc)':'var(--txt)'}">${totalLeads}</div>
+        <div style="font-size:10px;color:var(--txt2);text-transform:uppercase;letter-spacing:.4px">Leads${newLeads>0?`<br><span style="color:var(--acc)">${newLeads} new</span>`:''}</div>
       </div>
     </div>
 
-    ${agents?.length ? `
-    <div class="table-wrap"><table>
-      <thead><tr><th>Agent</th><th style="text-align:center">Shops</th><th>${monthLabel}</th><th>Actions</th></tr></thead>
-      <tbody>${agentRows}</tbody>
-    </table></div>` : `
-    <div class="empty"><div class="empty-ico">🤝</div><p>No agents yet.<br>Add your first marketing agent below.</p></div>`}
+    ${agents?.length ? agentCards : `<div class="empty"><div class="empty-ico">🤝</div><p>No agents yet.<br>Add your first marketing agent below.</p></div>`}
 
-    <div style="margin-top:16px">
-      <button class="btn-acc" onclick="showAddAgentModal()" style="width:100%">+ Add Agent</button>
+    <button class="btn-acc" onclick="showAddAgentModal()" style="width:100%;margin-top:8px">+ Add Agent</button>`;
+}
+
+function copyRefLink(link, btn) {
+  navigator.clipboard.writeText(link).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = orig; }, 2000);
+  }).catch(() => { prompt('Copy this referral link:', link); });
+}
+
+async function showAgentLeads(agentId, agentName) {
+  const leads = await apiGet(`leads?agent_id=eq.${agentId}&order=created_at.desc`);
+  const statusColors = { new:'chip-a', contacted:'chip-b', converted:'chip-g', lost:'chip-r' };
+
+  const rows = (leads||[]).map(l => {
+    const chip = statusColors[l.status]||'';
+    const dt   = new Date(l.created_at).toLocaleDateString('en-KE',{day:'numeric',month:'short'});
+    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--bdr)">
+      <div style="flex:1">
+        <div style="font-weight:700;font-size:13px">${l.business_name}</div>
+        <div style="font-size:11px;color:var(--txt3)">${l.name} · ${l.phone||'—'} · ${l.business_type} · ${l.location||'—'}</div>
+        <div style="font-size:10px;color:var(--txt3)">${dt}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+        <span class="chip ${chip}" style="font-size:10px">${l.status}</span>
+        ${l.status !== 'converted' ? `<button class="act-btn primary" style="font-size:10px;padding:3px 8px" onclick="convertLead('${l.id}','${(l.business_name||'').replace(/'/g,"\\'")}','${(l.name||'').replace(/'/g,"\\'")}','${l.phone||''}','${l.business_type}','${l.location||''}','${agentId}')">Convert</button>` : ''}
+        ${l.phone ? `<a href="https://wa.me/${l.phone.replace(/\D/g,'')}" target="_blank" class="act-btn info" style="font-size:10px;padding:3px 8px;text-decoration:none">WhatsApp</a>` : ''}
+      </div>
     </div>`;
+  }).join('') || '<div style="color:var(--txt2);padding:20px 0;text-align:center">No leads yet</div>';
+
+  document.getElementById('agent-shops-title').textContent = agentName + "'s Leads";
+  document.getElementById('agent-shops-body').innerHTML = rows;
+  document.getElementById('agent-shops-modal').style.display = 'flex';
+}
+
+async function convertLead(leadId, bizName, ownerName, phone, bizType, location, agentId) {
+  // Close leads modal, open invite modal pre-filled
+  document.getElementById('agent-shops-modal').style.display = 'none';
+  await showInviteModal();
+  document.getElementById('inv-name').value     = ownerName;
+  document.getElementById('inv-shopname').value = bizName;
+  document.getElementById('inv-biztype').value  = bizType;
+  document.getElementById('inv-location').value = location;
+  // Select the right agent in the dropdown
+  const sel = document.getElementById('inv-agent');
+  if (sel) sel.value = agentId;
+  // Mark lead as contacted
+  const { data: freshData } = await db.auth.getSession();
+  const session = freshData?.session || currentSession;
+  await fetch(`${SUPABASE_URL}/rest/v1/leads?id=eq.${leadId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type':'application/json','Authorization':`Bearer ${session.access_token}`,'apikey':SUPABASE_KEY,'Prefer':'return=minimal' },
+    body: JSON.stringify({ status: 'contacted' }),
+  });
 }
 
 async function markCommissionPaid(agentId, agentName, amount, monthKey, monthLabel) {

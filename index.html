@@ -238,6 +238,36 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 <div id="app">
 
   <!-- ── AUTH PAGE ── -->
+  <!-- REFERRAL LANDING PAGE -->
+  <div class="page" id="page-referral">
+    <div class="auth-wrap" style="max-width:440px">
+      <div class="auth-logo"><img src="/happa-logo.jpg" alt="Happa"></div>
+      <div class="auth-title">Get Started with Happa</div>
+      <div id="ref-agent-badge" style="margin-bottom:16px;padding:10px 16px;background:var(--surf2);border-radius:12px;text-align:center;font-size:13px;color:var(--txt2)">Loading…</div>
+      <div class="auth-card">
+        <div style="font-size:14px;font-weight:700;margin-bottom:16px;color:var(--txt)">Tell us about your business</div>
+        <div class="fg"><label class="fl">Your Name *</label>
+          <input class="fi" id="ref-name" type="text" placeholder="e.g. Mama Njeri"></div>
+        <div class="fg"><label class="fl">Business Name *</label>
+          <input class="fi" id="ref-bizname" type="text" placeholder="e.g. Mama Njeri's Boutique"></div>
+        <div class="fg"><label class="fl">Phone Number *</label>
+          <input class="fi" id="ref-phone" type="tel" placeholder="+254 7XX XXX XXX"></div>
+        <div class="fg"><label class="fl">Business Type</label>
+          <select class="fi" id="ref-biztype">
+            <option value="goods">Shop / Supermarket (Sells goods)</option>
+            <option value="services">Services (Salon, Barber, Repairs…)</option>
+            <option value="mixed">Restaurant / Cafe (Mixed)</option>
+            <option value="airbnb">🏠 Airbnb / Short-term Rental</option>
+          </select></div>
+        <div class="fg"><label class="fl">Location</label>
+          <input class="fi" id="ref-location" type="text" placeholder="e.g. Ngara, Nairobi"></div>
+        <div class="err-msg" id="ref-err"></div>
+        <button class="btn-p" id="ref-btn" onclick="submitReferralLead()" style="width:100%;margin-top:8px">Submit — Get Started 🚀</button>
+      </div>
+      <div style="margin-top:16px;text-align:center;font-size:12px;color:var(--txt3)">Already have an account? <span onclick="showPage('auth')" style="color:var(--acc);cursor:pointer;font-weight:600">Sign in</span></div>
+    </div>
+  </div>
+
   <div class="page on" id="page-auth">
     <div class="auth-wrap">
       <div class="auth-logo"><img src="/happa-logo.jpg" alt="Happa"></div>
@@ -398,9 +428,18 @@ async function apiPatch(table, filter, body) {
    INIT
 ═══════════════════════════════ */
 (async function init() {
+  const urlParams = new URLSearchParams(window.location.search);
+
+  // If ?ref=CODE — agent referral link; show Get Started form, skip login
+  const refCode = urlParams.get('ref');
+  if (refCode) {
+    history.replaceState({}, '', window.location.pathname); // clean URL
+    await showReferralLanding(refCode);
+    return;
+  }
+
   // If ?newlogin=1 is in the URL (from admin-shared login link), force sign-out
   // first so any existing session doesn't take over the new user's login
-  const urlParams = new URLSearchParams(window.location.search);
   if (urlParams.has('newlogin')) {
     history.replaceState({}, '', window.location.pathname); // clean the URL
     await db.auth.signOut().catch(() => {});
@@ -447,6 +486,86 @@ async function apiPatch(table, filter, body) {
     document.getElementById(id)?.addEventListener('keydown', e=>{ if(e.key==='Enter') doSetPassword(); });
   });
 })();
+
+/* ═══════════════════════════════
+   REFERRAL LANDING
+═══════════════════════════════ */
+let _refAgentId = null;
+let _refCode    = null;
+
+async function showReferralLanding(code) {
+  _refCode = code;
+  showPage('referral');
+  const badge = document.getElementById('ref-agent-badge');
+
+  // Look up the agent by ref_code (anon select allowed)
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/agents?ref_code=eq.${encodeURIComponent(code)}&select=id,name,phone&limit=1`, {
+    headers: { 'apikey': SUPABASE_ANON_KEY, 'Accept': 'application/json' },
+  });
+  const agents = await res.json().catch(() => []);
+  const agent  = Array.isArray(agents) ? agents[0] : null;
+
+  if (agent) {
+    _refAgentId = agent.id;
+    badge.innerHTML = `🤝 Referred by <strong>${agent.name}</strong>`;
+    badge.style.color = 'var(--txt)';
+  } else {
+    badge.innerHTML = `Welcome to Happa Merchant`;
+  }
+}
+
+async function submitReferralLead() {
+  const name    = document.getElementById('ref-name').value.trim();
+  const bizname = document.getElementById('ref-bizname').value.trim();
+  const phone   = document.getElementById('ref-phone').value.trim();
+  const btype   = document.getElementById('ref-biztype').value;
+  const loc     = document.getElementById('ref-location').value.trim();
+  const err     = document.getElementById('ref-err');
+  const btn     = document.getElementById('ref-btn');
+
+  if (!name)    { err.textContent = 'Your name is required'; return; }
+  if (!bizname) { err.textContent = 'Business name is required'; return; }
+  if (!phone)   { err.textContent = 'Phone number is required'; return; }
+
+  btn.disabled = true; btn.textContent = 'Submitting…';
+  err.textContent = '';
+
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/leads`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Prefer': 'return=minimal',
+      },
+      body: JSON.stringify({
+        agent_id:      _refAgentId || null,
+        ref_code:      _refCode    || null,
+        name,
+        business_name: bizname,
+        phone,
+        business_type: btype,
+        location:      loc || null,
+        status:        'new',
+      }),
+    });
+    if (!res.ok) throw new Error('Submission failed — please try again');
+
+    // Replace form with success message
+    document.querySelector('#page-referral .auth-card').innerHTML = `
+      <div style="text-align:center;padding:20px 0">
+        <div style="font-size:48px;margin-bottom:12px">🎉</div>
+        <div style="font-size:18px;font-weight:800;margin-bottom:8px;color:var(--txt)">You're on the list!</div>
+        <div style="font-size:14px;color:var(--txt2);line-height:1.6">
+          Thanks <strong>${name}</strong>! We've received your details for <strong>${bizname}</strong>.<br><br>
+          Our team will reach out shortly to set you up on Happa.
+        </div>
+      </div>`;
+  } catch(e) {
+    err.textContent = e.message;
+    btn.disabled = false; btn.textContent = 'Submit — Get Started 🚀';
+  }
+}
 
 /* ═══════════════════════════════
    AUTH
