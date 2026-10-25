@@ -557,14 +557,28 @@ async function loadUserContext() {
   const roleBadge = { owner: '👑 Owner', manager: '🏷️ Manager', cashier: '🧾 Cashier' };
   document.getElementById('hdr-role-badge').textContent = roleBadge[S.member.role] || '🧾 Staff';
 
-  // Staff-only nav
-  if (S.member.role === 'cashier') {
+  // Airbnb mode flag
+  S.isAirbnb = S.shop.business_type === 'airbnb';
+
+  // Nav: swapped for airbnb, limited for cashier
+  if (S.isAirbnb) {
+    document.getElementById('bottom-nav').innerHTML = `
+      <button class="ni on" data-tab="home"><span class="ni-ico">🏠</span><span class="ni-lbl">Home</span></button>
+      <button class="ni" data-tab="bookings"><span class="ni-ico">📅</span><span class="ni-lbl">Bookings</span></button>
+      <button class="ni" data-tab="units"><span class="ni-ico">🛏️</span><span class="ni-lbl">Units</span></button>
+      <button class="ni" data-tab="supplies"><span class="ni-ico">🧻</span><span class="ni-lbl">Supplies</span></button>
+      <button class="ni" data-tab="more"><span class="ni-ico">☰</span><span class="ni-lbl">More</span></button>`;
+  } else if (S.member.role === 'cashier') {
     document.getElementById('bottom-nav').innerHTML = `
       <button class="ni on" data-tab="home"><span class="ni-ico">🏠</span><span class="ni-lbl">Home</span></button>
       <button class="ni" data-tab="sales"><span class="ni-ico">💰</span><span class="ni-lbl">Sales</span></button>`;
   }
 
-  await Promise.all([loadProducts(), loadCustomers(), loadSuppliers()]);
+  if (S.isAirbnb) {
+    await loadUnits();
+  } else {
+    await Promise.all([loadProducts(), loadCustomers(), loadSuppliers()]);
+  }
   showPage('app');
   setupNav();
   showTab('home');
@@ -580,6 +594,490 @@ async function loadCustomers() {
 
 async function loadSuppliers() {
   S.suppliers = await apiGet(`suppliers?shop_id=eq.${S.shop.id}&order=name`) || [];
+}
+
+async function loadUnits() {
+  S.units = await apiGet(`units?shop_id=eq.${S.shop.id}&active=eq.true&order=name`) || [];
+}
+
+/* ═══════════════════════════════
+   AIRBNB HOME TAB
+═══════════════════════════════ */
+async function renderAirbnbHome(el) {
+  const todayISO = todayStart();
+  const [todayBk, weekly, allUnits, allSupplies] = await Promise.all([
+    apiGet(`bookings?shop_id=eq.${S.shop.id}&recorded_at=gte.${todayISO}&select=total,unit_name,guest_name,payment_method`),
+    apiGet(`bookings?shop_id=eq.${S.shop.id}&recorded_at=gte.${sevenDaysAgo()}&select=total,recorded_at`),
+    apiGet(`units?shop_id=eq.${S.shop.id}&active=eq.true&select=id,name`),
+    apiGet(`house_supplies?shop_id=eq.${S.shop.id}&select=id,name,quantity,low_stock_at,unit_id,emoji`),
+  ]);
+
+  const rev   = sum(todayBk, 'total');
+  const txns  = todayBk?.length || 0;
+  const lowSupplies = (allSupplies||[]).filter(s => s.quantity <= s.low_stock_at);
+
+  const days = build7Days(weekly || []);
+  const maxR = Math.max(...days.map(d => d.rev), 1);
+
+  let h = `
+    <div class="hero">
+      <div class="hero-lbl">Today's Revenue</div>
+      <div class="hero-amt">${kes(rev)}</div>
+      <div class="hero-sub"><span>${txns} booking${txns!==1?'s':''}</span><span>·</span><span>${(allUnits||[]).length} unit${(allUnits||[]).length!==1?'s':''}</span></div>
+    </div>
+    <div class="stats">
+      <div class="scard"><div class="scard-lbl">Check-ins</div><div class="scard-val">${txns}</div><span class="bdg bdg-g">today</span></div>
+      <div class="scard"><div class="scard-lbl">Units</div><div class="scard-val">${(allUnits||[]).length}</div><div class="scard-sub">active</div></div>
+      <div class="scard"><div class="scard-lbl">Low Supplies</div><div class="scard-val">${lowSupplies.length}</div><span class="bdg ${lowSupplies.length?'bdg-r':'bdg-g'}">${lowSupplies.length?'items':'all ok'}</span></div>
+    </div>`;
+
+  if (lowSupplies.length)
+    h += `<div class="alert-b" onclick="showTab('supplies')"><span class="alert-ico">⚠️</span>
+      <div class="alert-txt"><div class="alert-ttl">${lowSupplies.length} supply item${lowSupplies.length>1?'s':''} running low</div>
+      <div class="alert-sub">${lowSupplies.slice(0,2).map(s=>(s.emoji||'🧻')+' '+s.name).join(', ')}${lowSupplies.length>2?'…':''}</div></div>
+      <span style="color:var(--txt3);font-size:20px">›</span></div>`;
+
+  h += `<button class="fab" onclick="openBookingSheet()"><span style="font-size:22px">+</span> Record a Booking</button>`;
+
+  h += `<div class="chart-card"><div class="chart-ttl">Revenue — Last 7 Days</div><div class="bar-wrap">`;
+  days.forEach(d => {
+    const ht = d.rev > 0 ? Math.max(6, Math.round(d.rev / maxR * 84)) : 4;
+    h += `<div class="bar-col"><div class="bar-v">${d.rev>0?kshort(d.rev):''}</div>
+      <div class="bar-rect ${d.tod?'tod':d.rev>0?'has':''}" style="height:${ht}px"></div>
+      <div class="bar-lbl">${d.lbl}</div></div>`;
+  });
+  h += `</div></div>`;
+
+  if (todayBk?.length) {
+    h += `<div class="sec"><div class="sec-ttl">Today's Check-ins</div></div><div class="clist">`;
+    todayBk.forEach(b => {
+      h += `<div class="txi">
+        <div class="txi-ico">🛏️</div>
+        <div class="txi-inf"><div class="txi-nm">${esc(b.guest_name||'Guest')}</div><div class="txi-sub">${esc(b.unit_name||'Unit')}</div></div>
+        <div class="txi-amt">${kes(b.total)}</div></div>`;
+    });
+    h += `</div>`;
+  } else {
+    h += `<div class="empty"><div class="empty-ico">🏠</div><p>No bookings today yet.<br>Tap <b>Record a Booking</b> to begin.</p></div>`;
+  }
+
+  h += '<div style="height:8px"></div>';
+  el.innerHTML = h;
+}
+
+/* ═══════════════════════════════
+   UNITS TAB
+═══════════════════════════════ */
+async function renderUnits(el) {
+  await loadUnits();
+  let h = `<div style="padding-top:14px">`;
+  if (S.units.length) {
+    h += `<div class="sec"><div class="sec-ttl">Your Units (${S.units.length})</div></div><div class="clist">`;
+    S.units.forEach(u => {
+      h += `<div class="more-item" onclick="showEditUnitSheet('${u.id}')">
+        <div class="more-ico" style="background:var(--acc-d);font-size:20px">🛏️</div>
+        <div class="more-inf">
+          <div class="more-nm">${esc(u.name)}</div>
+          <div class="more-mt">${u.location?esc(u.location)+' · ':''}${u.size?esc(u.size)+' · ':''}KES ${kes(u.daily_rate).replace('KES ','')}/night</div>
+        </div>
+        <span style="color:var(--txt3)">›</span></div>`;
+    });
+    h += `</div>`;
+  } else {
+    h += `<div class="empty"><div class="empty-ico">🛏️</div><p>No units yet.<br>Tap <b>Add Unit</b> to add your first apartment.</p></div>`;
+  }
+  h += `<button class="btn-p" style="margin:16px 16px 8px;width:calc(100% - 32px)" onclick="showAddUnitSheet()">🛏️ Add a Unit</button>`;
+  h += '<div style="height:8px"></div></div>';
+  el.innerHTML = h;
+}
+
+/* ═══════════════════════════════
+   BOOKINGS TAB
+═══════════════════════════════ */
+async function renderBookings(el) {
+  const filter = S.salesFilter || 'today';
+  let from = filter === 'today' ? todayStart() : filter === 'week' ? sevenDaysAgo() : '2000-01-01';
+  const bk = await apiGet(`bookings?shop_id=eq.${S.shop.id}&recorded_at=gte.${from}&order=recorded_at.desc`);
+
+  const rev = sum(bk, 'total');
+  const nights = (bk||[]).reduce((a,b)=>a+(b.nights||0),0);
+
+  let h = `<div class="frow">
+    <button class="fchip ${filter==='today'?'on':''}" onclick="setSF('today')">Today</button>
+    <button class="fchip ${filter==='week'?'on':''}" onclick="setSF('week')">This Week</button>
+    <button class="fchip ${filter==='all'?'on':''}" onclick="setSF('all')">All Time</button>
+  </div>
+  <div class="stats">
+    <div class="scard"><div class="scard-lbl">Revenue</div><div class="scard-val" style="font-size:14px">${kshort(rev)}</div><div class="scard-sub">KES</div></div>
+    <div class="scard"><div class="scard-lbl">Bookings</div><div class="scard-val">${bk?.length||0}</div><div class="scard-sub">total</div></div>
+    <div class="scard"><div class="scard-lbl">Nights</div><div class="scard-val">${nights}</div><div class="scard-sub">booked</div></div>
+  </div>
+  <button class="fab" onclick="openBookingSheet()"><span style="font-size:22px">+</span> Record a Booking</button>`;
+
+  if (bk?.length) {
+    h += `<div class="clist" style="margin-top:10px">`;
+    bk.forEach(b => {
+      const dt = new Date(b.recorded_at);
+      const dtStr = dt.toLocaleDateString('en-KE',{day:'numeric',month:'short'}) + ' ' + dt.toLocaleTimeString('en-KE',{hour:'2-digit',minute:'2-digit'});
+      const meth = b.payment_method === 'mpesa' ? '📱 M-Pesa' : b.payment_method === 'debt' ? '📋 Debt' : '💵 Cash';
+      h += `<div class="txi">
+        <div class="txi-ico">🛏️</div>
+        <div class="txi-inf">
+          <div class="txi-nm">${esc(b.guest_name||'Guest')} · ${esc(b.unit_name||'Unit')}</div>
+          <div class="txi-sub">${b.nights} night${b.nights!==1?'s':''} · ${meth} · ${dtStr}</div>
+        </div>
+        <div class="txi-amt">${kes(b.total)}</div></div>`;
+    });
+    h += `</div>`;
+  } else {
+    h += `<div class="empty"><div class="empty-ico">📅</div><p>No bookings in this period.</p></div>`;
+  }
+  h += '<div style="height:8px"></div>';
+  el.innerHTML = h;
+}
+
+/* ═══════════════════════════════
+   HOUSE SUPPLIES TAB
+═══════════════════════════════ */
+async function renderSupplies(el) {
+  const [units, supplies] = await Promise.all([
+    apiGet(`units?shop_id=eq.${S.shop.id}&active=eq.true&order=name`),
+    apiGet(`house_supplies?shop_id=eq.${S.shop.id}&order=unit_id,name`),
+  ]);
+
+  const low = (supplies||[]).filter(s => s.quantity <= s.low_stock_at);
+  let h = `<div style="padding-top:14px">`;
+
+  if (low.length) {
+    h += `<div class="sec"><div class="sec-ttl" style="color:var(--red)">⚠️ Running Low</div></div><div class="clist">`;
+    low.forEach(s => { h += supplyRow(s, units); });
+    h += `</div>`;
+  }
+
+  if (!units?.length) {
+    h += `<div class="empty"><div class="empty-ico">🧻</div><p>Add units first, then track supplies per unit.</p></div>`;
+  } else {
+    units.forEach(u => {
+      const uSupplies = (supplies||[]).filter(s => s.unit_id === u.id);
+      h += `<div class="sec" style="padding-top:12px">
+        <div class="sec-ttl">🛏️ ${esc(u.name)}</div>
+        <button class="btn-sm" onclick="showAddSupplySheet('${u.id}','${esc(u.name)}')">+ Add</button>
+      </div>`;
+      if (uSupplies.length) {
+        h += `<div class="clist">`;
+        uSupplies.forEach(s => { h += supplyRow(s, units); });
+        h += `</div>`;
+      } else {
+        h += `<div style="color:var(--txt2);font-size:13px;padding:8px 16px">No supplies added yet for this unit.</div>`;
+      }
+    });
+  }
+  h += `<div style="height:8px"></div></div>`;
+  el.innerHTML = h;
+}
+
+function supplyRow(s, units) {
+  const low = s.quantity <= s.low_stock_at;
+  return `<div class="more-item" onclick="showAdjustSupplySheet('${s.id}','${esc(s.name)}',${s.quantity},'${s.unit_of_measure||'pcs'}')">
+    <div class="more-ico" style="background:${low?'var(--red-d)':'var(--grn-d)'};font-size:20px">${s.emoji||'🧻'}</div>
+    <div class="more-inf">
+      <div class="more-nm">${esc(s.name)}</div>
+      <div class="more-mt" style="${low?'color:var(--red)':''}">${low?'⚠️ ':''}${s.quantity} ${s.unit_of_measure||'pcs'} left · alert at ≤${s.low_stock_at}</div>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+      <button onclick="event.stopPropagation();adjustQty('${s.id}',1,${s.quantity})" style="background:var(--grn-d);border:none;border-radius:8px;padding:4px 10px;cursor:pointer;font-size:15px">+</button>
+      <button onclick="event.stopPropagation();adjustQty('${s.id}',-1,${s.quantity})" style="background:var(--red-d);border:none;border-radius:8px;padding:4px 10px;cursor:pointer;font-size:15px">−</button>
+    </div>
+  </div>`;
+}
+
+async function adjustQty(supplyId, delta, current) {
+  const newQty = Math.max(0, (current||0) + delta);
+  await fetch(`${SUPABASE_URL}/rest/v1/house_supplies?id=eq.${supplyId}`, {
+    method: 'PATCH', headers: { ...apiHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ quantity: newQty })
+  });
+  showTab('supplies');
+}
+
+/* ═══════════════════════════════
+   ADD UNIT SHEET
+═══════════════════════════════ */
+function showAddUnitSheet(unitId) {
+  const isEdit = !!unitId;
+  const u = isEdit ? (S.units||[]).find(x=>x.id===unitId)||{} : {};
+  pushSheet(`
+    <div class="sh-hand"></div>
+    <div class="sh-hdr"><h2>${isEdit?'Edit Unit':'Add a Unit'}</h2></div>
+    <div class="sh-body">
+      <div class="fg-s"><label class="fl">Unit / Apartment Name *</label>
+        <input id="unit-name" class="fi" value="${esc(u.name||'')}" placeholder="e.g. Kilimani Studio 2B"></div>
+      <div class="fg-s"><label class="fl">Location / Area</label>
+        <input id="unit-loc" class="fi" value="${esc(u.location||'')}" placeholder="e.g. Kilimani, Nairobi"></div>
+      <div class="fg-s"><label class="fl">Size</label>
+        <input id="unit-size" class="fi" value="${esc(u.size||'')}" placeholder="e.g. 1-bedroom, Studio, 2BR"></div>
+      <div class="fg-s"><label class="fl">Daily Rate (KES) *</label>
+        <input id="unit-daily" class="fi" type="number" min="0" value="${u.daily_rate||''}" placeholder="e.g. 4500"></div>
+      <div class="fg-s"><label class="fl">Monthly Rate (KES)</label>
+        <input id="unit-monthly" class="fi" type="number" min="0" value="${u.monthly_rate||''}" placeholder="Optional — e.g. 80000"></div>
+      <button class="btn-p" onclick="saveUnit('${unitId||''}')">💾 ${isEdit?'Save Changes':'Add Unit'}</button>
+      ${isEdit?`<button class="btn-r" onclick="deactivateUnit('${unitId}')">🗑 Remove Unit</button>`:''}
+      <button class="btn-g" onclick="popSheet()">Cancel</button>
+    </div>`);
+}
+
+function showEditUnitSheet(unitId) { showAddUnitSheet(unitId); }
+
+async function saveUnit(unitId) {
+  const name    = document.getElementById('unit-name')?.value?.trim();
+  const loc     = document.getElementById('unit-loc')?.value?.trim();
+  const size    = document.getElementById('unit-size')?.value?.trim();
+  const daily   = parseFloat(document.getElementById('unit-daily')?.value)||0;
+  const monthly = parseFloat(document.getElementById('unit-monthly')?.value)||null;
+  if (!name || !daily) { showToast('Name and daily rate are required', true); return; }
+
+  const body = { shop_id: S.shop.id, name, location: loc||null, size: size||null, daily_rate: daily, monthly_rate: monthly||null };
+  if (unitId) {
+    await fetch(`${SUPABASE_URL}/rest/v1/units?id=eq.${unitId}`, {
+      method: 'PATCH', headers: { ...apiHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    });
+    showToast('✓ Unit updated');
+  } else {
+    await fetch(`${SUPABASE_URL}/rest/v1/units`, {
+      method: 'POST', headers: { ...apiHeaders(), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' }, body: JSON.stringify(body)
+    });
+    showToast('✓ Unit added');
+  }
+  await loadUnits();
+  popSheet();
+  showTab('units');
+}
+
+async function deactivateUnit(unitId) {
+  showConf('Remove Unit?', 'This will hide the unit from your list.', async () => {
+    await fetch(`${SUPABASE_URL}/rest/v1/units?id=eq.${unitId}`, {
+      method: 'PATCH', headers: { ...apiHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ active: false })
+    });
+    popSheet();
+    showToast('Unit removed');
+    await loadUnits();
+    showTab('units');
+  });
+}
+
+/* ═══════════════════════════════
+   ADD SUPPLY SHEET
+═══════════════════════════════ */
+function showAddSupplySheet(unitId, unitName) {
+  pushSheet(`
+    <div class="sh-hand"></div>
+    <div class="sh-hdr"><h2>Add Supply</h2><div style="font-size:12px;color:var(--txt2);margin-top:2px">🛏️ ${esc(unitName)}</div></div>
+    <div class="sh-body">
+      <div class="fg-s"><label class="fl">Item Name *</label>
+        <input id="sup-name" class="fi" placeholder="e.g. Toilet paper, Sugar, Soap"></div>
+      <div class="fg-s"><label class="fl">Emoji</label>
+        <input id="sup-emoji" class="fi" value="🧻" placeholder="🧻" style="width:60px"></div>
+      <div class="fg-s"><label class="fl">Quantity on Hand *</label>
+        <input id="sup-qty" class="fi" type="number" min="0" placeholder="e.g. 10"></div>
+      <div class="fg-s"><label class="fl">Unit of Measure</label>
+        <input id="sup-uom" class="fi" value="pcs" placeholder="pcs, rolls, kg, litres…"></div>
+      <div class="fg-s"><label class="fl">Alert When Below</label>
+        <input id="sup-alert" class="fi" type="number" min="0" value="2" placeholder="e.g. 2"></div>
+      <button class="btn-p" onclick="saveSupply('${unitId}')">✅ Add Supply</button>
+      <button class="btn-g" onclick="popSheet()">Cancel</button>
+    </div>`);
+}
+
+async function saveSupply(unitId) {
+  const name  = document.getElementById('sup-name')?.value?.trim();
+  const emoji = document.getElementById('sup-emoji')?.value?.trim()||'🧻';
+  const qty   = parseInt(document.getElementById('sup-qty')?.value)||0;
+  const uom   = document.getElementById('sup-uom')?.value?.trim()||'pcs';
+  const alert = parseInt(document.getElementById('sup-alert')?.value)||2;
+  if (!name) { showToast('Item name required', true); return; }
+
+  await fetch(`${SUPABASE_URL}/rest/v1/house_supplies`, {
+    method: 'POST', headers: { ...apiHeaders(), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+    body: JSON.stringify({ shop_id: S.shop.id, unit_id: unitId, name, emoji, quantity: qty, unit_of_measure: uom, low_stock_at: alert })
+  });
+  showToast('✓ Supply added');
+  popSheet();
+  showTab('supplies');
+}
+
+function showAdjustSupplySheet(supplyId, name, currentQty, uom) {
+  pushSheet(`
+    <div class="sh-hand"></div>
+    <div class="sh-hdr"><h2>Adjust Stock</h2></div>
+    <div class="sh-body">
+      <p style="text-align:center;font-size:15px;color:var(--txt2)">${esc(name)}</p>
+      <p style="text-align:center;font-size:32px;font-weight:800">${currentQty} <span style="font-size:14px;font-weight:400;color:var(--txt2)">${uom}</span></p>
+      <div style="display:flex;gap:12px;margin-bottom:16px">
+        <button class="btn-g" style="flex:1;font-size:22px" onclick="adjustQty('${supplyId}',-1,${currentQty});popSheet()">−</button>
+        <button class="btn-p" style="flex:1;font-size:22px" onclick="adjustQty('${supplyId}',1,${currentQty});popSheet()">+</button>
+      </div>
+      <div class="fg-s"><label class="fl">Or set exact quantity</label>
+        <input id="adj-qty" class="fi" type="number" min="0" value="${currentQty}"></div>
+      <button class="btn-p" onclick="(async()=>{
+        const v=parseInt(document.getElementById('adj-qty')?.value);
+        if(isNaN(v)||v<0){showToast('Enter a valid number',true);return;}
+        await fetch(SUPABASE_URL+'/rest/v1/house_supplies?id=eq.${supplyId}',{method:'PATCH',headers:{...apiHeaders(),'Content-Type':'application/json'},body:JSON.stringify({quantity:v})});
+        showToast('✓ Updated');popSheet();showTab('supplies');
+      })()">Set Quantity</button>
+      <button class="btn-g" onclick="popSheet()">Cancel</button>
+    </div>`);
+}
+
+/* ═══════════════════════════════
+   RECORD A BOOKING SHEET
+═══════════════════════════════ */
+function openBookingSheet() {
+  if (!S.units?.length) {
+    pushSheet(`<div style="padding:40px 20px;text-align:center">
+      <div style="font-size:48px;margin-bottom:12px">🛏️</div>
+      <h3 style="margin:0 0 8px">No Units Yet</h3>
+      <p style="color:var(--txt2);font-size:14px;margin:0 0 20px">Add a unit first before recording a booking.</p>
+      <button class="btn-p" style="width:100%" onclick="popSheet();showAddUnitSheet()">+ Add a Unit</button>
+      <button class="btn-g" style="width:100%;margin-top:8px" onclick="popSheet()">Cancel</button>
+    </div>`);
+    return;
+  }
+
+  const unitOptions = (S.units||[]).map(u =>
+    `<option value="${u.id}" data-daily="${u.daily_rate}" data-monthly="${u.monthly_rate||''}">${esc(u.name)} — KES ${kes(u.daily_rate).replace('KES ','')}/night</option>`
+  ).join('');
+
+  // Default check-in today, check-out tomorrow
+  const today = new Date(); const tom = new Date(today); tom.setDate(tom.getDate()+1);
+  const fmt = d => d.toISOString().split('T')[0];
+
+  pushSheet(`
+    <div class="sh-hand"></div>
+    <div class="sh-hdr"><h2>Record a Booking</h2></div>
+    <div class="sh-body">
+      <div class="fg-s"><label class="fl">Unit *</label>
+        <select id="bk-unit" class="fi" style="appearance:auto" onchange="calcBookingTotal()">${unitOptions}</select></div>
+      <div class="fg-s"><label class="fl">Guest Name</label>
+        <input id="bk-guest" class="fi" placeholder="e.g. John Kamau"></div>
+      <div class="fg-s"><label class="fl">Guest Phone</label>
+        <input id="bk-phone" class="fi" type="tel" placeholder="e.g. 0712 345 678"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="fg-s"><label class="fl">Check-in *</label>
+          <input id="bk-in" class="fi" type="date" value="${fmt(today)}" onchange="calcBookingTotal()"></div>
+        <div class="fg-s"><label class="fl">Check-out *</label>
+          <input id="bk-out" class="fi" type="date" value="${fmt(tom)}" onchange="calcBookingTotal()"></div>
+      </div>
+      <div class="fg-s"><label class="fl">Rate per Night (KES)</label>
+        <input id="bk-rate" class="fi" type="number" min="0" placeholder="Auto from unit" onchange="calcBookingTotal()"></div>
+      <div id="bk-monthly-hint" style="display:none;background:var(--acc-d);border-radius:10px;padding:10px 12px;font-size:13px;color:var(--acc);margin-bottom:12px">
+        💡 Stay is 28+ nights — consider switching to monthly rate
+        <button onclick="applyMonthlyRate()" style="display:block;margin-top:6px;background:var(--acc);color:#fff;border:none;border-radius:8px;padding:4px 12px;cursor:pointer;font-size:12px">Apply Monthly Rate</button>
+      </div>
+      <div id="bk-total-preview" style="background:var(--surf);border:1px solid var(--bdr);border-radius:12px;padding:12px;margin-bottom:14px;display:none">
+        <div style="display:flex;justify-content:space-between;font-size:14px;margin-bottom:4px">
+          <span style="color:var(--txt2)">Duration</span><span id="bk-nights-lbl">—</span></div>
+        <div style="display:flex;justify-content:space-between;font-weight:700;font-size:18px">
+          <span>Total</span><span id="bk-total-lbl" style="color:var(--acc)">—</span></div>
+      </div>
+      <div class="fg-s"><label class="fl">Payment</label>
+        <select id="bk-pay" class="fi" style="appearance:auto">
+          <option value="cash">💵 Cash</option>
+          <option value="mpesa">📱 M-Pesa</option>
+          <option value="debt">📋 Balance Due</option>
+        </select></div>
+      <div class="fg-s" id="bk-mpesa-row" style="display:none"><label class="fl">M-Pesa Code</label>
+        <input id="bk-mpesa" class="fi" placeholder="e.g. QK1234ABCD" style="text-transform:uppercase"></div>
+      <div class="fg-s"><label class="fl">Notes</label>
+        <input id="bk-notes" class="fi" placeholder="e.g. Door code 1234, Wi-Fi: Kilimani5G"></div>
+      <button class="btn-p" onclick="saveBooking()">✅ Save Booking</button>
+      <button class="btn-g" onclick="popSheet()">Cancel</button>
+    </div>`);
+
+  // Wire up M-Pesa row toggle
+  document.getElementById('bk-pay').addEventListener('change', e => {
+    document.getElementById('bk-mpesa-row').style.display = e.target.value === 'mpesa' ? '' : 'none';
+  });
+
+  // Populate rate from first unit
+  calcBookingTotal();
+}
+
+function calcBookingTotal() {
+  const sel = document.getElementById('bk-unit');
+  const opt = sel?.options[sel.selectedIndex];
+  const inEl = document.getElementById('bk-in');
+  const outEl = document.getElementById('bk-out');
+  if (!opt || !inEl || !outEl) return;
+
+  const checkIn  = new Date(inEl.value);
+  const checkOut = new Date(outEl.value);
+  const nights   = Math.max(0, Math.round((checkOut - checkIn) / 86400000));
+
+  const defaultRate = parseFloat(opt.dataset.daily)||0;
+  const rateEl = document.getElementById('bk-rate');
+  if (!rateEl.value) rateEl.value = defaultRate;
+  const rate = parseFloat(rateEl.value)||defaultRate;
+  const total = nights * rate;
+
+  const preview = document.getElementById('bk-total-preview');
+  const nightsLbl = document.getElementById('bk-nights-lbl');
+  const totalLbl  = document.getElementById('bk-total-lbl');
+  if (nights > 0) {
+    preview.style.display = '';
+    nightsLbl.textContent = `${nights} night${nights!==1?'s':''}`;
+    totalLbl.textContent  = kes(total);
+  } else {
+    preview.style.display = 'none';
+  }
+
+  // Monthly rate hint
+  const monthlyHint = document.getElementById('bk-monthly-hint');
+  const monthlyRate = parseFloat(opt.dataset.monthly)||0;
+  if (monthlyHint) monthlyHint.style.display = (nights >= 28 && monthlyRate > 0) ? '' : 'none';
+}
+
+function applyMonthlyRate() {
+  const sel = document.getElementById('bk-unit');
+  const opt = sel?.options[sel?.selectedIndex];
+  const mr = parseFloat(opt?.dataset?.monthly)||0;
+  if (mr) { document.getElementById('bk-rate').value = mr; calcBookingTotal(); }
+}
+
+async function saveBooking() {
+  const unitSel   = document.getElementById('bk-unit');
+  const unitId    = unitSel?.value;
+  const unitName  = unitSel?.options[unitSel.selectedIndex]?.text?.split(' — ')[0];
+  const guest     = document.getElementById('bk-guest')?.value?.trim();
+  const phone     = document.getElementById('bk-phone')?.value?.trim();
+  const checkIn   = document.getElementById('bk-in')?.value;
+  const checkOut  = document.getElementById('bk-out')?.value;
+  const rate      = parseFloat(document.getElementById('bk-rate')?.value)||0;
+  const payment   = document.getElementById('bk-pay')?.value||'cash';
+  const mpesa     = document.getElementById('bk-mpesa')?.value?.trim().toUpperCase();
+  const notes     = document.getElementById('bk-notes')?.value?.trim();
+
+  if (!unitId || !checkIn || !checkOut) { showToast('Unit and dates are required', true); return; }
+  const nights = Math.max(0, Math.round((new Date(checkOut)-new Date(checkIn))/86400000));
+  if (nights < 1) { showToast('Check-out must be after check-in', true); return; }
+  if (!rate) { showToast('Enter a rate per night', true); return; }
+
+  const total = nights * rate;
+
+  await fetch(`${SUPABASE_URL}/rest/v1/bookings`, {
+    method: 'POST',
+    headers: { ...apiHeaders(), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+    body: JSON.stringify({
+      shop_id: S.shop.id, unit_id: unitId, unit_name: unitName||'Unit',
+      guest_name: guest||null, guest_phone: phone||null,
+      check_in: checkIn, check_out: checkOut, nights, rate, total,
+      payment_method: payment, mpesa_code: mpesa||null, notes: notes||null,
+      recorded_by: S.user.id,
+    })
+  });
+
+  closeSaleSheet();
+  showToast(`✓ Booking saved — ${kes(total)}`);
+  showTab('bookings');
 }
 
 function showPausedPage(reason) {
@@ -615,11 +1113,14 @@ function showTab(tab) {
 async function renderTab(tab) {
   const el = document.getElementById('main-content');
   el.innerHTML = '<div class="loader"><div class="spin"></div></div>';
-  if (tab === 'home')   await renderHome(el);
-  else if (tab === 'sales')  await renderSales(el);
-  else if (tab === 'stock')  await renderStock(el);
-  else if (tab === 'debts')  await renderDebts(el);
-  else if (tab === 'more')   renderMore(el);
+  if (tab === 'home')          await (S.isAirbnb ? renderAirbnbHome(el) : renderHome(el));
+  else if (tab === 'sales')    await renderSales(el);
+  else if (tab === 'stock')    await renderStock(el);
+  else if (tab === 'debts')    await renderDebts(el);
+  else if (tab === 'bookings') await renderBookings(el);
+  else if (tab === 'units')    await renderUnits(el);
+  else if (tab === 'supplies') await renderSupplies(el);
+  else if (tab === 'more')     renderMore(el);
 }
 
 /* ═══════════════════════════════
@@ -720,7 +1221,7 @@ async function renderSales(el) {
   el.innerHTML = h;
 }
 
-function setSF(f) { S.salesFilter = f; showTab('sales'); }
+function setSF(f) { S.salesFilter = f; showTab(S.tab || 'sales'); }
 
 /* ═══════════════════════════════
    STOCK TAB
@@ -801,7 +1302,7 @@ function renderMore(el) {
   el.innerHTML = `
     <div style="padding:14px max(16px,env(safe-area-inset-right,0px)) 0">
       <div style="background:var(--surf);border:1px solid var(--bdr);border-radius:16px;padding:20px;text-align:center;margin-bottom:14px">
-        <div style="font-size:36px;margin-bottom:8px">🏪</div>
+        <div style="font-size:36px;margin-bottom:8px">${S.isAirbnb?'🏠':'🏪'}</div>
         <div style="font-size:17px;font-weight:700">${S.shop.name}</div>
         <div style="font-size:12px;color:var(--txt2);margin-top:4px">${S.shop.location||''}</div>
         ${S.shop.mpesa_till?`<div style="font-size:11px;color:var(--txt3);margin-top:3px">M-Pesa Till: ${S.shop.mpesa_till}</div>`:''}
@@ -811,6 +1312,23 @@ function renderMore(el) {
 
       ${canManage?`<div class="sec-ttl" style="margin-bottom:10px">Business Tools</div>
       <div class="clist">
+        ${S.isAirbnb?`
+        <div class="more-item" onclick="showAddUnitSheet()">
+          <div class="more-ico" style="background:var(--acc-d)">🛏️</div>
+          <div class="more-inf"><div class="more-nm">Add Unit</div><div class="more-mt">Add an apartment or room to rent</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showTab('supplies')">
+          <div class="more-ico" style="background:#0891b222">🧻</div>
+          <div class="more-inf"><div class="more-nm">House Supplies</div><div class="more-mt">Track consumables per unit</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showExpenses()">
+          <div class="more-ico" style="background:#7c3aed22">💸</div>
+          <div class="more-inf"><div class="more-nm">Expenses</div><div class="more-mt">Track cleaning, maintenance & costs</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showBusinessHealth()">
+          <div class="more-ico" style="background:#16a34a22">💰</div>
+          <div class="more-inf"><div class="more-nm">Business Health</div><div class="more-mt">Revenue minus expenses</div></div>
+          <span style="color:var(--txt3)">›</span></div>`:`
         <div class="more-item" onclick="showAddProductSheet()">
           <div class="more-ico" style="background:var(--acc-d)">📦</div>
           <div class="more-inf"><div class="more-nm">Add Product</div><div class="more-mt">Add a new item to your inventory</div></div>
@@ -846,7 +1364,7 @@ function renderMore(el) {
         <div class="more-item" onclick="showBusinessHealth()">
           <div class="more-ico" style="background:#16a34a22">💰</div>
           <div class="more-inf"><div class="more-nm">Business Health</div><div class="more-mt">Profit view — sales minus purchases & expenses</div></div>
-          <span style="color:var(--txt3)">›</span></div>
+          <span style="color:var(--txt3)">›</span></div>`}
       </div>`:''}
 
       <div class="sec-ttl" style="margin-bottom:10px;margin-top:14px">Team</div>
@@ -873,7 +1391,7 @@ function renderMore(el) {
       <div class="clist">
         <div class="more-item" style="cursor:default">
           <div class="more-ico" style="background:var(--acc-d)">ℹ️</div>
-          <div class="more-inf"><div class="more-nm">Happa Merchant v2.0</div><div class="more-mt">Business intelligence for small shops</div></div>
+          <div class="more-inf"><div class="more-nm">Happa Merchant v2.1</div><div class="more-mt">Business intelligence for small shops</div></div>
         </div>
       </div>
     </div>
