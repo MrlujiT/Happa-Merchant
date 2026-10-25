@@ -512,6 +512,9 @@ async function loadUserContext() {
   S.member = mems[0];
   S.shop   = mems[0].shops;
 
+  // Check if shop is paused
+  if (S.shop.paused) { showPausedPage(S.shop.pause_reason); return; }
+
   // Update header
   document.getElementById('hdr-shop-name').textContent = S.shop.name;
   document.getElementById('hdr-role-badge').textContent = S.member.role === 'owner' ? '👑 Owner' : '🧾 Staff';
@@ -523,7 +526,7 @@ async function loadUserContext() {
       <button class="ni" data-tab="sales"><span class="ni-ico">💰</span><span class="ni-lbl">Sales</span></button>`;
   }
 
-  await Promise.all([loadProducts(), loadCustomers()]);
+  await Promise.all([loadProducts(), loadCustomers(), loadSuppliers()]);
   showPage('app');
   setupNav();
   showTab('home');
@@ -535,6 +538,24 @@ async function loadProducts() {
 
 async function loadCustomers() {
   S.customers = await apiGet(`customers?shop_id=eq.${S.shop.id}&order=name`);
+}
+
+async function loadSuppliers() {
+  S.suppliers = await apiGet(`suppliers?shop_id=eq.${S.shop.id}&order=name`) || [];
+}
+
+function showPausedPage(reason) {
+  const reasonHtml = reason ? `<p style="margin-top:10px;font-size:14px;color:var(--txt);background:var(--surf2);border-radius:10px;padding:12px;white-space:pre-line">${esc(reason)}</p>` : '';
+  document.getElementById('page-loading').innerHTML = `
+    <div style="text-align:center;padding:80px 24px 40px;max-width:340px;margin:0 auto">
+      <div style="font-size:56px;margin-bottom:20px">🔒</div>
+      <h2 style="font-size:20px;font-weight:800;margin:0 0 8px;color:var(--txt)">Shop Paused</h2>
+      <p style="font-size:14px;color:var(--txt2);margin:0">Your account has been temporarily paused by Happa.</p>
+      ${reasonHtml}
+      <p style="font-size:12px;color:var(--txt3);margin-top:24px">Need help? Contact us at<br><strong>njautheinvestmentsconsultant@gmail.com</strong></p>
+      <button class="btn-g" onclick="doLogout()" style="margin-top:24px">Sign Out</button>
+    </div>`;
+  showPage('loading');
 }
 
 /* ═══════════════════════════════
@@ -782,6 +803,10 @@ function renderMore(el) {
           <div class="more-ico" style="background:#25D36622">💬</div>
           <div class="more-inf"><div class="more-nm">Send WhatsApp</div><div class="more-mt">Custom message to all clients</div></div>
           <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showBusinessHealth()">
+          <div class="more-ico" style="background:#16a34a22">💰</div>
+          <div class="more-inf"><div class="more-nm">Business Health</div><div class="more-mt">Profit view — sales minus purchases & expenses</div></div>
+          <span style="color:var(--txt3)">›</span></div>
       </div>`:''}
 
       <div class="sec-ttl" style="margin-bottom:10px;margin-top:14px">Team</div>
@@ -804,7 +829,7 @@ function renderMore(el) {
       <div class="clist">
         <div class="more-item" style="cursor:default">
           <div class="more-ico" style="background:var(--acc-d)">ℹ️</div>
-          <div class="more-inf"><div class="more-nm">Happa Merchant v1.4</div><div class="more-mt">Business intelligence for small shops</div></div>
+          <div class="more-inf"><div class="more-nm">Happa Merchant v1.5</div><div class="more-mt">Business intelligence for small shops</div></div>
         </div>
       </div>
     </div>
@@ -891,8 +916,11 @@ function renderSaleSheet() {
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
       <div><label class="fl">Customer (optional)</label>
-        <input type="text" id="cust-inp" class="fi" placeholder="Walk-in" list="cust-list" autocomplete="off">
-        <datalist id="cust-list">${S.customers.map(c=>`<option value="${c.name}">`).join('')}</datalist>
+        ${S.customers.length ? `<select id="cust-sel" class="fi" onchange="if(this.value){document.getElementById('cust-inp').value=this.value;this.value=''}">
+          <option value="">— Pick saved customer —</option>
+          ${S.customers.map(c=>`<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('')}
+        </select>` : ''}
+        <input type="text" id="cust-inp" class="fi" placeholder="Walk-in (or pick above)" autocomplete="off" style="margin-top:${S.customers.length?'6px':'0'}">
       </div>
       <div></div>
     </div>
@@ -1769,6 +1797,89 @@ function openWa(phone, name) {
 }
 
 /* ═══════════════════════════════
+   BUSINESS HEALTH (P&L)
+═══════════════════════════════ */
+async function showBusinessHealth(period) {
+  period = period || 'month';
+  pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>Business Health</h2></div><div class="sh-body"><div style="color:var(--txt2);text-align:center;padding:30px 0">Loading…</div></div>`);
+
+  const now   = new Date();
+  let fromDate;
+  if (period === 'week') {
+    const d = new Date(now); d.setDate(d.getDate() - 7);
+    fromDate = d.toISOString().slice(0,10);
+  } else if (period === 'month') {
+    fromDate = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+  } else {
+    fromDate = null; // all time
+  }
+
+  const since = fromDate ? `&recorded_at=gte.${fromDate}` : '';
+  const since2 = fromDate ? `&order_date=gte.${fromDate}` : '';
+  const since3 = fromDate ? `&date=gte.${fromDate}` : '';
+
+  const [sales, orders, expenses] = await Promise.all([
+    apiGet(`sales?shop_id=eq.${S.shop.id}&select=total${since}`),
+    apiGet(`stock_orders?shop_id=eq.${S.shop.id}&select=total_amount${since2}`),
+    apiGet(`expenses?shop_id=eq.${S.shop.id}&select=amount${since3}`),
+  ]);
+
+  const revenue  = (sales||[]).reduce((a,x)=>a+(x.total||0),0);
+  const costs    = (orders||[]).reduce((a,x)=>a+(x.total_amount||0),0);
+  const expTotal = (expenses||[]).reduce((a,x)=>a+(x.amount||0),0);
+  const profit   = revenue - costs - expTotal;
+  const margin   = revenue > 0 ? ((profit/revenue)*100).toFixed(1) : '0.0';
+
+  const periodLabels = {week:'Last 7 Days', month:'This Month', all:'All Time'};
+  const pLabel = periodLabels[period] || 'This Month';
+  const pColor = profit >= 0 ? 'var(--grn)' : 'var(--red)';
+  const pIcon  = profit >= 0 ? '📈' : '📉';
+
+  const tabs = ['week','month','all'].map(p =>
+    `<button onclick="popSheet();showBusinessHealth('${p}')"
+      style="flex:1;padding:8px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;background:${period===p?'var(--acc)':'var(--surf2)'};color:${period===p?'#fff':'var(--txt)'}">${{week:'7 Days',month:'Month',all:'All Time'}[p]}</button>`
+  ).join('');
+
+  const el = document.querySelector('.sh-body');
+  if (!el) return;
+  el.innerHTML = `
+    <div style="display:flex;gap:6px;margin-bottom:20px">${tabs}</div>
+    <div style="text-align:center;margin-bottom:8px;font-size:13px;color:var(--txt2);font-weight:600">${pLabel}</div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+      <div style="background:var(--surf2);border-radius:14px;padding:16px;text-align:center">
+        <div style="font-size:11px;font-weight:600;color:var(--txt2);letter-spacing:.5px;text-transform:uppercase;margin-bottom:4px">Sales Revenue</div>
+        <div style="font-size:20px;font-weight:800;color:var(--txt)">${kes(revenue)}</div>
+        <div style="font-size:11px;color:var(--txt3);margin-top:2px">${(sales||[]).length} sales</div>
+      </div>
+      <div style="background:var(--surf2);border-radius:14px;padding:16px;text-align:center">
+        <div style="font-size:11px;font-weight:600;color:var(--txt2);letter-spacing:.5px;text-transform:uppercase;margin-bottom:4px">Purchases</div>
+        <div style="font-size:20px;font-weight:800;color:var(--red)">${kes(costs)}</div>
+        <div style="font-size:11px;color:var(--txt3);margin-top:2px">${(orders||[]).length} orders</div>
+      </div>
+      <div style="background:var(--surf2);border-radius:14px;padding:16px;text-align:center">
+        <div style="font-size:11px;font-weight:600;color:var(--txt2);letter-spacing:.5px;text-transform:uppercase;margin-bottom:4px">Expenses</div>
+        <div style="font-size:20px;font-weight:800;color:var(--red)">${kes(expTotal)}</div>
+        <div style="font-size:11px;color:var(--txt3);margin-top:2px">${(expenses||[]).length} items</div>
+      </div>
+      <div style="background:var(--surf2);border-radius:14px;padding:16px;text-align:center">
+        <div style="font-size:11px;font-weight:600;color:var(--txt2);letter-spacing:.5px;text-transform:uppercase;margin-bottom:4px">Margin</div>
+        <div style="font-size:20px;font-weight:800;color:${pColor}">${margin}%</div>
+        <div style="font-size:11px;color:var(--txt3);margin-top:2px">of revenue</div>
+      </div>
+    </div>
+
+    <div style="background:var(--surf2);border-radius:16px;padding:20px;text-align:center">
+      <div style="font-size:28px;margin-bottom:6px">${pIcon}</div>
+      <div style="font-size:12px;font-weight:600;color:var(--txt2);letter-spacing:.5px;text-transform:uppercase;margin-bottom:4px">Net Profit</div>
+      <div style="font-size:32px;font-weight:900;color:${pColor}">${kes(profit)}</div>
+      <div style="font-size:12px;color:var(--txt3);margin-top:6px">Revenue − Purchases − Expenses</div>
+    </div>
+
+    <button class="btn-g" onclick="popSheet()" style="margin-top:20px">Close</button>`;
+}
+
+/* ═══════════════════════════════
    PROMOTIONS
 ═══════════════════════════════ */
 function showCreatePromotion() {
@@ -1917,15 +2028,26 @@ function openPromoLinks(encodedMsg) {
   const selected = [...document.querySelectorAll('.promo-send-cb:checked')];
   if (!selected.length) { showToast('Select at least one customer', true); return; }
   const msg = decodeURIComponent(encodedMsg);
-  selected.forEach((cb, i) => {
+  const links = selected.map(cb => {
     const phone    = cb.value;
     const name     = cb.getAttribute('data-name') || '';
     const personal = msg.replace(/\{name\}/gi, name);
-    // Stagger slightly so browser doesn't block popups
-    setTimeout(() => window.open(`https://wa.me/${phone}?text=${encodeURIComponent(personal)}`, '_blank'), i * 300);
-  });
-  popSheet();
-  showToast(`✓ Opened ${selected.length} WhatsApp chat${selected.length!==1?'s':''}`);
+    const waUrl    = `https://wa.me/${phone}?text=${encodeURIComponent(personal)}`;
+    return `<a href="${waUrl}" target="_blank" rel="noopener"
+      style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--surf2);border-radius:12px;text-decoration:none;color:var(--txt)">
+      <div style="width:40px;height:40px;border-radius:50%;background:#25D36622;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">💬</div>
+      <div style="flex:1"><div style="font-weight:600;font-size:14px">${esc(name)}</div>
+      <div style="font-size:12px;color:#25D366">Tap to open WhatsApp ›</div></div>
+    </a>`;
+  }).join('<div style="height:8px"></div>');
+  pushSheet(`
+    <div class="sh-hand"></div>
+    <div class="sh-hdr"><h2>Send on WhatsApp</h2></div>
+    <div class="sh-body">
+      <p style="font-size:13px;color:var(--txt2);margin-bottom:16px">Tap each button to open a WhatsApp chat. Your message is pre-filled — just hit Send.</p>
+      <div style="display:flex;flex-direction:column;gap:8px">${links}</div>
+      <button class="btn-g" onclick="popSheet();popSheet()" style="margin-top:20px">Done</button>
+    </div>`);
 }
 
 /* ═══════════════════════════════

@@ -14,7 +14,7 @@
   --acc:#F5A623;--acc-d:rgba(245,166,35,.14);
   --grn:#22C55E;--grn-d:rgba(34,197,94,.13);
   --red:#EF4444;--red-d:rgba(239,68,68,.12);
-  --blu:#3B82F6;--pur:#A855F7;
+  --blu:#3B82F6;--pur:#A855F7;--orn:#F97316;
   --txt:#EEF2FF;--txt2:#8B9EC0;--txt3:#4B5E7A;
   color-scheme:dark;
 }
@@ -61,7 +61,7 @@ select.fi{cursor:pointer}
 .stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:24px}
 .sc{background:var(--surf);border:1px solid var(--bdr);border-radius:12px;padding:14px}
 .sc-lbl{font-size:11px;color:var(--txt2);margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em}
-.sc-val{font-size:26px;font-weight:800;font-variant-numeric:tabular-nums}
+.sc-val{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums}
 .sc-sub{font-size:11px;color:var(--txt3);margin-top:2px}
 
 /* TABS */
@@ -81,6 +81,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
 .chip-r{background:var(--red-d);color:var(--red)}
 .chip-b{background:rgba(59,130,246,.14);color:var(--blu)}
 .chip-p{background:rgba(168,85,247,.14);color:var(--pur)}
+.chip-o{background:rgba(249,115,22,.14);color:var(--orn)}
 .act-btn{padding:5px 10px;border-radius:7px;font-family:inherit;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--bdr);background:var(--surf2);color:var(--txt2);transition:background .15s;margin-right:4px}
 .act-btn:last-child{margin-right:0}
 .act-btn:hover{background:var(--bdr)}
@@ -88,6 +89,10 @@ tr:hover td{background:rgba(255,255,255,.02)}
 .act-btn.danger:hover{background:var(--red-d)}
 .act-btn.primary{border-color:rgba(245,166,35,.3);color:var(--acc)}
 .act-btn.primary:hover{background:var(--acc-d)}
+.act-btn.info{border-color:rgba(59,130,246,.3);color:var(--blu)}
+.act-btn.info:hover{background:rgba(59,130,246,.1)}
+.act-btn.warn{border-color:rgba(249,115,22,.3);color:var(--orn)}
+.act-btn.warn:hover{background:rgba(249,115,22,.1)}
 
 /* CONFIRM INLINE */
 .confirm-row{display:none;align-items:center;gap:8px;margin-top:6px;padding:8px 10px;background:var(--red-d);border:1px solid rgba(239,68,68,.2);border-radius:8px}
@@ -96,6 +101,14 @@ tr:hover td{background:rgba(255,255,255,.02)}
 .confirm-row button{padding:4px 10px;border-radius:6px;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;border:none}
 .confirm-yes{background:var(--red);color:#fff}
 .confirm-no{background:var(--surf2);color:var(--txt2);border:1px solid var(--bdr) !important}
+
+/* SHOP DETAILS PANEL */
+.shop-detail{background:var(--surf2);border:1px solid var(--bdr);border-radius:12px;padding:16px;margin-top:6px;display:none}
+.shop-detail.on{display:block}
+.detail-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.ds{background:var(--surf);border-radius:8px;padding:10px 12px}
+.ds-lbl{font-size:10px;color:var(--txt3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px}
+.ds-val{font-size:17px;font-weight:800;font-variant-numeric:tabular-nums}
 
 /* MODAL */
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;display:none;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(6px)}
@@ -138,6 +151,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
   .stat-row{grid-template-columns:1fr 1fr}
   .main{padding:16px}
   .hdr{padding:12px 16px}
+  .detail-stats{grid-template-columns:1fr 1fr}
 }
 </style>
 </head>
@@ -186,10 +200,10 @@ tr:hover td{background:rgba(255,255,255,.02)}
       </div>
 
       <div class="stat-row" id="stats-row">
-        <div class="sc"><div class="sc-lbl">Shops</div><div class="sc-val" id="stat-shops">—</div><div class="sc-sub">total</div></div>
-        <div class="sc"><div class="sc-lbl">On Trial</div><div class="sc-val" id="stat-trial">—</div><div class="sc-sub">active trials</div></div>
-        <div class="sc"><div class="sc-lbl">Paying</div><div class="sc-val" id="stat-paying">—</div><div class="sc-sub">active subs</div></div>
+        <div class="sc"><div class="sc-lbl">Total Shops</div><div class="sc-val" id="stat-shops">—</div><div class="sc-sub">all time</div></div>
+        <div class="sc"><div class="sc-lbl">Active</div><div class="sc-val" id="stat-active">—</div><div class="sc-sub">trial + paying</div></div>
         <div class="sc"><div class="sc-lbl">Sales Today</div><div class="sc-val" id="stat-sales">—</div><div class="sc-sub">transactions</div></div>
+        <div class="sc"><div class="sc-lbl">Revenue Today</div><div class="sc-val" id="stat-rev" style="font-size:16px">—</div><div class="sc-sub">KES across all shops</div></div>
       </div>
 
       <div class="tabs">
@@ -273,6 +287,47 @@ tr:hover td{background:rgba(255,255,255,.02)}
   </div>
 </div>
 
+<!-- PAUSE SHOP MODAL -->
+<div class="overlay" id="pause-overlay">
+  <div class="modal">
+    <h2 id="pause-modal-title">Pause Shop</h2>
+    <div class="modal-sub" id="pause-modal-sub">The shop owner will see a frozen screen explaining why their account is paused.</div>
+    <input type="hidden" id="pause-shop-id">
+    <input type="hidden" id="pause-currently">
+    <div class="fg" id="pause-reason-wrap"><label class="fl">Reason (shown to shop owner) *</label>
+      <select class="fi" id="pause-reason">
+        <option value="Payment overdue — please contact Happa support to restore access.">Payment overdue</option>
+        <option value="Account under review — please contact Happa support.">Account under review</option>
+        <option value="Subscription expired — please renew to continue using Happa.">Subscription expired</option>
+        <option value="Temporary maintenance — your shop will be restored shortly.">Temporary maintenance</option>
+      </select>
+      <textarea class="fi" id="pause-reason-custom" style="margin-top:6px;height:72px;resize:vertical" placeholder="Or type a custom reason…"></textarea>
+    </div>
+    <div class="err-msg" id="pause-err"></div>
+    <div class="modal-acts">
+      <button class="btn-g" onclick="closeModal()">Cancel</button>
+      <button class="btn-p" id="pause-btn" onclick="savePause()" style="margin-top:0">Pause Shop</button>
+    </div>
+  </div>
+</div>
+
+<!-- RESET PASSWORD MODAL -->
+<div class="overlay" id="reset-overlay">
+  <div class="modal">
+    <h2>Reset Password</h2>
+    <div class="modal-sub" id="reset-modal-sub">Set a new temporary password for this user.</div>
+    <input type="hidden" id="reset-user-id">
+    <div class="fg"><label class="fl">New Temporary Password *</label>
+      <input class="fi" id="reset-new-pwd" type="text" placeholder="e.g. Happa2024!" autocomplete="off"></div>
+    <div style="font-size:11px;color:var(--txt3);margin-bottom:14px">The owner will need to change this after logging in. Share it via WhatsApp.</div>
+    <div class="err-msg" id="reset-err"></div>
+    <div class="modal-acts">
+      <button class="btn-g" onclick="closeModal()">Cancel</button>
+      <button class="btn-p" id="reset-btn" onclick="saveResetPassword()" style="margin-top:0">Set Password</button>
+    </div>
+  </div>
+</div>
+
 <!-- SHARE INVITE MODAL -->
 <div class="overlay" id="share-overlay">
   <div class="modal">
@@ -281,7 +336,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <div style="background:rgba(0,0,0,.2);border:1px solid var(--bdr);border-radius:10px;padding:12px 14px;margin:14px 0;display:flex;flex-direction:column;gap:8px">
       <div style="display:flex;align-items:center;gap:8px">
         <span style="font-size:11px;color:var(--txt3);width:68px;flex-shrink:0">Login URL</span>
-        <span id="share-url" style="font-size:11px;color:var(--txt);flex:1">https://happa-merchant.netlify.app</span>
+        <span id="share-url" style="font-size:11px;color:var(--txt);flex:1">https://happa-merchant.njautheinvestmentsconsultant.workers.dev</span>
       </div>
       <div style="display:flex;align-items:center;gap:8px">
         <span style="font-size:11px;color:var(--txt3);width:68px;flex-shrink:0">Email</span>
@@ -307,12 +362,13 @@ tr:hover td{background:rgba(255,255,255,.02)}
 const SUPABASE_URL = 'https://zxucpsdfcokkjtcgygna.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp4dWNwc2RmY29ra2p0Y2d5Z25hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI3NDc0NzUsImV4cCI6MjEwODMyMzQ3NX0.6JH4kLkge4D-8SCYLIGh7zmAvX0exJILThhOQ79BusA';
 const EDGE_URL = `${SUPABASE_URL}/functions/v1`;
+const LOGIN_URL = 'https://happa-merchant.njautheinvestmentsconsultant.workers.dev';
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let currentUser    = null;
 let currentSession = null;
 
-// ── RAW POSTGREST HELPERS (bypasses supabase-js client for data queries) ──
+// ── RAW POSTGREST HELPERS ──
 function apiHeaders(extras = {}) {
   return {
     'Authorization': `Bearer ${currentSession?.access_token ?? ''}`,
@@ -339,12 +395,19 @@ async function apiDelete(table, id) {
   });
   return res.ok;
 }
-let currentTab     = 'shops';
-let pendingDeleteId = null;
+async function apiPatch(table, filter, body) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${filter}`, {
+    method: 'PATCH',
+    headers: { ...apiHeaders(), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+    body: JSON.stringify(body),
+  });
+  return res.ok;
+}
+
+let currentTab = 'shops';
 
 // ── INIT ──
 (async function init() {
-  // Race getSession against 3s timeout — it can hang indefinitely
   const session = await Promise.race([
     db.auth.getSession().then(r => r.data?.session ?? null).catch(() => null),
     new Promise(r => setTimeout(() => r(null), 3000)),
@@ -399,17 +462,21 @@ async function doLogout() {
 // ── STATS ──
 async function loadStats() {
   const today = new Date(); today.setHours(0,0,0,0);
-  const [shopsC, salesC, subs] = await Promise.all([
+  const [shopsC, subs, salesToday] = await Promise.all([
     apiCount('shops'),
-    apiCount('sales', `&recorded_at=gte.${today.toISOString()}`),
     apiGet('subscriptions?select=status'),
+    apiGet(`sales?select=total&recorded_at=gte.${today.toISOString()}`),
   ]);
-  const trials = Array.isArray(subs) ? subs.filter(s=>s.status==='trial').length : 0;
-  const paying = Array.isArray(subs) ? subs.filter(s=>s.status==='active').length : 0;
+  const active = Array.isArray(subs) ? subs.filter(s=>s.status==='trial'||s.status==='active').length : 0;
+  const salesCount = Array.isArray(salesToday) ? salesToday.length : 0;
+  const salesRev = Array.isArray(salesToday) ? salesToday.reduce((a,s)=>a+(s.total||0),0) : 0;
+
   document.getElementById('stat-shops').textContent  = shopsC;
-  document.getElementById('stat-trial').textContent  = trials;
-  document.getElementById('stat-paying').textContent = paying;
-  document.getElementById('stat-sales').textContent  = salesC;
+  document.getElementById('stat-active').textContent = active;
+  document.getElementById('stat-sales').textContent  = salesCount;
+  document.getElementById('stat-rev').textContent    = salesRev >= 1000
+    ? 'KES ' + (salesRev/1000).toFixed(1) + 'k'
+    : salesRev > 0 ? 'KES ' + salesRev.toLocaleString() : '—';
 }
 
 // ── TABS ──
@@ -439,7 +506,7 @@ async function renderShops() {
 
   el.innerHTML = `<div class="table-wrap"><table>
     <thead><tr>
-      <th>Shop</th><th>Type</th><th>Location</th><th>Members</th><th>Sub</th><th>Actions</th>
+      <th>Shop</th><th>Type</th><th>Status</th><th>Sub</th><th>Actions</th>
     </tr></thead>
     <tbody id="shops-tbody">${shops.map(s => {
       const sub    = s.subscriptions?.[0];
@@ -450,21 +517,31 @@ async function renderShops() {
         : status === 'trial'
         ? (daysLeft !== null ? `${daysLeft}d left` : 'Trial')
         : status;
-      const subChip = status === 'active' ? 'chip-g'
-        : status === 'trial' ? 'chip-a'
-        : 'chip-r';
-      return `<tr id="row-${s.id}">
-        <td><strong>${s.name}</strong></td>
+      const subChip = status === 'active' ? 'chip-g' : status === 'trial' ? 'chip-a' : 'chip-r';
+      const pauseLabel = s.paused ? '<span class="chip chip-r" style="margin-left:4px">PAUSED</span>' : '';
+      const pauseBtnLabel = s.paused ? 'Unpause' : 'Pause';
+      const pauseBtnClass = s.paused ? 'act-btn info' : 'act-btn warn';
+      const nameEsc = (s.name||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');
+      return `<tr id="row-${s.id}" style="cursor:pointer" onclick="toggleShopDetail('${s.id}')">
+        <td><strong>${s.name}</strong>${pauseLabel}<br><span style="font-size:11px;color:var(--txt3)">${s.location||''}</span></td>
         <td><span class="chip ${s.business_type==='goods'?'chip-g':s.business_type==='services'?'chip-b':'chip-a'}">${s.business_type}</span></td>
-        <td style="color:var(--txt2)">${s.location||'—'}</td>
-        <td>${s.shop_members?.[0]?.count||0}</td>
+        <td>${s.shop_members?.[0]?.count||0} member${(s.shop_members?.[0]?.count||0)!==1?'s':''}</td>
         <td><span class="chip ${subChip}">${subLabel}</span></td>
-        <td>
-          <button class="act-btn danger" onclick="confirmDeleteShop('${s.id}','${s.name.replace(/'/g,"\\'")}')">Remove</button>
+        <td onclick="event.stopPropagation()">
+          <button class="${pauseBtnClass}" onclick="openPauseModal('${s.id}','${nameEsc}',${s.paused})">${pauseBtnLabel}</button>
+          <button class="act-btn primary" onclick="openResetModal('${s.id}','${nameEsc}')">Reset Pwd</button>
+          <button class="act-btn danger" onclick="confirmDeleteShop('${s.id}','${nameEsc}')">Remove</button>
+        </td>
+      </tr>
+      <tr id="detail-${s.id}" style="display:none">
+        <td colspan="5" style="padding:0 14px 14px">
+          <div class="shop-detail" id="detail-inner-${s.id}">
+            <div style="color:var(--txt2);font-size:12px;text-align:center;padding:10px 0"><span class="spin"></span>Loading stats…</div>
+          </div>
         </td>
       </tr>
       <tr id="confirm-${s.id}" style="display:none">
-        <td colspan="6">
+        <td colspan="5">
           <div class="confirm-row on">
             <span>⚠️ Remove <strong>${s.name}</strong>? All data, sales, and staff will be deleted permanently.</span>
             <button class="confirm-yes" onclick="deleteShop('${s.id}')">Yes, Remove</button>
@@ -480,8 +557,48 @@ async function renderShops() {
   </div>`;
 }
 
+// ── SHOP DETAIL DRILL-DOWN ──
+async function toggleShopDetail(shopId) {
+  const detailRow  = document.getElementById(`detail-${shopId}`);
+  const detailInner = document.getElementById(`detail-inner-${shopId}`);
+  if (!detailRow) return;
+
+  const isOpen = detailRow.style.display !== 'none';
+  // close all
+  document.querySelectorAll('[id^="detail-"]').forEach(r => {
+    if (r.id.startsWith('detail-inner-')) { r.classList.remove('on'); }
+    else { r.style.display = 'none'; }
+  });
+  if (isOpen) return;
+
+  detailRow.style.display = '';
+  detailInner.classList.add('on');
+
+  // Load shop stats
+  const today = new Date(); today.setHours(0,0,0,0);
+  const month = new Date(); month.setDate(1); month.setHours(0,0,0,0);
+  const [salesMonth, productsCount, membersCount] = await Promise.all([
+    apiGet(`sales?shop_id=eq.${shopId}&recorded_at=gte.${month.toISOString()}&select=total,profit`),
+    apiCount('products', `&shop_id=eq.${shopId}&active=eq.true`),
+    apiCount('shop_members', `&shop_id=eq.${shopId}`),
+  ]);
+
+  const monthRev    = (salesMonth||[]).reduce((a,s)=>a+(s.total||0),0);
+  const monthProfit = (salesMonth||[]).reduce((a,s)=>a+(s.profit||0),0);
+  const salesCount  = (salesMonth||[]).length;
+
+  detailInner.innerHTML = `
+    <div style="font-size:11px;font-weight:700;color:var(--txt2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">This Month's Numbers</div>
+    <div class="detail-stats">
+      <div class="ds"><div class="ds-lbl">Sales</div><div class="ds-val">${salesCount}</div></div>
+      <div class="ds"><div class="ds-lbl">Revenue</div><div class="ds-val" style="font-size:14px">KES ${monthRev.toLocaleString()}</div></div>
+      <div class="ds"><div class="ds-lbl">Profit</div><div class="ds-val" style="font-size:14px;color:var(--grn)">KES ${monthProfit.toLocaleString()}</div></div>
+      <div class="ds"><div class="ds-lbl">Products</div><div class="ds-val">${productsCount}</div></div>
+      <div class="ds"><div class="ds-lbl">Staff</div><div class="ds-val">${membersCount}</div></div>
+    </div>`;
+}
+
 function confirmDeleteShop(id, name) {
-  // Hide any other open confirmations
   document.querySelectorAll('[id^="confirm-"]').forEach(r => r.style.display = 'none');
   const row = document.getElementById(`confirm-${id}`);
   if (row) row.style.display = '';
@@ -498,6 +615,90 @@ async function deleteShop(id) {
   showToast('Shop removed');
   await loadStats();
   renderShops();
+}
+
+// ── PAUSE SHOP ──
+function openPauseModal(shopId, shopName, currentlyPaused) {
+  document.getElementById('pause-shop-id').value = shopId;
+  document.getElementById('pause-currently').value = currentlyPaused ? 'true' : 'false';
+  const isPaused = currentlyPaused === true || currentlyPaused === 'true';
+  document.getElementById('pause-modal-title').textContent = isPaused ? `Unpause "${shopName}"` : `Pause "${shopName}"`;
+  document.getElementById('pause-modal-sub').textContent = isPaused
+    ? 'The shop will be restored immediately and the owner can log in normally.'
+    : 'The shop owner will see a frozen screen until you unpause them.';
+  document.getElementById('pause-reason-wrap').style.display = isPaused ? 'none' : 'block';
+  document.getElementById('pause-btn').textContent = isPaused ? 'Unpause Shop' : 'Pause Shop';
+  document.getElementById('pause-err').style.display = 'none';
+  document.getElementById('pause-overlay').classList.add('on');
+}
+
+async function savePause() {
+  const shopId    = document.getElementById('pause-shop-id').value;
+  const isPaused  = document.getElementById('pause-currently').value === 'true';
+  const btn       = document.getElementById('pause-btn');
+  const err       = document.getElementById('pause-err');
+
+  let reason = null;
+  if (!isPaused) {
+    const custom = document.getElementById('pause-reason-custom').value.trim();
+    reason = custom || document.getElementById('pause-reason').value;
+    if (!reason) { showErr(err, 'Select or enter a pause reason'); return; }
+  }
+
+  btn.disabled = true; btn.textContent = 'Saving…';
+  const ok = await apiPatch('shops', `id=eq.${shopId}`, {
+    paused: !isPaused,
+    pause_reason: isPaused ? null : reason,
+  });
+  btn.disabled = false; btn.textContent = isPaused ? 'Unpause Shop' : 'Pause Shop';
+
+  if (!ok) { showErr(err, 'Failed to update shop'); return; }
+  closeModal();
+  showToast(isPaused ? '✓ Shop unpaused' : '⏸ Shop paused');
+  renderShops();
+}
+
+// ── RESET PASSWORD ──
+function openResetModal(shopId, shopName) {
+  document.getElementById('reset-user-id').value = shopId;
+  document.getElementById('reset-modal-sub').textContent = `Set a new temporary password for the owner of "${shopName}".`;
+  document.getElementById('reset-new-pwd').value = '';
+  document.getElementById('reset-err').style.display = 'none';
+  document.getElementById('reset-overlay').classList.add('on');
+}
+
+async function saveResetPassword() {
+  const shopId  = document.getElementById('reset-user-id').value;
+  const newPwd  = document.getElementById('reset-new-pwd').value.trim();
+  const btn     = document.getElementById('reset-btn');
+  const err     = document.getElementById('reset-err');
+
+  if (!newPwd || newPwd.length < 6) { showErr(err, 'Password must be at least 6 characters'); return; }
+
+  btn.disabled = true; btn.textContent = 'Resetting…';
+
+  try {
+    // Get owner user_id from shop_members
+    const members = await apiGet(`shop_members?shop_id=eq.${shopId}&role=eq.owner&select=user_id&limit=1`);
+    const userId  = members?.[0]?.user_id;
+    if (!userId) { showErr(err, 'No owner found for this shop'); btn.disabled=false; btn.textContent='Set Password'; return; }
+
+    // Call edge function to reset password with service role
+    const res = await fetch(`${EDGE_URL}/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentSession.access_token}`, 'apikey': SUPABASE_KEY },
+      body: JSON.stringify({ user_id: userId, new_password: newPwd }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+    btn.disabled = false; btn.textContent = 'Set Password';
+    closeModal();
+    showToast('✓ Password reset — share it via WhatsApp');
+  } catch(e) {
+    btn.disabled = false; btn.textContent = 'Set Password';
+    showErr(err, e.message);
+  }
 }
 
 // ── BILLING TAB ──
@@ -521,7 +722,6 @@ async function renderBilling() {
     const usedDays = Math.max(0, totalDays - daysLeft);
     const pct      = Math.min(100, Math.round((usedDays / totalDays) * 100));
     const barColor = daysLeft < 14 ? 'var(--red)' : daysLeft < 30 ? 'var(--acc)' : 'var(--grn)';
-
     const statusChip = s.status === 'active'
       ? '<span class="chip chip-g">Active</span>'
       : s.status === 'trial'
@@ -529,7 +729,8 @@ async function renderBilling() {
       : s.status === 'suspended'
       ? '<span class="chip chip-r">Suspended</span>'
       : '<span class="chip chip-p">Cancelled</span>';
-
+    const nameEsc = (shop?.name||'').replace(/'/g,"\\'");
+    const notesEsc = (s.notes||'').replace(/'/g,"\\'");
     return `<div class="bill-card">
       <div class="bill-card-hdr">
         <div>
@@ -546,7 +747,7 @@ async function renderBilling() {
       ${s.status === 'trial' ? `<div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${barColor}"></div></div>` : ''}
       ${s.notes ? `<div style="font-size:11px;color:var(--txt3);margin-top:8px">📝 ${s.notes}</div>` : ''}
       <div class="bill-actions" style="margin-top:12px">
-        <button class="act-btn primary" onclick="openBillingModal('${s.id}','${(shop?.name||'').replace(/'/g,"\\'")}','${s.status}',${s.monthly_rate||'null'},'${s.next_billing||''}','${(s.notes||'').replace(/'/g,"\\'")}')">Edit Billing</button>
+        <button class="act-btn primary" onclick="openBillingModal('${s.id}','${nameEsc}','${s.status}',${s.monthly_rate||'null'},'${s.next_billing||''}','${notesEsc}')">Edit Billing</button>
       </div>
     </div>`;
   });
@@ -566,25 +767,23 @@ function openBillingModal(subId, shopName, status, rate, nextBilling, notes) {
 }
 
 async function saveBilling() {
-  const subId     = document.getElementById('bill-sub-id').value;
-  const status    = document.getElementById('bill-status').value;
-  const rate      = document.getElementById('bill-rate').value;
-  const nextDate  = document.getElementById('bill-next').value;
-  const notes     = document.getElementById('bill-notes').value.trim();
-  const btn       = document.getElementById('bill-btn');
-  const err       = document.getElementById('bill-err');
+  const subId    = document.getElementById('bill-sub-id').value;
+  const status   = document.getElementById('bill-status').value;
+  const rate     = document.getElementById('bill-rate').value;
+  const nextDate = document.getElementById('bill-next').value;
+  const notes    = document.getElementById('bill-notes').value.trim();
+  const btn      = document.getElementById('bill-btn');
+  const err      = document.getElementById('bill-err');
 
   btn.disabled = true; btn.textContent = 'Saving…';
-
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/subscriptions?id=eq.${subId}`, {
-    method: 'PATCH',
-    headers: { ...apiHeaders(), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-    body: JSON.stringify({ status, monthly_rate: rate ? parseInt(rate) : null, next_billing: nextDate || null, notes: notes || null, updated_at: new Date().toISOString() }),
+  const ok = await apiPatch('subscriptions', `id=eq.${subId}`, {
+    status, monthly_rate: rate ? parseInt(rate) : null,
+    next_billing: nextDate || null, notes: notes || null,
+    updated_at: new Date().toISOString(),
   });
-
   btn.disabled = false; btn.textContent = 'Save';
 
-  if (!res.ok) { showErr(err, 'Save failed'); return; }
+  if (!ok) { showErr(err, 'Save failed'); return; }
   closeModal();
   showToast('Billing updated');
   await loadStats();
@@ -640,17 +839,54 @@ async function renderUsers() {
   }
 
   el.innerHTML = `<div class="table-wrap"><table>
-    <thead><tr><th>Name</th><th>Role</th><th>Shop</th><th>Phone</th><th>Joined</th></tr></thead>
-    <tbody>${members.map(m => `
-      <tr>
+    <thead><tr><th>Name</th><th>Role</th><th>Shop</th><th>Joined</th><th>Actions</th></tr></thead>
+    <tbody>${members.map(m => {
+      const nameEsc = (m.shops?.name||'').replace(/'/g,"\\'");
+      return `<tr>
         <td><strong>${m.name}</strong></td>
         <td><span class="chip ${m.role==='owner'?'chip-a':'chip-b'}">${m.role}</span></td>
         <td>${m.shops?.name||'—'}</td>
-        <td style="color:var(--txt2)">${m.phone||'—'}</td>
         <td style="color:var(--txt3)">${m.joined_at ? new Date(m.joined_at).toLocaleDateString('en-KE',{day:'numeric',month:'short',year:'2-digit'}) : 'Pending'}</td>
-      </tr>`).join('')}
+        <td>
+          <button class="act-btn primary" onclick="openUserResetModal('${m.user_id}','${nameEsc}')">Reset Pwd</button>
+        </td>
+      </tr>`;
+    }).join('')}
     </tbody>
   </table></div>`;
+}
+
+function openUserResetModal(userId, shopName) {
+  document.getElementById('reset-user-id').value = userId;
+  document.getElementById('reset-modal-sub').textContent = `Set a new temporary password for the owner of "${shopName}".`;
+  document.getElementById('reset-new-pwd').value = '';
+  document.getElementById('reset-err').style.display = 'none';
+  // Switch reset modal to use user_id directly
+  document.getElementById('reset-btn').onclick = () => saveResetPasswordDirect(userId);
+  document.getElementById('reset-overlay').classList.add('on');
+}
+
+async function saveResetPasswordDirect(userId) {
+  const newPwd = document.getElementById('reset-new-pwd').value.trim();
+  const btn    = document.getElementById('reset-btn');
+  const err    = document.getElementById('reset-err');
+  if (!newPwd || newPwd.length < 6) { showErr(err, 'Password must be at least 6 characters'); return; }
+  btn.disabled = true; btn.textContent = 'Resetting…';
+  try {
+    const res = await fetch(`${EDGE_URL}/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentSession.access_token}`, 'apikey': SUPABASE_KEY },
+      body: JSON.stringify({ user_id: userId, new_password: newPwd }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    btn.disabled = false; btn.textContent = 'Set Password';
+    closeModal();
+    showToast('✓ Password reset — share it via WhatsApp');
+  } catch(e) {
+    btn.disabled = false; btn.textContent = 'Set Password';
+    showErr(err, e.message);
+  }
 }
 
 // ── INVITE OWNER ──
@@ -673,7 +909,6 @@ async function sendOwnerInvite() {
   btn.disabled = true; btn.textContent = 'Sending invite…';
 
   try {
-    // Use cached session — avoids hanging getSession() call
     const session = currentSession;
     if (!session) throw new Error('Session expired — please sign in again');
     const controller = new AbortController();
@@ -709,7 +944,7 @@ async function sendOwnerInvite() {
     closeModal();
 
     if (result.tempPassword) {
-      showShareModal(result.email || email, shopname, result.tempPassword, result.loginUrl || 'https://happa-merchant.netlify.app');
+      showShareModal(result.email || email, shopname, result.tempPassword, result.loginUrl || LOGIN_URL);
     } else if (result.success) {
       showToast(`✓ Shop created for "${shopname}"`);
     } else {
@@ -729,8 +964,9 @@ async function sendOwnerInvite() {
 let _sharePwd = ''; let _shareName = ''; let _shareEmail = ''; let _shareLoginUrl = '';
 function showShareModal(email, shopName, tempPassword, loginUrl) {
   _sharePwd = tempPassword || ''; _shareName = shopName;
-  _shareEmail = email; _shareLoginUrl = loginUrl || 'https://happa-merchant.netlify.app';
+  _shareEmail = email; _shareLoginUrl = loginUrl || LOGIN_URL;
   document.getElementById('share-subtitle').textContent = `"${shopName}" is ready — share these login details with ${email}`;
+  document.getElementById('share-url').textContent = _shareLoginUrl;
   document.getElementById('share-email-val').textContent = email;
   document.getElementById('share-pwd-val').textContent = tempPassword;
   document.getElementById('share-copy-msg').style.display = 'none';
@@ -775,6 +1011,8 @@ function showErr(el, msg) {
 
 function closeModal() {
   document.querySelectorAll('.overlay').forEach(o => o.classList.remove('on'));
+  // Reset reset-btn onclick each time
+  document.getElementById('reset-btn').onclick = saveResetPassword;
 }
 
 let _toastTimer;

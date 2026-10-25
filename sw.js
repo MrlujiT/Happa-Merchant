@@ -1,4 +1,4 @@
-const CACHE = 'happa-v10';
+const CACHE = 'happa-v11';
 const SHELL = [
   '/',
   '/index.html',
