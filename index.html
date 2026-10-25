@@ -367,8 +367,9 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 <script>
 'use strict';
 
-const SUPABASE_URL = 'https://zxucpsdfcokkjtcgygna.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp4dWNwc2RmY29ra2p0Y2d5Z25hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI3NDc0NzUsImV4cCI6MjEwODMyMzQ3NX0.6JH4kLkge4D-8SCYLIGh7zmAvX0exJILThhOQ79BusA';
+const SUPABASE_URL      = 'https://zxucpsdfcokkjtcgygna.supabase.co';
+const SUPABASE_KEY      = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp4dWNwc2RmY29ra2p0Y2d5Z25hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI3NDc0NzUsImV4cCI6MjEwODMyMzQ3NX0.6JH4kLkge4D-8SCYLIGh7zmAvX0exJILThhOQ79BusA';
+const SUPABASE_ANON_KEY = SUPABASE_KEY; // same key — alias used in anon-only calls (referral landing, lead submit)
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 /* ═══════════════════════════════
