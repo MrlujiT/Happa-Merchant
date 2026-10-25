@@ -866,7 +866,7 @@ function renderMore(el) {
       <div class="clist">
         <div class="more-item" style="cursor:default">
           <div class="more-ico" style="background:var(--acc-d)">ℹ️</div>
-          <div class="more-inf"><div class="more-nm">Happa Merchant v1.8</div><div class="more-mt">Business intelligence for small shops</div></div>
+          <div class="more-inf"><div class="more-nm">Happa Merchant v1.9</div><div class="more-mt">Business intelligence for small shops</div></div>
         </div>
       </div>
     </div>
@@ -1208,13 +1208,13 @@ function showInviteSheet() {
     <div class="sh-hdr"><h2>Add Staff</h2></div>
     <div class="sh-body">
       <p style="font-size:13px;color:var(--txt2);margin-bottom:16px;line-height:1.6">
-        Enter their name and email. They'll receive a setup link by email — once they click it, they can log in to Happa Merchant and record sales.
+        Enter their name and email. You'll get a temporary password to share with them via WhatsApp — they use it to log in and can change it later.
       </p>
       <div class="fg-s"><label class="fl">Staff Member's Name *</label>
         <input type="text" id="inv-name" class="fi" placeholder="e.g. John Kariuki"></div>
       <div class="fg-s"><label class="fl">Their Email Address *</label>
         <input type="email" id="inv-email" class="fi" placeholder="johnk@email.com"></div>
-      <button class="btn-p" onclick="sendCashierInvite()">📧 Send Invite Email</button>
+      <button class="btn-p" onclick="sendCashierInvite()">➕ Add Staff Member</button>
       <button class="btn-g" onclick="closeSaleSheet()">Cancel</button>
     </div>`;
   document.getElementById('sale-overlay').classList.add('on');
@@ -1241,18 +1241,58 @@ async function sendCashierInvite() {
     if (!res.ok) {
       const msg = payload.error || `HTTP ${res.status}`;
       showToast('Error: ' + msg, true);
-      if (btn) { btn.disabled = false; btn.textContent = '📧 Send Invite Email'; }
+      if (btn) { btn.disabled = false; btn.textContent = '➕ Add Staff Member'; }
       return;
     }
 
     closeSaleSheet();
-    const note = payload.note ? ' (they already have an account)' : '';
-    showToast(`✓ Invite sent to ${email}`);
-    showConf('Invite Sent! 🎉', `${name} will receive an email at ${email} with a link to set up their Happa Merchant account${note}. Once they sign in they can start recording sales for ${S.shop.name}.`, ()=>{});
+    if (payload.tempPassword) {
+      showStaffCredentials(name, email, payload.tempPassword, payload.loginUrl);
+    } else {
+      showToast(`✓ ${name} added`);
+    }
   } catch (e) {
     showToast('Network error — please try again', true);
-    if (btn) { btn.disabled = false; btn.textContent = '📧 Send Invite Email'; }
+    if (btn) { btn.disabled = false; btn.textContent = '➕ Add Staff Member'; }
   }
+}
+
+function showStaffCredentials(name, email, tempPassword, loginUrl) {
+  const url = (loginUrl || 'https://happa-merchant.njautheinvestmentsconsultant.workers.dev') + '?newlogin=1';
+  const waMsg = encodeURIComponent(
+    `Hi ${name}! 👋 You've been added as staff on *${S.shop.name}* — Happa Merchant.\n\n` +
+    `Login here: ${url}\n📧 Email: ${email}\n🔑 Password: ${tempPassword}\n\n` +
+    `Please change your password after first login.`
+  );
+  pushSheet(`
+    <div style="padding:20px 16px 32px">
+      <div style="font-size:28px;text-align:center;margin-bottom:8px">✅</div>
+      <h3 style="text-align:center;margin:0 0 4px;font-size:18px">${esc(name)} Added!</h3>
+      <p style="text-align:center;color:var(--txt3);font-size:13px;margin:0 0 20px">Share these login details with them</p>
+      <div style="background:var(--bg2,rgba(255,255,255,.06));border:1px solid var(--bdr);border-radius:12px;padding:14px;margin-bottom:16px;display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;gap:10px;align-items:center">
+          <span style="font-size:11px;color:var(--txt3);min-width:72px">Login URL</span>
+          <span style="font-size:11px;color:var(--txt);word-break:break-all">${esc(url)}</span>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <span style="font-size:11px;color:var(--txt3);min-width:72px">Email</span>
+          <span style="font-size:12px;color:var(--txt)">${esc(email)}</span>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <span style="font-size:11px;color:var(--txt3);min-width:72px">Password</span>
+          <span style="font-size:15px;font-weight:700;color:#F59E0B;letter-spacing:1px">${esc(tempPassword)}</span>
+        </div>
+      </div>
+      <button class="btn-p" style="width:100%;margin-bottom:10px" onclick="(function(){
+        const t='Happa Merchant Login\\nURL: ${esc(url)}\\nEmail: ${esc(email)}\\nPassword: ${esc(tempPassword)}';
+        navigator.clipboard.writeText(t).then(()=>showToast('✓ Copied!')).catch(()=>showToast('Long-press to copy',true));
+      })()">📋 Copy Login Details</button>
+      <a href="https://wa.me/?text=${waMsg}" target="_blank" rel="noopener"
+        style="display:block;text-align:center;padding:13px;background:#25D366;color:#fff;font-weight:700;border-radius:12px;text-decoration:none;font-size:15px;margin-bottom:10px">
+        📱 Share via WhatsApp
+      </a>
+      <button class="btn-g" style="width:100%" onclick="popSheet()">Done</button>
+    </div>`);
 }
 
 /* ═══════════════════════════════
