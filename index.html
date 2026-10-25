@@ -848,7 +848,7 @@ function renderMore(el) {
       <div class="clist">
         <div class="more-item" style="cursor:default">
           <div class="more-ico" style="background:var(--acc-d)">ℹ️</div>
-          <div class="more-inf"><div class="more-nm">Happa Merchant v1.5</div><div class="more-mt">Business intelligence for small shops</div></div>
+          <div class="more-inf"><div class="more-nm">Happa Merchant v1.6</div><div class="more-mt">Business intelligence for small shops</div></div>
         </div>
       </div>
     </div>
@@ -1210,26 +1210,31 @@ async function sendCashierInvite() {
   const btn = document.querySelector('#sale-sheet .btn-p');
   if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
 
-  // Call edge function which sends the actual Supabase invite email
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/invite-staff`, {
-    method: 'POST',
-    headers: { ...apiHeaders(), 'Content-Type': 'application/json' },
-    body: JSON.stringify({ shop_id: S.shop.id, email, name, role: 'cashier' }),
-  });
+  try {
+    // Call edge function which sends the actual Supabase invite email
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/invite-staff`, {
+      method: 'POST',
+      headers: { ...apiHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ shop_id: S.shop.id, email, name, role: 'cashier' }),
+    });
 
-  const payload = await res.json().catch(() => ({}));
+    const payload = await res.json().catch(() => ({}));
 
-  if (!res.ok) {
-    const msg = payload.error || `HTTP ${res.status}`;
-    showToast('Error: ' + msg, true);
+    if (!res.ok) {
+      const msg = payload.error || `HTTP ${res.status}`;
+      showToast('Error: ' + msg, true);
+      if (btn) { btn.disabled = false; btn.textContent = '📧 Send Invite Email'; }
+      return;
+    }
+
+    closeSaleSheet();
+    const note = payload.note ? ' (they already have an account)' : '';
+    showToast(`✓ Invite sent to ${email}`);
+    showConf('Invite Sent! 🎉', `${name} will receive an email at ${email} with a link to set up their Happa Merchant account${note}. Once they sign in they can start recording sales for ${S.shop.name}.`, ()=>{});
+  } catch (e) {
+    showToast('Network error — please try again', true);
     if (btn) { btn.disabled = false; btn.textContent = '📧 Send Invite Email'; }
-    return;
   }
-
-  closeSaleSheet();
-  const note = payload.note ? ' (they already have an account)' : '';
-  showToast(`✓ Invite sent to ${email}`);
-  showConf('Invite Sent! 🎉', `${name} will receive an email at ${email} with a link to set up their Happa Merchant account${note}. Once they sign in they can start recording sales for ${S.shop.name}.`, ()=>{});
 }
 
 /* ═══════════════════════════════
