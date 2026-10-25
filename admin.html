@@ -208,6 +208,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
 
       <div class="tabs">
         <button class="tab on" onclick="switchTab('shops')">Shops</button>
+        <button class="tab" onclick="switchTab('agents')">Agents</button>
         <button class="tab" onclick="switchTab('billing')">Billing</button>
         <button class="tab" onclick="switchTab('invites')">Pending Invites</button>
         <button class="tab" onclick="switchTab('users')">All Users</button>
@@ -239,6 +240,8 @@ tr:hover td{background:rgba(255,255,255,.02)}
       </select></div>
     <div class="fg"><label class="fl">Location (optional)</label>
       <input class="fi" id="inv-location" type="text" placeholder="e.g. Ngara, Nairobi"></div>
+    <div class="fg"><label class="fl">Referred by Agent (optional)</label>
+      <select class="fi" id="inv-agent"><option value="">— None / Direct —</option></select></div>
     <div class="fg"><label class="fl">Monthly Rate (KES)</label>
       <select class="fi" id="inv-rate">
         <option value="">90-day free trial (set rate later)</option>
@@ -308,6 +311,38 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <div class="modal-acts">
       <button class="btn-g" onclick="closeModal()">Cancel</button>
       <button class="btn-p" id="pause-btn" onclick="savePause()" style="margin-top:0">Pause Shop</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD AGENT MODAL -->
+<div class="overlay" id="add-agent-overlay" style="display:none">
+  <div class="modal">
+    <h2>Add Agent</h2>
+    <div class="modal-sub">Agents earn 20% commission on every active account they refer, paid monthly.</div>
+    <div class="fg"><label class="fl">Full Name *</label>
+      <input class="fi" id="add-agent-name" type="text" placeholder="e.g. Kevin Otieno"></div>
+    <div class="fg"><label class="fl">Phone (WhatsApp)</label>
+      <input class="fi" id="add-agent-phone" type="tel" placeholder="+254 7XX XXX XXX"></div>
+    <div class="fg"><label class="fl">Email</label>
+      <input class="fi" id="add-agent-email" type="email" placeholder="agent@email.com"></div>
+    <div class="fg"><label class="fl">Notes (optional)</label>
+      <input class="fi" id="add-agent-notes" type="text" placeholder="e.g. Westlands area"></div>
+    <div class="err-msg" id="add-agent-err"></div>
+    <div class="modal-acts">
+      <button class="btn-g" onclick="document.getElementById('add-agent-overlay').style.display='none'">Cancel</button>
+      <button class="btn-p" id="add-agent-btn" onclick="saveAgent()" style="margin-top:0">Add Agent</button>
+    </div>
+  </div>
+</div>
+
+<!-- AGENT SHOPS MODAL -->
+<div class="overlay" id="agent-shops-modal" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal">
+    <h2 id="agent-shops-title">Agent's Shops</h2>
+    <div id="agent-shops-body"></div>
+    <div class="modal-acts">
+      <button class="btn-g" onclick="document.getElementById('agent-shops-modal').style.display='none'">Close</button>
     </div>
   </div>
 </div>
@@ -484,13 +519,177 @@ async function loadStats() {
 function switchTab(tab) {
   currentTab = tab;
   document.querySelectorAll('.tab').forEach((t,i) => {
-    const labels = ['shops','billing','invites','users'];
+    const labels = ['shops','agents','billing','invites','users'];
     t.classList.toggle('on', labels[i] === tab);
   });
   if (tab === 'shops')   renderShops();
+  if (tab === 'agents')  renderAgents();
   if (tab === 'billing') renderBilling();
   if (tab === 'invites') renderInvites();
   if (tab === 'users')   renderUsers();
+}
+
+// ── AGENTS TAB ──
+async function renderAgents() {
+  const el = document.getElementById('tab-content');
+  el.innerHTML = '<div style="padding:20px;color:var(--txt2)"><span class="spin"></span>Loading…</div>';
+
+  const [agents, shops] = await Promise.all([
+    apiGet('agents?order=name'),
+    apiGet('shops?select=id,name,business_type,agent_id,subscriptions(status,monthly_rate)&order=name'),
+  ]);
+
+  const thisMonth = new Date();
+  thisMonth.setDate(1);
+  const monthKey = thisMonth.toISOString().slice(0,10); // e.g. 2026-10-01
+  const monthLabel = thisMonth.toLocaleDateString('en-KE',{month:'long',year:'numeric'});
+
+  // Fetch commission payments for this month
+  const payments = await apiGet(`commission_payments?month=eq.${monthKey}`);
+  const paidMap  = {}; // agent_id → payment record
+  (payments||[]).forEach(p => { paidMap[p.agent_id] = p; });
+
+  const agentRows = (agents||[]).map(a => {
+    const myShops = (shops||[]).filter(s => s.agent_id === a.id);
+    const activeShops = myShops.filter(s => {
+      const sub = s.subscriptions?.[0];
+      return sub?.status === 'active';
+    });
+    const commission = activeShops.reduce((sum, s) => {
+      const rate = s.subscriptions?.[0]?.monthly_rate || 0;
+      return sum + Math.round(rate * 0.20);
+    }, 0);
+    const paid   = paidMap[a.id];
+    const paidBadge = paid?.paid
+      ? `<span class="chip chip-g">Paid ${kes(paid.amount)}</span>`
+      : commission > 0
+        ? `<span class="chip chip-a">Due ${kes(commission)}</span>`
+        : `<span class="chip" style="background:var(--surf2);color:var(--txt2)">KES 0</span>`;
+
+    return `<tr>
+      <td><strong>${a.name}</strong><br><span style="font-size:11px;color:var(--txt3)">${a.phone||a.email||'—'}</span></td>
+      <td style="text-align:center">${myShops.length}<br><span style="font-size:11px;color:var(--txt3)">${activeShops.length} active</span></td>
+      <td>${paidBadge}</td>
+      <td onclick="event.stopPropagation()" style="white-space:nowrap">
+        ${commission > 0 && !paid?.paid
+          ? `<button class="act-btn primary" onclick="markCommissionPaid('${a.id}','${a.name.replace(/'/g,"\\'")}',${commission},'${monthKey}','${monthLabel}')">Mark Paid</button>`
+          : ''}
+        <button class="act-btn info" onclick="showAgentShops('${a.id}','${a.name.replace(/'/g,"\\'")}')">Shops</button>
+        <button class="act-btn danger" onclick="deactivateAgent('${a.id}','${a.name.replace(/'/g,"\\'")}')">Remove</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div style="background:var(--surf2);border-radius:14px;padding:14px 16px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <div>
+        <div style="font-size:12px;color:var(--txt2);font-weight:600;text-transform:uppercase;letter-spacing:.4px">Commission Rate</div>
+        <div style="font-size:22px;font-weight:900;color:var(--acc)">20%</div>
+        <div style="font-size:11px;color:var(--txt3)">of monthly subscription — per active account</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:12px;color:var(--txt2);font-weight:600;text-transform:uppercase;letter-spacing:.4px">${monthLabel}</div>
+        <div style="font-size:20px;font-weight:800;color:var(--grn)">${kes(
+          (agents||[]).reduce((sum,a) => {
+            const active = (shops||[]).filter(s => s.agent_id===a.id && s.subscriptions?.[0]?.status==='active');
+            return sum + active.reduce((s2,s) => s2 + Math.round((s.subscriptions?.[0]?.monthly_rate||0)*0.20),0);
+          },0)
+        )}</div>
+        <div style="font-size:11px;color:var(--txt3)">total commissions due</div>
+      </div>
+    </div>
+
+    ${agents?.length ? `
+    <div class="table-wrap"><table>
+      <thead><tr><th>Agent</th><th style="text-align:center">Shops</th><th>${monthLabel}</th><th>Actions</th></tr></thead>
+      <tbody>${agentRows}</tbody>
+    </table></div>` : `
+    <div class="empty"><div class="empty-ico">🤝</div><p>No agents yet.<br>Add your first marketing agent below.</p></div>`}
+
+    <div style="margin-top:16px">
+      <button class="btn-acc" onclick="showAddAgentModal()" style="width:100%">+ Add Agent</button>
+    </div>`;
+}
+
+async function markCommissionPaid(agentId, agentName, amount, monthKey, monthLabel) {
+  if (!confirm(`Mark KES ${amount.toLocaleString()} paid to ${agentName} for ${monthLabel}?`)) return;
+  const { data: freshData } = await db.auth.getSession();
+  const session = freshData?.session || currentSession;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/commission_payments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}`, 'apikey': SUPABASE_KEY, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify({ agent_id: agentId, month: monthKey, amount, paid: true, paid_at: new Date().toISOString() }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    showToast(`✓ Commission paid — ${agentName} ${kes(amount)}`);
+    renderAgents();
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+async function showAgentShops(agentId, agentName) {
+  const shops = await apiGet(`shops?agent_id=eq.${agentId}&select=name,business_type,subscriptions(status,monthly_rate)&order=name`);
+  const rows = (shops||[]).map(s => {
+    const sub = s.subscriptions?.[0];
+    const status = sub?.status||'trial';
+    const chip = status==='active'?'chip-g':status==='trial'?'chip-a':'chip-r';
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--bdr)">
+      <div><strong>${s.name}</strong><br><span style="font-size:11px;color:var(--txt3)">${s.business_type}</span></div>
+      <div style="text-align:right"><span class="chip ${chip}">${status}</span><br>
+        ${sub?.monthly_rate ? `<span style="font-size:11px;color:var(--txt2)">KES ${sub.monthly_rate}/mo</span>` : ''}</div>
+    </div>`;
+  }).join('') || '<div style="color:var(--txt2);padding:20px 0;text-align:center">No shops referred yet</div>';
+
+  const modal = document.getElementById('agent-shops-modal');
+  document.getElementById('agent-shops-title').textContent = agentName + "'s Shops";
+  document.getElementById('agent-shops-body').innerHTML = rows;
+  modal.style.display = 'flex';
+}
+
+function showAddAgentModal() {
+  document.getElementById('add-agent-name').value = '';
+  document.getElementById('add-agent-phone').value = '';
+  document.getElementById('add-agent-email').value = '';
+  document.getElementById('add-agent-notes').value = '';
+  document.getElementById('add-agent-err').textContent = '';
+  document.getElementById('add-agent-overlay').style.display = 'flex';
+}
+
+async function saveAgent() {
+  const name  = document.getElementById('add-agent-name').value.trim();
+  const phone = document.getElementById('add-agent-phone').value.trim();
+  const email = document.getElementById('add-agent-email').value.trim();
+  const notes = document.getElementById('add-agent-notes').value.trim();
+  const err   = document.getElementById('add-agent-err');
+  if (!name) { err.textContent = 'Name is required'; return; }
+  const btn = document.getElementById('add-agent-btn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const { data: freshData } = await db.auth.getSession();
+    const session = freshData?.session || currentSession;
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/agents`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}`, 'apikey': SUPABASE_KEY, 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ name, phone: phone||null, email: email||null, notes: notes||null }),
+    });
+    if (!res.ok) { const d = await res.json().catch(()=>{}); throw new Error(d?.message||`HTTP ${res.status}`); }
+    document.getElementById('add-agent-overlay').style.display = 'none';
+    showToast(`✓ Agent added — ${name}`);
+    renderAgents();
+  } catch(e) { err.textContent = e.message; }
+  finally { btn.disabled = false; btn.textContent = 'Add Agent'; }
+}
+
+async function deactivateAgent(agentId, agentName) {
+  if (!confirm(`Remove ${agentName}? Their referred shops will remain but the agent link will be cleared.`)) return;
+  const { data: freshData } = await db.auth.getSession();
+  const session = freshData?.session || currentSession;
+  await fetch(`${SUPABASE_URL}/rest/v1/agents?id=eq.${agentId}`, {
+    method: 'DELETE',
+    headers: { 'Authorization': `Bearer ${session.access_token}`, 'apikey': SUPABASE_KEY },
+  });
+  showToast(`Agent removed`);
+  renderAgents();
 }
 
 // ── SHOPS TAB ──
@@ -498,7 +697,7 @@ async function renderShops() {
   const el = document.getElementById('tab-content');
   el.innerHTML = '<div style="padding:20px;color:var(--txt2)"><span class="spin"></span>Loading…</div>';
 
-  const shops = await apiGet('shops?select=*,shop_members(count),subscriptions(status,trial_end,monthly_rate)&order=created_at.desc');
+  const shops = await apiGet('shops?select=*,shop_members(count),subscriptions(status,trial_end,monthly_rate),agents(name)&order=created_at.desc');
 
   if (!shops?.length) {
     el.innerHTML = `<div class="empty"><div class="empty-ico">🏪</div><p>No shops yet.<br>Invite a shop owner to get started.</p></div>`;
@@ -524,7 +723,7 @@ async function renderShops() {
       const pauseBtnClass = s.paused ? 'act-btn info' : 'act-btn warn';
       const nameEsc = (s.name||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');
       return `<tr id="row-${s.id}" style="cursor:pointer" onclick="toggleShopDetail('${s.id}')">
-        <td><strong>${s.name}</strong>${pauseLabel}<br><span style="font-size:11px;color:var(--txt3)">${s.location||''}</span></td>
+        <td><strong>${s.name}</strong>${pauseLabel}<br><span style="font-size:11px;color:var(--txt3)">${s.location||''}${s.agents?.name ? ` · 🤝 ${s.agents.name}` : ''}</span></td>
         <td><span class="chip ${s.business_type==='goods'?'chip-g':s.business_type==='services'?'chip-b':s.business_type==='airbnb'?'chip-p':'chip-a'}">${s.business_type==='airbnb'?'🏠 airbnb':s.business_type}</span></td>
         <td>${s.shop_members?.[0]?.count||0} member${(s.shop_members?.[0]?.count||0)!==1?'s':''}</td>
         <td><span class="chip ${subChip}">${subLabel}</span></td>
@@ -891,8 +1090,13 @@ async function saveResetPasswordDirect(userId) {
 }
 
 // ── INVITE OWNER ──
-function showInviteModal() {
+async function showInviteModal() {
   document.getElementById('invite-overlay').classList.add('on');
+  // Populate agent dropdown
+  const agents = await apiGet('agents?active=eq.true&order=name');
+  const sel = document.getElementById('inv-agent');
+  sel.innerHTML = '<option value="">— None / Direct —</option>' +
+    (agents||[]).map(a => `<option value="${a.id}">${a.name}${a.phone?' ('+a.phone+')':''}</option>`).join('');
 }
 
 async function sendOwnerInvite() {
@@ -901,6 +1105,7 @@ async function sendOwnerInvite() {
   const shopname = document.getElementById('inv-shopname').value.trim();
   const biztype  = document.getElementById('inv-biztype').value;
   const location = document.getElementById('inv-location').value.trim();
+  const agentId  = document.getElementById('inv-agent').value;
   const rate     = document.getElementById('inv-rate').value;
   const err      = document.getElementById('inv-err');
   const btn      = document.getElementById('inv-btn');
@@ -946,6 +1151,17 @@ async function sendOwnerInvite() {
 
     btn.disabled = false; btn.textContent = 'Send Invite';
     closeModal();
+
+    // Assign agent to shop if selected
+    if (agentId && result.shopId) {
+      const { data: freshData2 } = await db.auth.getSession();
+      const session2 = freshData2?.session || currentSession;
+      await fetch(`${SUPABASE_URL}/rest/v1/shops?id=eq.${result.shopId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session2.access_token}`, 'apikey': SUPABASE_KEY, 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ agent_id: agentId }),
+      });
+    }
 
     if (result.tempPassword) {
       showShareModal(result.email || email, shopname, result.tempPassword, result.loginUrl || LOGIN_URL);
