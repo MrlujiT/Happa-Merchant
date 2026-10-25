@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Happa Agent Portal</title>
+<link rel="manifest" href="/manifest.json">
+<style>
+:root {
+  --bg:    #0f1117;
+  --surf:  #1a1d27;
+  --surf2: #22263a;
+  --bdr:   #2e3348;
+  --acc:   #f97316;
+  --acc2:  #fb923c;
+  --grn:   #22c55e;
+  --yel:   #eab308;
+  --red:   #ef4444;
+  --txt:   #f1f5f9;
+  --txt2:  #94a3b8;
+  --txt3:  #64748b;
+  color-scheme: dark;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:15px}
+body{display:flex;flex-direction:column;min-height:100dvh}
+
+/* ── LOGIN ── */
+#login-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100dvh;padding:24px;gap:20px}
+.login-logo{width:72px;height:72px;border-radius:24px;object-fit:cover}
+.login-title{font-size:22px;font-weight:800;color:var(--txt);text-align:center}
+.login-sub{font-size:14px;color:var(--txt2);text-align:center;margin-top:-8px}
+.login-card{background:var(--surf);border:1px solid var(--bdr);border-radius:20px;padding:24px;width:100%;max-width:380px;display:flex;flex-direction:column;gap:16px}
+.fl{font-size:12px;font-weight:600;color:var(--txt2);letter-spacing:.04em;text-transform:uppercase;margin-bottom:6px;display:block}
+.fi{width:100%;background:var(--surf2);border:1px solid var(--bdr);border-radius:12px;padding:12px 14px;font-size:15px;color:var(--txt);font-family:inherit;outline:none;transition:border-color .15s}
+.fi:focus{border-color:var(--acc)}
+.btn-p{width:100%;background:var(--acc);color:#fff;border:none;border-radius:12px;padding:14px;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;transition:opacity .15s}
+.btn-p:hover{opacity:.9}
+.btn-p:disabled{opacity:.5;cursor:not-allowed}
+.err{color:var(--red);font-size:13px;text-align:center;min-height:18px}
+
+/* ── PORTAL ── */
+#portal{display:none;flex-direction:column;flex:1;min-height:100dvh}
+.top-bar{background:var(--surf);border-bottom:1px solid var(--bdr);padding:14px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;position:sticky;top:0;z-index:10}
+.top-bar-left{display:flex;align-items:center;gap:10px}
+.top-logo{width:32px;height:32px;border-radius:10px;object-fit:cover}
+.top-name{font-size:15px;font-weight:700;color:var(--txt)}
+.top-sub{font-size:12px;color:var(--txt2)}
+.logout-btn{background:var(--surf2);border:1px solid var(--bdr);border-radius:10px;padding:7px 14px;font-size:13px;color:var(--txt2);cursor:pointer;font-family:inherit}
+.logout-btn:hover{color:var(--txt)}
+
+/* tabs */
+.tabs{display:flex;background:var(--surf);border-bottom:1px solid var(--bdr);overflow-x:auto;scrollbar-width:none;position:sticky;top:57px;z-index:9}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:1;min-width:90px;padding:13px 8px;font-size:13px;font-weight:600;color:var(--txt2);background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;font-family:inherit;white-space:nowrap;text-align:center;transition:color .15s,border-color .15s}
+.tab.on{color:var(--acc);border-bottom-color:var(--acc)}
+
+/* content */
+.content{flex:1;padding:20px;max-width:600px;width:100%;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+.page{display:none;flex-direction:column;gap:16px}
+.page.on{display:flex}
+
+/* cards */
+.card{background:var(--surf);border:1px solid var(--bdr);border-radius:16px;padding:20px}
+.card-title{font-size:13px;font-weight:700;color:var(--txt2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px}
+.stat-row{display:flex;gap:12px}
+.stat{flex:1;background:var(--surf2);border-radius:12px;padding:14px;text-align:center}
+.stat-val{font-size:24px;font-weight:800;color:var(--txt)}
+.stat-lbl{font-size:11px;color:var(--txt2);margin-top:2px}
+
+/* link display */
+.link-box{background:var(--surf2);border:1px solid var(--bdr);border-radius:12px;padding:14px;font-size:13px;color:var(--acc);word-break:break-all;font-family:monospace}
+.btn-row{display:flex;gap:10px;margin-top:10px}
+.btn-s{flex:1;background:var(--surf2);border:1px solid var(--bdr);border-radius:12px;padding:12px;font-size:13px;font-weight:600;color:var(--txt);cursor:pointer;font-family:inherit;text-align:center;display:flex;align-items:center;justify-content:center;gap:6px;transition:background .15s}
+.btn-s:hover{background:var(--bdr)}
+.btn-s.accent{background:var(--acc);border-color:var(--acc);color:#fff}
+.btn-s.accent:hover{opacity:.9}
+.btn-s.wa{background:#25d366;border-color:#25d366;color:#fff}
+.btn-s.wa:hover{opacity:.9}
+
+/* client list */
+.client-item{background:var(--surf2);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:6px;border-left:3px solid var(--bdr)}
+.client-item.active{border-left-color:var(--grn)}
+.client-item.trial{border-left-color:var(--yel)}
+.client-item.lead{border-left-color:var(--txt3)}
+.client-item.due{border-left-color:var(--red)}
+.client-name{font-size:15px;font-weight:700;color:var(--txt)}
+.client-meta{font-size:12px;color:var(--txt2);display:flex;gap:8px;flex-wrap:wrap}
+.badge{display:inline-block;padding:3px 8px;border-radius:20px;font-size:11px;font-weight:700;background:var(--surf);border:1px solid var(--bdr)}
+.badge.active{color:var(--grn);border-color:var(--grn)}
+.badge.trial{color:var(--yel);border-color:var(--yel)}
+.badge.lead{color:var(--txt3);border-color:var(--txt3)}
+.badge.due{color:var(--red);border-color:var(--red)}
+.badge.expired{color:var(--red);border-color:var(--red)}
+
+/* reminder item */
+.reminder-item{background:var(--surf2);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:10px;border-left:3px solid var(--yel)}
+.reminder-msg{font-size:13px;color:var(--txt);line-height:1.5;background:var(--surf);border-radius:10px;padding:12px;border:1px solid var(--bdr)}
+
+/* empty */
+.empty{text-align:center;padding:40px 20px;color:var(--txt2);font-size:14px}
+.empty-ico{font-size:36px;margin-bottom:10px}
+
+/* spinner */
+.spinner{display:flex;align-items:center;justify-content:center;padding:32px;color:var(--txt2);font-size:13px}
+
+/* toast */
+#toast{position:fixed;bottom:32px;left:50%;transform:translateX(-50%);background:#222;color:#fff;padding:10px 20px;border-radius:12px;font-size:13px;font-weight:600;z-index:9999;opacity:0;transition:opacity .2s;pointer-events:none}
+#toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<!-- ── LOGIN SCREEN ── -->
+<div id="login-screen">
+  <img src="/happa-logo.jpg" class="login-logo" alt="Happa">
+  <div>
+    <div class="login-title">Agent Portal</div>
+    <div class="login-sub" style="margin-top:4px">Happa Merchant</div>
+  </div>
+  <div class="login-card">
+    <div>
+      <label class="fl">Your Phone Number</label>
+      <input class="fi" id="login-phone" type="tel" placeholder="+254 7XX XXX XXX" autocomplete="tel">
+    </div>
+    <div>
+      <label class="fl">Your PIN</label>
+      <input class="fi" id="login-pin" type="password" inputmode="numeric" maxlength="8" placeholder="Enter your PIN" autocomplete="current-password">
+    </div>
+    <div class="err" id="login-err"></div>
+    <button class="btn-p" id="login-btn" onclick="doLogin()">Sign In</button>
+  </div>
+  <div style="font-size:12px;color:var(--txt3);text-align:center">Your PIN is set by the Happa admin team.</div>
+</div>
+
+<!-- ── PORTAL ── -->
+<div id="portal">
+  <div class="top-bar">
+    <div class="top-bar-left">
+      <img src="/happa-logo.jpg" class="top-logo" alt="">
+      <div>
+        <div class="top-name" id="agent-name-display">Agent</div>
+        <div class="top-sub">Happa Agent</div>
+      </div>
+    </div>
+    <button class="logout-btn" onclick="doLogout()">Sign Out</button>
+  </div>
+
+  <div class="tabs">
+    <button class="tab on" onclick="switchTab('link')">🔗 My Link</button>
+    <button class="tab" onclick="switchTab('clients')">👥 My Clients</button>
+    <button class="tab" onclick="switchTab('reminders')">🔔 Reminders</button>
+  </div>
+
+  <div class="content">
+
+    <!-- MY LINK TAB -->
+    <div class="page on" id="tab-link">
+      <div class="card">
+        <div class="card-title">Your Referral Stats</div>
+        <div class="stat-row">
+          <div class="stat">
+            <div class="stat-val" id="stat-leads">—</div>
+            <div class="stat-lbl">Leads</div>
+          </div>
+          <div class="stat">
+            <div class="stat-val" id="stat-active">—</div>
+            <div class="stat-lbl">Active Clients</div>
+          </div>
+          <div class="stat">
+            <div class="stat-val" id="stat-trial">—</div>
+            <div class="stat-lbl">On Trial</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Your Referral Link</div>
+        <div class="link-box" id="ref-link-display">Loading…</div>
+        <div class="btn-row">
+          <button class="btn-s" onclick="copyLink()">📋 Copy</button>
+          <button class="btn-s wa" onclick="shareOnWhatsApp()">Share via WhatsApp</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">How to use your link</div>
+        <div style="font-size:13px;color:var(--txt2);line-height:1.7;display:flex;flex-direction:column;gap:10px">
+          <div>📱 <strong style="color:var(--txt)">Show a business owner</strong> — open the link on your phone and walk them through the sign-up form.</div>
+          <div>💬 <strong style="color:var(--txt)">Send on WhatsApp</strong> — tap "Share via WhatsApp" above to send your link with a pre-written message.</div>
+          <div>📊 <strong style="color:var(--txt)">Track conversions</strong> — every business that signs up through your link appears in "My Clients".</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MY CLIENTS TAB -->
+    <div class="page" id="tab-clients">
+      <div class="spinner" id="clients-spinner">Loading clients…</div>
+      <div id="clients-list" style="display:none;flex-direction:column;gap:10px"></div>
+    </div>
+
+    <!-- REMINDERS TAB -->
+    <div class="page" id="tab-reminders">
+      <div class="card" style="background:rgba(234,179,8,.07);border-color:rgba(234,179,8,.3)">
+        <div style="font-size:13px;color:var(--txt2);line-height:1.6">
+          🔔 Clients whose subscription renews in <strong style="color:var(--yel)">7 days or less</strong> appear here. Tap the button to send them a WhatsApp reminder from your number.
+        </div>
+      </div>
+      <div class="spinner" id="reminders-spinner" style="display:none">Loading…</div>
+      <div id="reminders-list" style="display:flex;flex-direction:column;gap:12px"></div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /portal -->
+
+<div id="toast"></div>
+
+<script>
+const SUPABASE_URL  = 'https://zxucpsdfcokkjtcgygna.supabase.co';
+const ANON_KEY      = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp4dWNwc2RmY29ra2p0Y2d5Z25hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI3NDc0NzUsImV4cCI6MjEwODMyMzQ3NX0.6JH4kLkge4D-8SCYLIGh7zmAvX0exJILThhOQ79BusA';
+const FN_BASE       = `${SUPABASE_URL}/functions/v1`;
+const PORTAL_URL    = 'https://happa-merchant.njautheinvestmentsconsultant.workers.dev';
+
+let _agent  = null;  // { id, name, phone, ref_code }
+let _leads  = [];
+let _shops  = [];
+
+// ── AUTH ──
+async function doLogin() {
+  const phone = document.getElementById('login-phone').value.trim();
+  const pin   = document.getElementById('login-pin').value.trim();
+  const err   = document.getElementById('login-err');
+  const btn   = document.getElementById('login-btn');
+  err.textContent = '';
+  if (!phone || !pin) { err.textContent = 'Enter your phone and PIN'; return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Signing in…';
+  try {
+    const res = await fetch(`${FN_BASE}/agent-auth`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ANON_KEY}` },
+      body: JSON.stringify({ phone, pin }),
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) { err.textContent = data.error || 'Sign in failed'; return; }
+    _agent = data.agent;
+    try { localStorage.setItem('happa_agent', JSON.stringify({ agent: _agent, phone, pin })); } catch(_){}
+    showPortal();
+  } catch(e) {
+    err.textContent = 'Network error — try again';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Sign In';
+  }
+}
+
+function doLogout() {
+  try { localStorage.removeItem('happa_agent'); } catch(_) {}
+  _agent = null; _leads = []; _shops = [];
+  document.getElementById('portal').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+}
+
+// ── PORTAL ──
+function showPortal() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('portal').style.display = 'flex';
+  document.getElementById('agent-name-display').textContent = _agent.name;
+  const refLink = `${PORTAL_URL}/?ref=${encodeURIComponent(_agent.ref_code)}`;
+  document.getElementById('ref-link-display').textContent = refLink;
+  loadData();
+}
+
+async function loadData() {
+  const stored = (() => { try { return JSON.parse(localStorage.getItem('happa_agent') || '{}'); } catch(_) { return {}; }})();
+  const { phone, pin } = stored;
+  if (!phone || !pin) return;
+
+  try {
+    const res = await fetch(`${FN_BASE}/agent-data`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ANON_KEY}` },
+      body: JSON.stringify({ agent_id: _agent.id, phone, pin }),
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) return;
+    _leads = data.leads || [];
+    _shops = data.shops || [];
+    renderStats();
+    renderClients();
+    renderReminders();
+  } catch(_) {}
+}
+
+function renderStats() {
+  const activeShops = _shops.filter(s => s.subscriptions?.[0]?.status === 'active').length;
+  const trialShops  = _shops.filter(s => s.subscriptions?.[0]?.status === 'trial').length;
+  document.getElementById('stat-leads').textContent  = _leads.length;
+  document.getElementById('stat-active').textContent = activeShops;
+  document.getElementById('stat-trial').textContent  = trialShops;
+}
+
+function renderClients() {
+  const spinner = document.getElementById('clients-spinner');
+  const list    = document.getElementById('clients-list');
+  spinner.style.display = 'none';
+  list.style.display    = 'flex';
+
+  // Merge leads + shops into unified list
+  const items = [];
+
+  // Converted shops
+  _shops.forEach(s => {
+    const sub  = s.subscriptions?.[0];
+    const status = sub?.status || 'unknown';
+    const due  = sub?.next_billing ? new Date(sub.next_billing) : null;
+    const daysUntil = due ? Math.ceil((due - Date.now()) / 86400000) : null;
+    const isDue = daysUntil !== null && daysUntil <= 7 && status === 'active';
+    items.push({ type: 'shop', name: s.name, meta: s.business_type, phone: s.phone, location: s.location, status: isDue ? 'due' : status, nextBilling: sub?.next_billing, daysUntil, created_at: s.created_at });
+  });
+
+  // Unconverted leads (no shop_id)
+  _leads.filter(l => !l.shop_id).forEach(l => {
+    items.push({ type: 'lead', name: l.business_name || l.name, meta: l.business_type, phone: l.phone, location: l.location, status: 'lead', created_at: l.created_at });
+  });
+
+  items.sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+
+  if (!items.length) {
+    list.innerHTML = '<div class="empty"><div class="empty-ico">👥</div><p>No clients yet.<br>Share your link to get started!</p></div>';
+    return;
+  }
+
+  list.innerHTML = items.map(item => {
+    const statusLabel = { active:'Active', trial:'On Trial', lead:'Lead', due:'Renewal Due', expired:'Expired', unknown:'Unknown' }[item.status] || item.status;
+    const billingNote = item.nextBilling ? `Renews ${formatDate(item.nextBilling)}` + (item.daysUntil !== null ? ` (${item.daysUntil}d)` : '') : '';
+    const waLink = item.phone ? `https://wa.me/${item.phone.replace(/[^0-9]/g,'')}` : '';
+    return `<div class="client-item ${item.status}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div class="client-name">${esc(item.name || '—')}</div>
+        <span class="badge ${item.status}">${statusLabel}</span>
+      </div>
+      <div class="client-meta">
+        ${item.meta ? `<span>${esc(item.meta)}</span>` : ''}
+        ${item.location ? `<span>📍 ${esc(item.location)}</span>` : ''}
+        ${billingNote ? `<span>🗓 ${billingNote}</span>` : ''}
+      </div>
+      ${item.phone ? `<div style="margin-top:4px"><a href="${waLink}" target="_blank" style="font-size:12px;color:#25d366;text-decoration:none;font-weight:600">💬 WhatsApp</a></div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function renderReminders() {
+  const list = document.getElementById('reminders-list');
+  const spinner = document.getElementById('reminders-spinner');
+  spinner.style.display = 'none';
+
+  const dueClients = _shops.filter(s => {
+    const sub = s.subscriptions?.[0];
+    if (!sub || sub.status !== 'active') return false;
+    if (!sub.next_billing) return false;
+    const days = Math.ceil((new Date(sub.next_billing) - Date.now()) / 86400000);
+    return days <= 7 && days >= -1;  // due within 7 days or just past
+  }).sort((a,b) => new Date(a.subscriptions[0].next_billing) - new Date(b.subscriptions[0].next_billing));
+
+  if (!dueClients.length) {
+    list.innerHTML = '<div class="empty"><div class="empty-ico">✅</div><p>No renewals due in the next 7 days.<br>All clients are up to date!</p></div>';
+    return;
+  }
+
+  list.innerHTML = dueClients.map(s => {
+    const sub    = s.subscriptions[0];
+    const due    = new Date(sub.next_billing);
+    const days   = Math.ceil((due - Date.now()) / 86400000);
+    const dayStr = days <= 0 ? 'today' : days === 1 ? 'tomorrow' : `in ${days} days`;
+    const rate   = sub.monthly_rate ? `KES ${sub.monthly_rate.toLocaleString()}` : '';
+    const waMsg  = encodeURIComponent(`Hi ${s.name}! 👋\n\nYour Happa Merchant subscription is due for renewal ${dayStr} (${formatDate(sub.next_billing)}).${rate ? `\n\nRenewal amount: ${rate}.` : ''}\n\nPlease ensure payment is ready so your account stays active. Let me know if you need any help! 🙏`);
+    const waNum  = s.phone ? s.phone.replace(/[^0-9]/g,'') : '';
+    const waLink = waNum ? `https://wa.me/${waNum}?text=${waMsg}` : `https://wa.me/?text=${waMsg}`;
+    return `<div class="reminder-item">
+      <div>
+        <div class="client-name">${esc(s.name)}</div>
+        <div class="client-meta" style="margin-top:4px">
+          <span>🗓 Due ${dayStr} — ${formatDate(sub.next_billing)}</span>
+          ${rate ? `<span>💰 ${rate}</span>` : ''}
+          ${s.location ? `<span>📍 ${esc(s.location)}</span>` : ''}
+        </div>
+      </div>
+      <div class="reminder-msg">Hi ${esc(s.name)}! 👋<br><br>Your Happa Merchant subscription renews <strong>${dayStr}</strong> (${formatDate(sub.next_billing)}).${rate ? `<br><br>Amount: <strong>${rate}</strong>` : ''}<br><br>Please ensure payment is ready so your account stays active. 🙏</div>
+      <a href="${waLink}" target="_blank" class="btn-s wa" style="text-decoration:none">💬 Send WhatsApp Reminder</a>
+    </div>`;
+  }).join('');
+}
+
+// ── TABS ──
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('on', ['link','clients','reminders'][i] === name));
+  document.querySelectorAll('.page').forEach(p => p.classList.toggle('on', p.id === 'tab-' + name));
+}
+
+// ── HELPERS ──
+function copyLink() {
+  const link = `${PORTAL_URL}/?ref=${encodeURIComponent(_agent.ref_code)}`;
+  navigator.clipboard.writeText(link).then(() => toast('Link copied!')).catch(() => {
+    const el = document.getElementById('ref-link-display');
+    const range = document.createRange(); range.selectNode(el);
+    window.getSelection().removeAllRanges(); window.getSelection().addRange(range);
+    toast('Select and copy the link');
+  });
+}
+
+function shareOnWhatsApp() {
+  const link = `${PORTAL_URL}/?ref=${encodeURIComponent(_agent.ref_code)}`;
+  const msg  = encodeURIComponent(`👋 Hi! I'm reaching out from Happa Merchant — a simple app that helps small businesses track sales, manage stock, and send receipts.\n\nSign up here and I'll help you get set up: ${link}`);
+  window.open(`https://wa.me/?text=${msg}`, '_blank');
+}
+
+function formatDate(d) {
+  if (!d) return '';
+  return new Date(d).toLocaleDateString('en-KE', { day:'numeric', month:'short', year:'numeric' });
+}
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+// ── ENTER KEY ──
+document.addEventListener('DOMContentLoaded', () => {
+  ['login-phone','login-pin'].forEach(id => {
+    document.getElementById(id)?.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+  });
+
+  // Restore session from localStorage
+  try {
+    const stored = JSON.parse(localStorage.getItem('happa_agent') || '{}');
+    if (stored.agent && stored.phone && stored.pin) {
+      _agent = stored.agent;
+      showPortal();
+    }
+  } catch(_) {}
+});
+</script>
+</body>
+</html>

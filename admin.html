@@ -326,6 +326,8 @@ tr:hover td{background:rgba(255,255,255,.02)}
       <input class="fi" id="add-agent-phone" type="tel" placeholder="+254 7XX XXX XXX"></div>
     <div class="fg"><label class="fl">Email</label>
       <input class="fi" id="add-agent-email" type="email" placeholder="agent@email.com"></div>
+    <div class="fg"><label class="fl">Portal PIN (4–6 digits)</label>
+      <input class="fi" id="add-agent-pin" type="text" inputmode="numeric" maxlength="6" placeholder="e.g. 1234 — agent uses this to log in"></div>
     <div class="fg"><label class="fl">Notes (optional)</label>
       <input class="fi" id="add-agent-notes" type="text" placeholder="e.g. Westlands area"></div>
     <div class="err-msg" id="add-agent-err"></div>
@@ -538,7 +540,7 @@ async function renderAgents() {
   el.innerHTML = '<div style="padding:20px;color:var(--txt2)"><span class="spin"></span>Loading…</div>';
 
   const [agents, shops, leads] = await Promise.all([
-    apiGet('agents?order=name'),
+    apiGet('agents?select=id,name,phone,email,ref_code,pin,notes,active&order=name'),
     apiGet('shops?select=id,name,business_type,agent_id,subscriptions(status,monthly_rate)&order=name'),
     apiGet('leads?select=agent_id,status&order=created_at.desc'),
   ]);
@@ -585,13 +587,20 @@ async function renderAgents() {
         <div style="text-align:right">${commBadge}</div>
       </div>
 
-      <!-- Ref link -->
+      <!-- Ref link + PIN -->
       <div style="background:var(--bg);border:1px solid var(--bdr);border-radius:10px;padding:10px 12px;margin-bottom:10px">
         <div style="font-size:10px;font-weight:700;color:var(--txt2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px">Referral Link</div>
         <div style="display:flex;align-items:center;gap:8px">
           <div style="font-size:11px;color:var(--acc);font-weight:600;word-break:break-all;flex:1">${refLink}</div>
           <button class="act-btn primary" style="flex-shrink:0;white-space:nowrap" onclick="copyRefLink('${refLink}',this)">Copy</button>
         </div>
+      </div>
+      <div style="background:var(--bg);border:1px solid var(--bdr);border-radius:10px;padding:10px 12px;margin-bottom:10px;display:flex;align-items:center;gap:10px">
+        <div style="flex:1">
+          <div style="font-size:10px;font-weight:700;color:var(--txt2);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px">Portal PIN</div>
+          <div style="font-size:13px;font-weight:700;color:var(--txt);font-family:monospace;letter-spacing:2px">${a.pin || '<span style="color:var(--txt3);font-weight:400;font-family:inherit;letter-spacing:0">Not set</span>'}</div>
+        </div>
+        <button class="act-btn info" style="flex-shrink:0;white-space:nowrap" onclick="setAgentPin('${a.id}','${nameEsc}','${a.pin||''}')">Set PIN</button>
       </div>
 
       <!-- Stats row -->
@@ -742,6 +751,7 @@ function showAddAgentModal() {
   document.getElementById('add-agent-name').value = '';
   document.getElementById('add-agent-phone').value = '';
   document.getElementById('add-agent-email').value = '';
+  document.getElementById('add-agent-pin').value = '';
   document.getElementById('add-agent-notes').value = '';
   document.getElementById('add-agent-err').textContent = '';
   document.getElementById('add-agent-overlay').style.display = 'flex';
@@ -757,6 +767,7 @@ async function saveAgent() {
   const name  = document.getElementById('add-agent-name').value.trim();
   const phone = document.getElementById('add-agent-phone').value.trim();
   const email = document.getElementById('add-agent-email').value.trim();
+  const pin   = document.getElementById('add-agent-pin').value.trim();
   const notes = document.getElementById('add-agent-notes').value.trim();
   const err   = document.getElementById('add-agent-err');
   if (!name) { err.textContent = 'Name is required'; return; }
@@ -769,7 +780,7 @@ async function saveAgent() {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/agents`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}`, 'apikey': SUPABASE_KEY, 'Prefer': 'return=representation' },
-      body: JSON.stringify({ name, phone: phone||null, email: email||null, notes: notes||null, ref_code }),
+      body: JSON.stringify({ name, phone: phone||null, email: email||null, pin: pin||null, notes: notes||null, ref_code }),
     });
     if (!res.ok) { const d = await res.json().catch(()=>{}); throw new Error(d?.message||`HTTP ${res.status}`); }
     document.getElementById('add-agent-overlay').style.display = 'none';
@@ -777,6 +788,27 @@ async function saveAgent() {
     renderAgents();
   } catch(e) { err.textContent = e.message; }
   finally { btn.disabled = false; btn.textContent = 'Add Agent'; }
+}
+
+async function setAgentPin(agentId, agentName, currentPin) {
+  const pin = prompt(`Set portal PIN for ${agentName}:\n(4–6 digits, they use this to log in to the Agent Portal)`, currentPin || '');
+  if (pin === null) return; // cancelled
+  const trimmed = pin.trim();
+  if (trimmed && (trimmed.length < 4 || !/^\d+$/.test(trimmed))) {
+    alert('PIN must be 4–6 digits'); return;
+  }
+  try {
+    const { data: freshData } = await db.auth.getSession();
+    const session = freshData?.session || currentSession;
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/agents?id=eq.${agentId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}`, 'apikey': SUPABASE_KEY },
+      body: JSON.stringify({ pin: trimmed || null }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    showToast(`✓ PIN ${trimmed ? 'set' : 'cleared'} for ${agentName}`);
+    renderAgents();
+  } catch(e) { alert('Error: ' + e.message); }
 }
 
 async function deactivateAgent(agentId, agentName) {
