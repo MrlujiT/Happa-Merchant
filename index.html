@@ -426,12 +426,18 @@ async function apiPatch(table, filter, body) {
 }
 
 /* ═══════════════════════════════
+   REFERRAL STATE — must be declared before init() runs
+═══════════════════════════════ */
+let _refAgentId = null;
+let _refCode    = null;
+
+/* ═══════════════════════════════
    INIT
 ═══════════════════════════════ */
 (async function init() {
   const urlParams = new URLSearchParams(window.location.search);
   // DEBUG BANNER — remove after testing
-  (function(){const b=document.createElement('div');b.id='dbg-banner';b.style.cssText='position:fixed;top:0;left:0;right:0;background:#d00;color:#fff;padding:6px 12px;font-size:11px;z-index:99999;font-family:monospace';b.textContent='[v22] search='+window.location.search;document.body.prepend(b);})();
+  (function(){const b=document.createElement('div');b.id='dbg-banner';b.style.cssText='position:fixed;top:0;left:0;right:0;background:#d00;color:#fff;padding:6px 12px;font-size:11px;z-index:99999;font-family:monospace';b.textContent='[v23] search='+window.location.search;document.body.prepend(b);})();
 
   // If ?ref=CODE — agent referral link; show Get Started form, skip login
   const refCode = urlParams.get('ref');
@@ -493,9 +499,6 @@ async function apiPatch(table, filter, body) {
 /* ═══════════════════════════════
    REFERRAL LANDING
 ═══════════════════════════════ */
-let _refAgentId = null;
-let _refCode    = null;
-
 async function showReferralLanding(code) {
   _refCode = code;
   showPage('referral');
