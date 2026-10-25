@@ -554,7 +554,8 @@ async function loadUserContext() {
 
   // Update header
   document.getElementById('hdr-shop-name').textContent = S.shop.name;
-  document.getElementById('hdr-role-badge').textContent = S.member.role === 'owner' ? '👑 Owner' : '🧾 Staff';
+  const roleBadge = { owner: '👑 Owner', manager: '🏷️ Manager', cashier: '🧾 Cashier' };
+  document.getElementById('hdr-role-badge').textContent = roleBadge[S.member.role] || '🧾 Staff';
 
   // Staff-only nav
   if (S.member.role === 'cashier') {
@@ -794,7 +795,9 @@ async function renderDebts(el) {
    MORE TAB
 ═══════════════════════════════ */
 function renderMore(el) {
-  const isOwner = S.member.role === 'owner';
+  const isOwner   = S.member.role === 'owner';
+  const isManager = S.member.role === 'manager';
+  const canManage = isOwner || isManager;
   el.innerHTML = `
     <div style="padding:14px max(16px,env(safe-area-inset-right,0px)) 0">
       <div style="background:var(--surf);border:1px solid var(--bdr);border-radius:16px;padding:20px;text-align:center;margin-bottom:14px">
@@ -806,7 +809,7 @@ function renderMore(el) {
         ${isOwner?`<button class="btn-sm" onclick="showEditShopSheet()" style="margin-top:10px">✏️ Edit Details</button>`:''}
       </div>
 
-      ${isOwner?`<div class="sec-ttl" style="margin-bottom:10px">Business Tools</div>
+      ${canManage?`<div class="sec-ttl" style="margin-bottom:10px">Business Tools</div>
       <div class="clist">
         <div class="more-item" onclick="showAddProductSheet()">
           <div class="more-ico" style="background:var(--acc-d)">📦</div>
@@ -848,9 +851,13 @@ function renderMore(el) {
 
       <div class="sec-ttl" style="margin-bottom:10px;margin-top:14px">Team</div>
       <div class="clist">
-        ${isOwner?`<div class="more-item" onclick="showInviteSheet()">
-          <div class="more-ico" style="background:var(--grn-d)">👤</div>
-          <div class="more-inf"><div class="more-nm">Add Staff</div><div class="more-mt">Give a staff member access</div></div>
+        ${isOwner?`<div class="more-item" onclick="showManageStaff()">
+          <div class="more-ico" style="background:var(--grn-d)">👥</div>
+          <div class="more-inf"><div class="more-nm">Manage Staff</div><div class="more-mt">Add, view & remove team members</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showStaffPerformance()">
+          <div class="more-ico" style="background:#7c3aed22">📊</div>
+          <div class="more-inf"><div class="more-nm">Staff Performance</div><div class="more-mt">Sales per staff member</div></div>
           <span style="color:var(--txt3)">›</span></div>`:''}
       </div>
 
@@ -866,7 +873,7 @@ function renderMore(el) {
       <div class="clist">
         <div class="more-item" style="cursor:default">
           <div class="more-ico" style="background:var(--acc-d)">ℹ️</div>
-          <div class="more-inf"><div class="more-nm">Happa Merchant v1.9</div><div class="more-mt">Business intelligence for small shops</div></div>
+          <div class="more-inf"><div class="more-nm">Happa Merchant v2.0</div><div class="more-mt">Business intelligence for small shops</div></div>
         </div>
       </div>
     </div>
@@ -1214,6 +1221,11 @@ function showInviteSheet() {
         <input type="text" id="inv-name" class="fi" placeholder="e.g. John Kariuki"></div>
       <div class="fg-s"><label class="fl">Their Email Address *</label>
         <input type="email" id="inv-email" class="fi" placeholder="johnk@email.com"></div>
+      <div class="fg-s"><label class="fl">Role</label>
+        <select id="inv-role" class="fi" style="appearance:auto">
+          <option value="cashier">🧾 Cashier — record sales only</option>
+          <option value="manager">🏷️ Manager — full access except billing</option>
+        </select></div>
       <button class="btn-p" onclick="sendCashierInvite()">➕ Add Staff Member</button>
       <button class="btn-g" onclick="closeSaleSheet()">Cancel</button>
     </div>`;
@@ -1233,7 +1245,7 @@ async function sendCashierInvite() {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/invite-staff`, {
       method: 'POST',
       headers: { ...apiHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ shop_id: S.shop.id, email, name, role: 'cashier' }),
+      body: JSON.stringify({ shop_id: S.shop.id, email, name, role: document.getElementById('inv-role')?.value || 'cashier' }),
     });
 
     const payload = await res.json().catch(() => ({}));
@@ -1293,6 +1305,124 @@ function showStaffCredentials(name, email, tempPassword, loginUrl) {
       </a>
       <button class="btn-g" style="width:100%" onclick="popSheet()">Done</button>
     </div>`);
+}
+
+/* ═══════════════════════════════
+   MANAGE STAFF
+═══════════════════════════════ */
+async function showManageStaff() {
+  pushSheet(`<div style="padding:20px 16px 8px">
+    <h3 style="margin:0 0 16px;font-size:18px">Manage Staff</h3>
+    <div id="staff-list-body"><div style="text-align:center;padding:24px;color:var(--txt2)">Loading…</div></div>
+    <button class="btn-p" style="width:100%;margin-top:14px" onclick="showInviteSheet()">➕ Add Staff Member</button>
+    <button class="btn-g" style="width:100%;margin-top:8px;margin-bottom:16px" onclick="popSheet()">Done</button>
+  </div>`);
+
+  const members = await apiGet(`shop_members?shop_id=eq.${S.shop.id}&role=neq.owner&select=id,name,role,joined_at,user_id&order=joined_at.asc`);
+  const el = document.getElementById('staff-list-body');
+  if (!el) return;
+  if (!members || !members.length) {
+    el.innerHTML = `<div style="text-align:center;padding:24px;color:var(--txt2);font-size:14px">No staff yet.<br>Tap Add Staff Member to invite someone.</div>`;
+    return;
+  }
+  const roleLabel = r => r === 'manager' ? '🏷️ Manager' : '🧾 Cashier';
+  el.innerHTML = `<div class="clist">${members.map(m=>`
+    <div class="more-item" style="padding:12px 14px">
+      <div class="more-ico" style="background:var(--grn-d);font-size:18px">${m.role==='manager'?'🏷️':'🧾'}</div>
+      <div class="more-inf" style="flex:1">
+        <div class="more-nm">${esc(m.name||'Unnamed')}</div>
+        <div class="more-mt">${roleLabel(m.role)} · Joined ${m.joined_at ? new Date(m.joined_at).toLocaleDateString('en-KE',{day:'numeric',month:'short',year:'numeric'}) : 'Pending'}</div>
+      </div>
+      <button onclick="removeStaff('${m.id}','${esc(m.name||'this staff member')}')"
+        style="background:var(--red-d);color:#fff;border:none;border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer">Remove</button>
+    </div>`).join('')}</div>`;
+}
+
+async function removeStaff(memberId, name) {
+  showConf(`Remove ${name}?`, `They will lose access to ${S.shop.name} immediately.`, async () => {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/shop_members?id=eq.${memberId}`, {
+      method: 'DELETE', headers: apiHeaders()
+    });
+    if (r.ok) {
+      showToast(`✓ ${name} removed`);
+      // refresh the list in-place
+      const members = await apiGet(`shop_members?shop_id=eq.${S.shop.id}&role=neq.owner&select=id,name,role,joined_at,user_id&order=joined_at.asc`);
+      const el = document.getElementById('staff-list-body');
+      if (!el) return;
+      if (!members || !members.length) {
+        el.innerHTML = `<div style="text-align:center;padding:24px;color:var(--txt2);font-size:14px">No staff yet.</div>`;
+        return;
+      }
+      const roleLabel = r => r === 'manager' ? '🏷️ Manager' : '🧾 Cashier';
+      el.innerHTML = `<div class="clist">${members.map(m=>`
+        <div class="more-item" style="padding:12px 14px">
+          <div class="more-ico" style="background:var(--grn-d);font-size:18px">${m.role==='manager'?'🏷️':'🧾'}</div>
+          <div class="more-inf" style="flex:1">
+            <div class="more-nm">${esc(m.name||'Unnamed')}</div>
+            <div class="more-mt">${roleLabel(m.role)} · Joined ${m.joined_at ? new Date(m.joined_at).toLocaleDateString('en-KE',{day:'numeric',month:'short',year:'numeric'}) : 'Pending'}</div>
+          </div>
+          <button onclick="removeStaff('${m.id}','${esc(m.name||'this staff member')}')"
+            style="background:var(--red-d);color:#fff;border:none;border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer">Remove</button>
+        </div>`).join('')}</div>`;
+    } else {
+      showToast('Could not remove — try again', true);
+    }
+  });
+}
+
+async function showStaffPerformance() {
+  pushSheet(`<div style="padding:20px 16px 8px">
+    <h3 style="margin:0 0 4px;font-size:18px">Staff Performance</h3>
+    <p style="color:var(--txt2);font-size:13px;margin:0 0 16px">Sales recorded by each team member</p>
+    <div id="perf-body"><div style="text-align:center;padding:24px;color:var(--txt2)">Loading…</div></div>
+    <button class="btn-g" style="width:100%;margin-top:14px;margin-bottom:16px" onclick="popSheet()">Close</button>
+  </div>`);
+
+  // Fetch staff roster + all sales in parallel
+  const [members, sales] = await Promise.all([
+    apiGet(`shop_members?shop_id=eq.${S.shop.id}&select=user_id,name,role&order=joined_at.asc`),
+    apiGet(`sales?shop_id=eq.${S.shop.id}&select=recorded_by,total,profit,recorded_at&limit=5000`)
+  ]);
+  const el = document.getElementById('perf-body');
+  if (!el) return;
+  if (!members || !members.length) { el.innerHTML = `<div style="text-align:center;padding:24px;color:var(--txt2)">No team data yet.</div>`; return; }
+
+  // Build per-member stats
+  const byUser = {};
+  (members||[]).forEach(m => { byUser[m.user_id] = { name: m.name||'Unknown', role: m.role, count: 0, total: 0, profit: 0 }; });
+  (sales||[]).forEach(s => {
+    if (!s.recorded_by) return;
+    if (!byUser[s.recorded_by]) byUser[s.recorded_by] = { name: 'Unknown', role: '?', count: 0, total: 0, profit: 0 };
+    byUser[s.recorded_by].count++;
+    byUser[s.recorded_by].total += Number(s.total)||0;
+    byUser[s.recorded_by].profit += Number(s.profit)||0;
+  });
+
+  const rows = Object.values(byUser).sort((a,b) => b.total - a.total);
+  const totalSales = rows.reduce((a,r)=>a+r.total,0);
+  const roleLabel = r => r==='owner'?'👑 Owner': r==='manager'?'🏷️ Manager':'🧾 Cashier';
+
+  el.innerHTML = rows.map(r => {
+    const pct = totalSales > 0 ? Math.round(r.total / totalSales * 100) : 0;
+    return `<div style="border:1px solid var(--bdr);border-radius:12px;padding:14px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div>
+          <div style="font-weight:600;font-size:15px">${esc(r.name)}</div>
+          <div style="font-size:11px;color:var(--txt2);margin-top:2px">${roleLabel(r.role)}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-weight:700;font-size:16px;color:var(--acc)">${kes(r.total)}</div>
+          <div style="font-size:11px;color:var(--txt2)">${r.count} sale${r.count!==1?'s':''}</div>
+        </div>
+      </div>
+      <div style="background:var(--bdr);border-radius:4px;height:6px;overflow:hidden">
+        <div style="background:var(--acc);height:6px;width:${pct}%;border-radius:4px;transition:width .4s"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:var(--txt2)">
+        <span>Profit: ${kes(r.profit)}</span><span>${pct}% of revenue</span>
+      </div>
+    </div>`;
+  }).join('') || `<div style="text-align:center;padding:24px;color:var(--txt2)">No sales recorded yet.</div>`;
 }
 
 /* ═══════════════════════════════
