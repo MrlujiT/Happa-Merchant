@@ -506,6 +506,25 @@ async function loadUserContext() {
   const mems = await apiGet(`shop_members?select=*,shops(*)&user_id=eq.${S.user.id}&limit=1`);
 
   if (!mems?.length) {
+    // New invited user — check if they have invite metadata and complete setup
+    const invMeta = S.user?.user_metadata?.shop_id;
+    if (invMeta) {
+      showPage('loading');
+      document.getElementById('page-loading').innerHTML =
+        '<div class="loader"><div class="spin"></div><div class="loader-msg">Setting up your account…</div></div>';
+      const r = await fetch(`${SUPABASE_URL}/functions/v1/accept-invite`, {
+        method: 'POST', headers: apiHeaders(),
+      });
+      const payload = await r.json().catch(()=>({}));
+      if (r.ok) {
+        // Re-run context load now that membership row exists
+        await loadUserContext(); return;
+      }
+      showPage('noshop');
+      document.getElementById('page-noshop').querySelector('.auth-sub').textContent =
+        'Could not set up your account: ' + (payload.error || 'Unknown error') + '. Contact your shop owner.';
+      return;
+    }
     showPage('noshop'); return;
   }
 
@@ -1984,8 +2003,8 @@ function sendPromoBroadcast() {
   const msg = document.getElementById('promo-draft')?.value?.trim();
   if (!msg) { showToast('Add a title and select products first', true); return; }
 
-  // Pop current sheet, push a customer picker with this message pre-loaded
-  const encodedMsg = encodeURIComponent(msg);
+  // Store message in state (NOT in onclick attribute — apostrophes break HTML)
+  S._promoMsg = msg;
   popSheet();
 
   // Load customers with phones
@@ -2015,7 +2034,7 @@ function sendPromoBroadcast() {
           </label>`;
         }).join('')}
       </div>
-      <button class="btn-p" style="margin-top:14px" onclick="openPromoLinks('${encodedMsg}')">Open WhatsApp Chats ›</button>
+      <button class="btn-p" style="margin-top:14px" onclick="openPromoLinks()">Open WhatsApp Chats ›</button>
       <button class="btn-g" onclick="popSheet()">Cancel</button>
     </div>`);
 }
@@ -2024,10 +2043,10 @@ function promoSelectAll(state) {
   document.querySelectorAll('.promo-send-cb').forEach(cb => cb.checked = state);
 }
 
-function openPromoLinks(encodedMsg) {
+function openPromoLinks() {
   const selected = [...document.querySelectorAll('.promo-send-cb:checked')];
   if (!selected.length) { showToast('Select at least one customer', true); return; }
-  const msg = decodeURIComponent(encodedMsg);
+  const msg = S._promoMsg || '';
   const links = selected.map(cb => {
     const phone    = cb.value;
     const name     = cb.getAttribute('data-name') || '';
