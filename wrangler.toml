@@ -1,6 +1,5 @@
 name = "happa-merchant"
 compatibility_date = "2024-09-23"
-account_id = "9a626e9f532467918c229f392fbc67a2"
 
 [assets]
 directory = "."
