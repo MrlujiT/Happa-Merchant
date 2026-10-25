@@ -964,7 +964,7 @@ async function sendOwnerInvite() {
 let _sharePwd = ''; let _shareName = ''; let _shareEmail = ''; let _shareLoginUrl = '';
 function showShareModal(email, shopName, tempPassword, loginUrl) {
   _sharePwd = tempPassword || ''; _shareName = shopName;
-  _shareEmail = email; _shareLoginUrl = loginUrl || LOGIN_URL;
+  _shareEmail = email; _shareLoginUrl = (loginUrl || LOGIN_URL) + '?newlogin=1';
   document.getElementById('share-subtitle').textContent = `"${shopName}" is ready — share these login details with ${email}`;
   document.getElementById('share-url').textContent = _shareLoginUrl;
   document.getElementById('share-email-val').textContent = email;

@@ -398,6 +398,16 @@ async function apiPatch(table, filter, body) {
    INIT
 ═══════════════════════════════ */
 (async function init() {
+  // If ?newlogin=1 is in the URL (from admin-shared login link), force sign-out
+  // first so any existing session doesn't take over the new user's login
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.has('newlogin')) {
+    history.replaceState({}, '', window.location.pathname); // clean the URL
+    await db.auth.signOut().catch(() => {});
+    showPage('auth');
+    return;
+  }
+
   // Must check hash BEFORE getSession() — Supabase clears it after processing
   const hash = window.location.hash;
   if (hash.includes('type=invite') || hash.includes('type=signup') || hash.includes('type=recovery')) {
@@ -856,7 +866,7 @@ function renderMore(el) {
       <div class="clist">
         <div class="more-item" style="cursor:default">
           <div class="more-ico" style="background:var(--acc-d)">ℹ️</div>
-          <div class="more-inf"><div class="more-nm">Happa Merchant v1.7</div><div class="more-mt">Business intelligence for small shops</div></div>
+          <div class="more-inf"><div class="more-nm">Happa Merchant v1.8</div><div class="more-mt">Business intelligence for small shops</div></div>
         </div>
       </div>
     </div>
