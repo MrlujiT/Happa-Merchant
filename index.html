@@ -109,6 +109,9 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 
 /* ── TX ITEM ── */
 .txi{display:flex;align-items:center;gap:12px;padding:11px 16px;border-bottom:1px solid var(--bdr);transition:background .1s;cursor:default}
+.det-row{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;font-size:14px;padding:4px 0;border-bottom:1px solid var(--bdr)}
+.det-row:last-child{border-bottom:none}
+.det-lbl{color:var(--txt2);flex-shrink:0;font-size:13px;padding-top:1px}
 .txi:last-child{border-bottom:none}
 .tx-ico{width:38px;height:38px;border-radius:10px;background:var(--surf2);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
 .tx-inf{flex:1;min-width:0}
@@ -444,6 +447,8 @@ async function apiPatch(table, filter, body) {
 ═══════════════════════════════ */
 let _refAgentId = null;
 let _refCode    = null;
+let _editCommId    = null; // non-null when editing an existing commission
+let _editBookingId = null; // non-null when editing an existing booking
 
 /* ═══════════════════════════════
    INIT
@@ -1283,13 +1288,16 @@ async function renderBookings(el) {
       const dt = new Date(b.recorded_at);
       const dtStr = dt.toLocaleDateString('en-KE',{day:'numeric',month:'short'}) + ' ' + dt.toLocaleTimeString('en-KE',{hour:'2-digit',minute:'2-digit'});
       const meth = b.payment_method === 'mpesa' ? '📱 M-Pesa' : b.payment_method === 'debt' ? '📋 Debt' : '💵 Cash';
-      h += `<div class="txi">
+      h += `<div class="txi" style="cursor:pointer" onclick="openBookingDetail(${JSON.stringify(JSON.stringify(b))})">
         <div class="txi-ico">🛏️</div>
         <div class="txi-inf">
           <div class="txi-nm">${esc(b.guest_name||'Guest')} · ${esc(b.unit_name||'Unit')}</div>
           <div class="txi-sub">${b.nights} night${b.nights!==1?'s':''} · ${meth} · ${dtStr}</div>
         </div>
-        <div class="txi-amt">${kes(b.total)}</div></div>`;
+        <div style="display:flex;align-items:center;gap:6px">
+          <div class="txi-amt">${kes(b.total)}</div>
+          <span style="color:var(--txt3);font-size:16px">›</span>
+        </div></div>`;
     });
     h += `</div>`;
   } else {
@@ -1340,13 +1348,16 @@ async function buildCommissionsHtml() {
         const coStr = new Date(c.check_out).toLocaleDateString('en-KE',{day:'numeric',month:'short'});
         stayInfo = ` · 🌙 ${nights}n (${ciStr}–${coStr})`;
       }
-      h += `<div class="txi">
+      h += `<div class="txi" style="cursor:pointer" onclick="openCommissionDetail(${JSON.stringify(JSON.stringify(c))})">
         <div class="txi-ico">🤝</div>
         <div class="txi-inf">
           <div class="txi-nm">${esc(c.host_name||'Host')}${c.guest_name?' → '+esc(c.guest_name):''}</div>
           <div class="txi-sub">${prop?esc(prop)+' · ':''}${rateInfo}${meth} · ${dtStr}${stayInfo}</div>
         </div>
-        <div class="txi-amt">${kes(c.amount)}</div></div>`;
+        <div style="display:flex;align-items:center;gap:6px">
+          <div class="txi-amt">${kes(c.amount)}</div>
+          <span style="color:var(--txt3);font-size:16px">›</span>
+        </div></div>`;
     });
     h += `</div>`;
   } else {
@@ -1550,7 +1561,7 @@ function showAdjustSupplySheet(supplyId, name, currentQty, uom) {
 /* ═══════════════════════════════
    RECORD A BOOKING SHEET
 ═══════════════════════════════ */
-function openBookingSheet() {
+function openBookingSheet(existing = null) {
   if (!S.units?.length) {
     pushSheet(`<div style="padding:40px 20px;text-align:center">
       <div style="font-size:48px;margin-bottom:12px">🛏️</div>
@@ -1562,32 +1573,41 @@ function openBookingSheet() {
     return;
   }
 
+  const ex = existing || {};
+  const isEdit = !!existing;
+  const btnLabel = isEdit ? '✅ Update Booking' : '✅ Save Booking';
+
   const unitOptions = (S.units||[]).map(u =>
-    `<option value="${u.id}" data-daily="${u.daily_rate}" data-monthly="${u.monthly_rate||''}">${esc(u.name)} — KES ${kes(u.daily_rate).replace('KES ','')}/night</option>`
+    `<option value="${u.id}" data-daily="${u.daily_rate}" data-monthly="${u.monthly_rate||''}" ${ex.unit_id===u.id?'selected':''}>${esc(u.name)} — KES ${kes(u.daily_rate).replace('KES ','')}/night</option>`
   ).join('');
 
   // Default check-in today, check-out tomorrow
   const today = new Date(); const tom = new Date(today); tom.setDate(tom.getDate()+1);
   const fmt = d => d.toISOString().split('T')[0];
 
+  const ciVal  = ex.check_in  || fmt(today);
+  const coVal  = ex.check_out || fmt(tom);
+  const payVal = ex.payment_method || 'cash';
+  const isMpesaPay = payVal === 'mpesa';
+
   pushSheet(`
     <div class="sh-hand"></div>
-    <div class="sh-hdr"><h2>Record a Booking</h2></div>
+    <div class="sh-hdr"><h2>${isEdit ? 'Edit Booking' : 'Record a Booking'}</h2></div>
     <div class="sh-body">
       <div class="fg-s"><label class="fl">Unit *</label>
         <select id="bk-unit" class="fi" style="appearance:auto" onchange="calcBookingTotal()">${unitOptions}</select></div>
       <div class="fg-s"><label class="fl">Guest Name</label>
-        <input id="bk-guest" class="fi" placeholder="e.g. John Kamau"></div>
+        <input id="bk-guest" class="fi" placeholder="e.g. John Kamau" value="${esc(ex.guest_name||'')}"></div>
       <div class="fg-s"><label class="fl">Guest Phone</label>
-        <input id="bk-phone" class="fi" type="tel" placeholder="e.g. 0712 345 678"></div>
+        <input id="bk-phone" class="fi" type="tel" placeholder="e.g. 0712 345 678" value="${esc(ex.guest_phone||'')}"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div class="fg-s"><label class="fl">Check-in *</label>
-          <input id="bk-in" class="fi" type="date" value="${fmt(today)}" onchange="calcBookingTotal()"></div>
+          <input id="bk-in" class="fi" type="date" value="${ciVal}" onchange="calcBookingTotal()"></div>
         <div class="fg-s"><label class="fl">Check-out *</label>
-          <input id="bk-out" class="fi" type="date" value="${fmt(tom)}" onchange="calcBookingTotal()"></div>
+          <input id="bk-out" class="fi" type="date" value="${coVal}" onchange="calcBookingTotal()"></div>
       </div>
       <div class="fg-s"><label class="fl">Rate per Night (KES)</label>
-        <input id="bk-rate" class="fi" type="number" min="0" placeholder="Auto from unit" onchange="calcBookingTotal()"></div>
+        <input id="bk-rate" class="fi" type="number" min="0" placeholder="Auto from unit" value="${ex.rate||''}" onchange="calcBookingTotal()"></div>
       <div id="bk-monthly-hint" style="display:none;background:var(--acc-d);border-radius:10px;padding:10px 12px;font-size:13px;color:var(--acc);margin-bottom:12px">
         💡 Stay is 28+ nights — consider switching to monthly rate
         <button onclick="applyMonthlyRate()" style="display:block;margin-top:6px;background:var(--acc);color:#fff;border:none;border-radius:8px;padding:4px 12px;cursor:pointer;font-size:12px">Apply Monthly Rate</button>
@@ -1600,13 +1620,13 @@ function openBookingSheet() {
       </div>
       <div class="fg-s"><label class="fl">Payment</label>
         <select id="bk-pay" class="fi" style="appearance:auto" onchange="onBkPayChange(this.value)">
-          <option value="cash">💵 Cash</option>
-          <option value="mpesa">📱 M-Pesa</option>
-          <option value="wallet">💳 Guest Wallet</option>
-          <option value="debt">📋 Balance Due</option>
+          <option value="cash" ${payVal==='cash'?'selected':''}>💵 Cash</option>
+          <option value="mpesa" ${payVal==='mpesa'?'selected':''}>📱 M-Pesa</option>
+          <option value="wallet" ${payVal==='wallet'?'selected':''}>💳 Guest Wallet</option>
+          <option value="debt" ${payVal==='debt'?'selected':''}>📋 Balance Due</option>
         </select></div>
-      <div class="fg-s" id="bk-mpesa-row" style="display:none"><label class="fl">M-Pesa Code</label>
-        <input id="bk-mpesa" class="fi" placeholder="e.g. QK1234ABCD" style="text-transform:uppercase"></div>
+      <div class="fg-s" id="bk-mpesa-row" style="${isMpesaPay?'':'display:none'}"><label class="fl">M-Pesa Code</label>
+        <input id="bk-mpesa" class="fi" placeholder="e.g. QK1234ABCD" style="text-transform:uppercase" value="${esc(ex.mpesa_code||'')}"></div>
       <div id="bk-wallet-info" style="display:none;background:var(--surf2);border-radius:10px;padding:10px 12px;font-size:13px;margin-bottom:10px">
         <span id="bk-wallet-bal-txt" style="color:#22d3ee">Loading wallet…</span>
       </div>
@@ -1621,18 +1641,18 @@ function openBookingSheet() {
         </div>
       </div>
       <div class="fg-s"><label class="fl">Notes</label>
-        <input id="bk-notes" class="fi" placeholder="e.g. Door code 1234, Wi-Fi: Kilimani5G"></div>
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surf2);border-radius:12px;margin-bottom:14px;cursor:pointer"
+        <input id="bk-notes" class="fi" placeholder="e.g. Door code 1234, Wi-Fi: Kilimani5G" value="${esc(ex.notes||'')}"></div>
+      ${!isEdit ? `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surf2);border-radius:12px;margin-bottom:14px;cursor:pointer"
            onclick="this.querySelector('input').click()">
         <span style="font-size:14px;color:var(--txt)">📱 Send WhatsApp Receipt</span>
         <input type="checkbox" id="bk-receipt" onclick="event.stopPropagation()"
                style="width:18px;height:18px;accent-color:#25D366;cursor:pointer;flex-shrink:0">
-      </div>
-      <button class="btn-p" onclick="saveBooking()">✅ Save Booking</button>
-      <button class="btn-g" onclick="popSheet()">Cancel</button>
+      </div>` : ''}
+      <button class="btn-p" onclick="saveBooking()">${btnLabel}</button>
+      <button class="btn-g" onclick="_editBookingId=null;popSheet()">Cancel</button>
     </div>`);
 
-  // Populate rate from first unit
+  // Populate totals
   calcBookingTotal();
 }
 
@@ -1762,9 +1782,11 @@ async function saveBooking(forceOverride) {
 
   // ── Overlap check (skip if host has already approved override) ──
   if (!forceOverride) {
-    const overlaps = await apiGet(
-      `bookings?unit_id=eq.${unitId}&check_in=lt.${checkOut}&check_out=gt.${checkIn}&select=guest_name,check_in,check_out`
-    );
+    // Exclude the booking being edited from clash detection
+    const clashFilter = _editBookingId
+      ? `bookings?unit_id=eq.${unitId}&check_in=lt.${checkOut}&check_out=gt.${checkIn}&id=neq.${_editBookingId}&select=guest_name,check_in,check_out`
+      : `bookings?unit_id=eq.${unitId}&check_in=lt.${checkOut}&check_out=gt.${checkIn}&select=guest_name,check_in,check_out`;
+    const overlaps = await apiGet(clashFilter);
     if (overlaps?.length) {
       const clash = overlaps[0];
       const clashGuest = clash.guest_name || 'Another guest';
@@ -1800,18 +1822,26 @@ async function saveBooking(forceOverride) {
     }
   }
 
-  await fetch(`${SUPABASE_URL}/rest/v1/bookings`, {
-    method: 'POST',
-    headers: { ...apiHeaders(), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-    body: JSON.stringify({
-      shop_id: S.shop.id, unit_id: unitId, unit_name: unitName||'Unit',
-      guest_name: guest||null, guest_phone: phone||null,
-      check_in: checkIn, check_out: checkOut, nights, rate, total,
-      payment_method: finalPaymentMethod, mpesa_code: finalMpesa||null, notes: notes||null,
-      recorded_by: S.user.id,
-      double_booking_override: forceOverride || false,
-    })
-  });
+  const wasBookingEdit = !!_editBookingId;
+  const bookingPayload = {
+    unit_id: unitId, unit_name: unitName||'Unit',
+    guest_name: guest||null, guest_phone: phone||null,
+    check_in: checkIn, check_out: checkOut, nights, rate, total,
+    payment_method: finalPaymentMethod, mpesa_code: finalMpesa||null, notes: notes||null,
+    double_booking_override: forceOverride || false,
+  };
+
+  if (_editBookingId) {
+    const editId = _editBookingId;
+    _editBookingId = null;
+    await apiPatch('bookings', `id=eq.${editId}`, bookingPayload);
+  } else {
+    await fetch(`${SUPABASE_URL}/rest/v1/bookings`, {
+      method: 'POST',
+      headers: { ...apiHeaders(), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ ...bookingPayload, shop_id: S.shop.id, recorded_by: S.user.id }),
+    });
+  }
 
   // ── Loyalty: award points for booking ──
   if (S.loyalty?.enabled && (guest || phone)) {
@@ -1858,7 +1888,7 @@ async function saveBooking(forceOverride) {
 
   const sendReceipt = document.getElementById('bk-receipt')?.checked;
   closeSaleSheet();
-  showToast(`✓ Booking saved — ${kes(total)}${forceOverride?' (double booking approved)':''}`);
+  showToast(`✓ Booking ${wasBookingEdit ? 'updated' : 'saved'} — ${kes(total)}${forceOverride?' (double booking approved)':''}`);
   showTab('bookings');
 
   if (sendReceipt) {
@@ -2001,56 +2031,176 @@ async function confirmDeposit() {
 /* ═══════════════════════════════
    COMMISSION SHEET
 ═══════════════════════════════ */
-function openCommissionSheet() {
+/* ─── COMMISSION DETAIL / EDIT / DELETE ─── */
+function openCommissionDetail(cJson) {
+  const c = typeof cJson === 'string' ? JSON.parse(cJson) : cJson;
+  const canEdit = ['owner','manager'].includes(S.role);
+  const dt = new Date(c.commission_date || c.recorded_at);
+  const dtStr = c.commission_date
+    ? dt.toLocaleDateString('en-KE',{weekday:'long',day:'numeric',month:'long',year:'numeric'})
+    : dt.toLocaleString('en-KE',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  const meth = c.payment_method === 'mpesa' ? '📱 M-Pesa' : '💵 Cash';
+  let stayHtml = '';
+  if (c.check_in && c.check_out) {
+    const nights = Math.round((new Date(c.check_out) - new Date(c.check_in)) / 86400000);
+    const ciStr = new Date(c.check_in).toLocaleDateString('en-KE',{day:'numeric',month:'short'});
+    const coStr = new Date(c.check_out).toLocaleDateString('en-KE',{day:'numeric',month:'short'});
+    stayHtml = `<div class="det-row"><span class="det-lbl">Stay</span><span>🌙 ${nights} night${nights!==1?'s':''} (${ciStr} – ${coStr})</span></div>`;
+  }
+  const prop = [c.house_number, c.apartment_name, c.size].filter(Boolean).join(' · ');
+  pushSheet(`
+    <div class="sh-hand"></div>
+    <div class="sh-hdr"><h2>🤝 Commission Detail</h2></div>
+    <div class="sh-body">
+      <div style="background:var(--surf2);border-radius:14px;padding:16px;margin-bottom:16px">
+        <div style="font-size:28px;font-weight:800;color:var(--acc);margin-bottom:4px">${kes(c.amount)}</div>
+        <div style="font-size:14px;color:var(--txt2)">${dtStr}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;font-size:14px;margin-bottom:20px">
+        ${c.host_name?`<div class="det-row"><span class="det-lbl">Host</span><span>${esc(c.host_name)}</span></div>`:''}
+        ${c.guest_name?`<div class="det-row"><span class="det-lbl">Guest</span><span>${esc(c.guest_name)}${c.guest_phone?' · '+esc(c.guest_phone):''}</span></div>`:''}
+        ${prop?`<div class="det-row"><span class="det-lbl">Property</span><span>${esc(prop)}</span></div>`:''}
+        ${stayHtml}
+        ${c.given_rate||c.host_rate?`<div class="det-row"><span class="det-lbl">Rates</span><span>Given ${kes(c.given_rate||0)} · Paid ${kes(c.host_rate||0)}</span></div>`:''}
+        <div class="det-row"><span class="det-lbl">Payment</span><span>${meth}${c.mpesa_code?' · '+esc(c.mpesa_code):''}</span></div>
+      </div>
+      ${canEdit ? `
+      <button class="btn-p" onclick="popSheet();editCommission(${JSON.stringify(JSON.stringify(c))})">✏️ Edit</button>
+      <button class="btn-g" style="color:var(--red);border-color:var(--red)" onclick="deleteCommission('${c.id}')">🗑️ Delete</button>
+      ` : ''}
+      <button class="btn-g" onclick="popSheet()">Close</button>
+    </div>`);
+  document.getElementById('sale-overlay').classList.add('on');
+}
+
+function editCommission(cJson) {
+  const c = typeof cJson === 'string' ? JSON.parse(cJson) : cJson;
+  _editCommId = c.id;
+  openCommissionSheet(c);
+}
+
+async function deleteCommission(id) {
+  showConf('Delete Commission', 'This record will be permanently removed. Continue?', async () => {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/commissions?id=eq.${id}`, {
+      method: 'DELETE',
+      headers: { ...apiHeaders(), 'Prefer': 'return=minimal' },
+    });
+    if (res.ok) {
+      closeSaleSheet();
+      showToast('Commission deleted');
+      S.bookingSubTab = 'commissions';
+      showTab('bookings');
+    } else {
+      showToast('Error deleting — try again', true);
+    }
+  });
+}
+
+/* ─── BOOKING DETAIL / EDIT / DELETE ─── */
+function openBookingDetail(bJson) {
+  const b = typeof bJson === 'string' ? JSON.parse(bJson) : bJson;
+  const canEdit = ['owner','manager'].includes(S.role);
+  const dt = new Date(b.recorded_at);
+  const dtStr = dt.toLocaleDateString('en-KE',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  const meth = b.payment_method === 'mpesa' ? '📱 M-Pesa' : b.payment_method === 'debt' ? '📋 Balance Due' : b.payment_method === 'wallet' ? '💳 Guest Wallet' : '💵 Cash';
+  const ciStr = b.check_in ? new Date(b.check_in).toLocaleDateString('en-KE',{day:'numeric',month:'short',year:'numeric'}) : '—';
+  const coStr = b.check_out ? new Date(b.check_out).toLocaleDateString('en-KE',{day:'numeric',month:'short',year:'numeric'}) : '—';
+  pushSheet(`
+    <div class="sh-hand"></div>
+    <div class="sh-hdr"><h2>🛏️ Booking Detail</h2></div>
+    <div class="sh-body">
+      <div style="background:var(--surf2);border-radius:14px;padding:16px;margin-bottom:16px">
+        <div style="font-size:28px;font-weight:800;color:var(--acc);margin-bottom:4px">${kes(b.total)}</div>
+        <div style="font-size:14px;color:var(--txt2)">${dtStr}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;font-size:14px;margin-bottom:20px">
+        <div class="det-row"><span class="det-lbl">Unit</span><span>${esc(b.unit_name||'—')}</span></div>
+        ${b.guest_name?`<div class="det-row"><span class="det-lbl">Guest</span><span>${esc(b.guest_name)}${b.guest_phone?' · '+esc(b.guest_phone):''}</span></div>`:''}
+        <div class="det-row"><span class="det-lbl">Stay</span><span>🌙 ${b.nights} night${b.nights!==1?'s':''} (${ciStr} – ${coStr})</span></div>
+        <div class="det-row"><span class="det-lbl">Payment</span><span>${meth}${b.mpesa_code?' · '+esc(b.mpesa_code):''}</span></div>
+        ${b.notes?`<div class="det-row"><span class="det-lbl">Notes</span><span>${esc(b.notes)}</span></div>`:''}
+      </div>
+      ${canEdit ? `
+      <button class="btn-p" onclick="popSheet();editBooking(${JSON.stringify(JSON.stringify(b))})">✏️ Edit</button>
+      <button class="btn-g" style="color:var(--red);border-color:var(--red)" onclick="deleteBooking('${b.id}')">🗑️ Delete</button>
+      ` : ''}
+      <button class="btn-g" onclick="popSheet()">Close</button>
+    </div>`);
+  document.getElementById('sale-overlay').classList.add('on');
+}
+
+function editBooking(bJson) {
+  const b = typeof bJson === 'string' ? JSON.parse(bJson) : bJson;
+  _editBookingId = b.id;
+  openBookingSheet(b);
+}
+
+async function deleteBooking(id) {
+  showConf('Delete Booking', 'This record will be permanently removed. Continue?', async () => {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/bookings?id=eq.${id}`, {
+      method: 'DELETE',
+      headers: { ...apiHeaders(), 'Prefer': 'return=minimal' },
+    });
+    if (res.ok) {
+      closeSaleSheet();
+      showToast('Booking deleted');
+      showTab('bookings');
+    } else {
+      showToast('Error deleting — try again', true);
+    }
+  });
+}
+
+function openCommissionSheet(existing = null) {
   const hostOptions = (S.hosts||[]).map(h =>
     `<option value="${h.id}" data-name="${esc(h.name)}" data-apt="${esc(h.apartment_name||'')}">${esc(h.name)}${h.apartment_name?' — '+esc(h.apartment_name):''}</option>`
   ).join('');
 
+  const today = new Date().toISOString().slice(0,10);
+  const e = existing || {};
+  const isEdit = !!existing;
+  const btnLabel = isEdit ? '✅ Update Commission' : '✅ Save Commission';
+
   pushSheet(`
     <div class="sh-hand"></div>
-    <div class="sh-hdr"><h2>🤝 Record a Commission</h2></div>
+    <div class="sh-hdr"><h2>🤝 ${isEdit ? 'Edit Commission' : 'Record a Commission'}</h2></div>
     <div class="sh-body">
       <div class="fg-s"><label class="fl">Date of Deal</label>
-        <input type="date" id="cm-date" class="fi" value="${new Date().toISOString().slice(0,10)}" max="${new Date().toISOString().slice(0,10)}">
+        <input type="date" id="cm-date" class="fi" value="${esc(e.commission_date || today)}" max="${today}">
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
         <div><label class="fl">Check-In Date</label>
-          <input type="date" id="cm-checkin" class="fi" oninput="cmUpdateNights()"></div>
+          <input type="date" id="cm-checkin" class="fi" value="${esc(e.check_in||'')}" oninput="cmUpdateNights()"></div>
         <div><label class="fl">Check-Out Date</label>
-          <input type="date" id="cm-checkout" class="fi" oninput="cmUpdateNights()"></div>
+          <input type="date" id="cm-checkout" class="fi" value="${esc(e.check_out||'')}" oninput="cmUpdateNights()"></div>
       </div>
       <div id="cm-nights-row" style="display:none;font-size:12px;color:var(--txt2);background:var(--surf2);border-radius:8px;padding:8px 12px;margin-bottom:14px">
         🌙 <span id="cm-nights-lbl"></span>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
         <div><label class="fl">House Number</label>
-          <input id="cm-hnum" class="fi" placeholder="e.g. A4, 12B"></div>
+          <input id="cm-hnum" class="fi" placeholder="e.g. A4, 12B" value="${esc(e.house_number||'')}"></div>
         <div><label class="fl">Size</label>
           <select id="cm-size" class="fi" style="appearance:auto;-webkit-appearance:auto">
             <option value="">— Select —</option>
-            <option value="Bedsitter">Bedsitter</option>
-            <option value="Studio">Studio</option>
-            <option value="1BR">1 Bedroom</option>
-            <option value="2BR">2 Bedrooms</option>
-            <option value="3BR">3 Bedrooms</option>
-            <option value="4BR+">4BR+</option>
+            ${['Bedsitter','Studio','1BR','2BR','3BR','4BR+'].map(s=>`<option value="${s}"${e.size===s?' selected':''}>${s==='1BR'?'1 Bedroom':s==='2BR'?'2 Bedrooms':s==='3BR'?'3 Bedrooms':s}</option>`).join('')}
           </select></div>
       </div>
       <div class="fg-s"><label class="fl">Apartment Name</label>
-        <input id="cm-apt" class="fi" placeholder="e.g. Kilimani Heights"></div>
+        <input id="cm-apt" class="fi" placeholder="e.g. Kilimani Heights" value="${esc(e.apartment_name||'')}"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
         <div><label class="fl">Guest Name</label>
-          <input id="cm-guest" class="fi" placeholder="e.g. John Kamau"></div>
+          <input id="cm-guest" class="fi" placeholder="e.g. John Kamau" value="${esc(e.guest_name||'')}"></div>
         <div><label class="fl">Guest Phone</label>
-          <input id="cm-guest-phone" class="fi" type="tel" placeholder="e.g. 0712 345 678"></div>
+          <input id="cm-guest-phone" class="fi" type="tel" placeholder="e.g. 0712 345 678" value="${esc(e.guest_phone||'')}"></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px">
         <div><label class="fl">Given Rate (KES)</label>
           <input type="number" id="cm-given-rate" class="fi" placeholder="What you charged guest" min="0" inputmode="numeric"
-            oninput="calcCommission()"></div>
+            value="${e.given_rate||''}" oninput="calcCommission()"></div>
         <div><label class="fl">Host Rate (KES)</label>
           <input type="number" id="cm-host-rate" class="fi" placeholder="What you paid host" min="0" inputmode="numeric"
-            oninput="calcCommission()"></div>
+            value="${e.host_rate||''}" oninput="calcCommission()"></div>
       </div>
       <div id="cm-calc-row" style="display:none;font-size:12px;color:var(--txt2);background:var(--surf2);border-radius:8px;padding:8px 12px;margin-bottom:14px">
         Commission = <span id="cm-calc-given" style="color:var(--txt)">0</span> − <span id="cm-calc-host" style="color:var(--txt)">0</span> = <span id="cm-calc-result" style="color:var(--acc);font-weight:700">0</span> KES
@@ -2066,23 +2216,25 @@ function openCommissionSheet() {
           if(o.dataset.apt&&!document.getElementById('cm-apt').value)document.getElementById('cm-apt').value=o.dataset.apt;}">
           <option value="">— Pick saved host —</option>${hostOptions}
         </select>` : ''}
-        <input type="text" id="cm-host-inp" class="fi" placeholder="Type host name">
+        <input type="text" id="cm-host-inp" class="fi" placeholder="Type host name" value="${esc(e.host_name||'')}">
       </div>
       <div class="fg-s"><label class="fl">Commission Amount (KES) *</label>
-        <input type="number" id="cm-amount" class="fi" placeholder="Auto-calculated or enter manually" min="1" inputmode="numeric" oninput="this.dataset.manuallySet='1'"></div>
+        <input type="number" id="cm-amount" class="fi" placeholder="Auto-calculated or enter manually" min="1" inputmode="numeric" value="${e.amount||''}" oninput="this.dataset.manuallySet='1'"></div>
       <label class="fl">Payment Received Via</label>
       <div class="method-row" style="grid-template-columns:1fr 1fr;margin-bottom:14px">
-        <button class="method-btn sel" id="cm-cash" onclick="document.getElementById('cm-cash').classList.add('sel');document.getElementById('cm-mpesa').classList.remove('sel');document.getElementById('cm-mpesa-row').style.display='none'"><span class="m-ico">💵</span>Cash</button>
-        <button class="method-btn" id="cm-mpesa" onclick="document.getElementById('cm-mpesa').classList.add('sel');document.getElementById('cm-cash').classList.remove('sel');document.getElementById('cm-mpesa-row').style.display='block'"><span class="m-ico">📱</span>M-Pesa</button>
+        <button class="method-btn ${e.payment_method==='mpesa'?'':'sel'}" id="cm-cash" onclick="document.getElementById('cm-cash').classList.add('sel');document.getElementById('cm-mpesa').classList.remove('sel');document.getElementById('cm-mpesa-row').style.display='none'"><span class="m-ico">💵</span>Cash</button>
+        <button class="method-btn ${e.payment_method==='mpesa'?'sel':''}" id="cm-mpesa" onclick="document.getElementById('cm-mpesa').classList.add('sel');document.getElementById('cm-cash').classList.remove('sel');document.getElementById('cm-mpesa-row').style.display='block'"><span class="m-ico">📱</span>M-Pesa</button>
       </div>
-      <div id="cm-mpesa-row" style="display:none;margin-bottom:14px">
+      <div id="cm-mpesa-row" style="${e.payment_method==='mpesa'?'':'display:none;'}margin-bottom:14px">
         <label class="fl">M-Pesa Code</label>
-        <input type="text" id="cm-mpesa-code" class="fi" placeholder="e.g. SJK4L9M2QP" oninput="this.value=this.value.toUpperCase()">
+        <input type="text" id="cm-mpesa-code" class="fi" placeholder="e.g. SJK4L9M2QP" value="${esc(e.mpesa_code||'')}" oninput="this.value=this.value.toUpperCase()">
       </div>
-      <button class="btn-p" onclick="saveCommission()">✅ Save Commission</button>
-      <button class="btn-g" onclick="popSheet()">Cancel</button>
+      <button class="btn-p" onclick="saveCommission()">${btnLabel}</button>
+      <button class="btn-g" onclick="_editCommId=null;popSheet()">Cancel</button>
     </div>`);
   document.getElementById('sale-overlay').classList.add('on');
+  // If editing, trigger recalc to show nights/commission rows
+  if (isEdit) { setTimeout(() => { cmUpdateNights(); calcCommission(); }, 0); }
 }
 
 function calcCommission() {
@@ -2145,8 +2297,7 @@ async function saveCommission() {
   const btn = document.querySelector('#sale-sheet .btn-p');
   if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
 
-  const { error } = await apiPost('commissions', {
-    shop_id: S.shop.id,
+  const payload = {
     host_id: matchedHost?.id || null,
     host_name: hostName,
     guest_name: guestName || null,
@@ -2162,17 +2313,28 @@ async function saveCommission() {
     check_out: checkOut,
     payment_method: isMpesa ? 'mpesa' : 'cash',
     mpesa_code: mpesaCode || null,
-    recorded_by: S.user.id,
-  });
+  };
+
+  const wasEdit = !!_editCommId;
+  let error;
+  if (_editCommId) {
+    const editId = _editCommId;
+    _editCommId = null;
+    const res = await apiPatch('commissions', `id=eq.${editId}`, payload);
+    error = res?.error;
+  } else {
+    const res = await apiPost('commissions', { ...payload, shop_id: S.shop.id, recorded_by: S.user.id });
+    error = res?.error;
+  }
 
   if (error) {
-    showToast('Error: ' + error.message, true);
-    if (btn) { btn.disabled = false; btn.textContent = '✅ Save Commission'; }
+    showToast('Error: ' + (error.message || error), true);
+    if (btn) { btn.disabled = false; btn.textContent = wasEdit ? '✅ Update Commission' : '✅ Save Commission'; }
     return;
   }
 
   closeSaleSheet();
-  showToast(`✓ Commission saved — ${kes(amount)}`);
+  showToast(`✓ Commission ${wasEdit ? 'updated' : 'saved'} — ${kes(amount)}`);
   S.bookingSubTab = 'commissions';
   showTab('bookings');
 }
