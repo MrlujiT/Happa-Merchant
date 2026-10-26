@@ -1156,8 +1156,8 @@ async function saveAlert() {
 async function renderAirbnbHome(el) {
   const todayISO = todayStart();
   const [todayBk, weekly, allUnits, allSupplies] = await Promise.all([
-    apiGet(`bookings?shop_id=eq.${S.shop.id}&recorded_at=gte.${todayISO}&select=total,unit_name,guest_name,payment_method`),
-    apiGet(`bookings?shop_id=eq.${S.shop.id}&recorded_at=gte.${sevenDaysAgo()}&select=total,recorded_at`),
+    apiGet(`bookings?shop_id=eq.${S.shop.id}&check_in=gte.${todayISO.slice(0,10)}&select=total,unit_name,guest_name,payment_method`),
+    apiGet(`bookings?shop_id=eq.${S.shop.id}&check_in=gte.${sevenDaysAgo().slice(0,10)}&select=total,check_in`),
     apiGet(`units?shop_id=eq.${S.shop.id}&active=eq.true&select=id,name`),
     apiGet(`house_supplies?shop_id=eq.${S.shop.id}&select=id,name,quantity,low_stock_at,unit_id,emoji`),
   ]);
@@ -1834,13 +1834,25 @@ async function saveBooking(forceOverride) {
   if (_editBookingId) {
     const editId = _editBookingId;
     _editBookingId = null;
-    await apiPatch('bookings', `id=eq.${editId}`, bookingPayload);
+    const patchRes = await apiPatch('bookings', `id=eq.${editId}`, bookingPayload);
+    if (patchRes?.error) { showToast('Failed to update booking: ' + (patchRes.error.message || 'Unknown error'), true); return; }
   } else {
-    await fetch(`${SUPABASE_URL}/rest/v1/bookings`, {
-      method: 'POST',
-      headers: { ...apiHeaders(), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-      body: JSON.stringify({ ...bookingPayload, shop_id: S.shop.id, recorded_by: S.user.id }),
-    });
+    let postRes;
+    try {
+      postRes = await fetch(`${SUPABASE_URL}/rest/v1/bookings`, {
+        method: 'POST',
+        headers: { ...apiHeaders(), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ ...bookingPayload, shop_id: S.shop.id, recorded_by: S.user.id }),
+      });
+    } catch(e) {
+      showToast('Network error — check connection', true); return;
+    }
+    if (!postRes.ok) {
+      let errMsg = 'Save failed';
+      try { const j = await postRes.json(); errMsg = j.message || j.details || errMsg; } catch(_) {}
+      showToast('Booking not saved: ' + errMsg, true);
+      return;
+    }
   }
 
   // ── Loyalty: award points for booking ──
@@ -4368,7 +4380,7 @@ function build7Days(sales) {
   for (let i=6; i>=0; i--) {
     const d = new Date(now); d.setDate(d.getDate()-i); d.setHours(0,0,0,0);
     const end = new Date(d); end.setDate(end.getDate()+1);
-    const rev = sales.filter(s=>{const t=new Date(s.recorded_at);return t>=d&&t<end;}).reduce((a,s)=>a+s.total,0);
+    const rev = sales.filter(s=>{const t=new Date(s.check_in||s.recorded_at);return t>=d&&t<end;}).reduce((a,s)=>a+s.total,0);
     out.push({lbl:i===0?'Today':dayName(d), rev, tod:i===0});
   }
   return out;
@@ -5151,13 +5163,17 @@ async function showBusinessHealth(period) {
 
   // ── AIRBNB mode: per-unit breakdown ──
   if (S.isAirbnb) {
-    const [bookings, expenses, units] = await Promise.all([
+    const sinceComm = fromDate ? `&commission_date=gte.${fromDate}` : '';
+    const [bookings, commissions, expenses, units] = await Promise.all([
       apiGet(`bookings?shop_id=eq.${S.shop.id}&select=unit_id,unit_name,total,nights,payment_method${sinceB}`),
+      apiGet(`commissions?shop_id=eq.${S.shop.id}&select=amount${sinceComm}`),
       apiGet(`expenses?shop_id=eq.${S.shop.id}&select=amount,unit_id${since3}`),
       apiGet(`units?shop_id=eq.${S.shop.id}&active=eq.true&order=name`),
     ]);
 
-    const totalRev  = (bookings||[]).reduce((a,x)=>a+(x.total||0),0);
+    const totalBkRev  = (bookings||[]).reduce((a,x)=>a+(x.total||0),0);
+    const totalCommRev = (commissions||[]).reduce((a,x)=>a+(x.amount||0),0);
+    const totalRev  = totalBkRev + totalCommRev;
     const totalExp  = (expenses||[]).reduce((a,x)=>a+(x.amount||0),0);
     const totalNights = (bookings||[]).reduce((a,x)=>a+(x.nights||0),0);
     const profit    = totalRev - totalExp;
@@ -5214,18 +5230,26 @@ async function showBusinessHealth(period) {
       <div style="display:flex;gap:6px;margin-bottom:20px">${tabs}</div>
       <div style="text-align:center;margin-bottom:12px;font-size:13px;color:var(--txt2);font-weight:600">${pLabel}</div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">
         <div style="background:var(--surf2);border-radius:14px;padding:14px;text-align:center">
-          <div style="font-size:11px;font-weight:600;color:var(--txt2);letter-spacing:.5px;text-transform:uppercase;margin-bottom:4px">Revenue</div>
+          <div style="font-size:11px;font-weight:600;color:var(--txt2);letter-spacing:.5px;text-transform:uppercase;margin-bottom:4px">Bookings</div>
+          <div style="font-size:18px;font-weight:800;color:var(--grn)">${kes(totalBkRev)}</div>
+          <div style="font-size:11px;color:var(--txt3);margin-top:2px">${totalNights} nights</div>
+        </div>
+        <div style="background:var(--surf2);border-radius:14px;padding:14px;text-align:center">
+          <div style="font-size:11px;font-weight:600;color:var(--txt2);letter-spacing:.5px;text-transform:uppercase;margin-bottom:4px">Commissions</div>
+          <div style="font-size:18px;font-weight:800;color:var(--grn)">${kes(totalCommRev)}</div>
+          <div style="font-size:11px;color:var(--txt3);margin-top:2px">${(commissions||[]).length} deals</div>
+        </div>
+        <div style="background:var(--surf2);border-radius:14px;padding:14px;text-align:center">
+          <div style="font-size:11px;font-weight:600;color:var(--txt2);letter-spacing:.5px;text-transform:uppercase;margin-bottom:4px">Total Revenue</div>
           <div style="font-size:18px;font-weight:800;color:var(--grn)">${kes(totalRev)}</div>
+          <div style="font-size:11px;color:var(--txt3);margin-top:2px">bookings + comms</div>
         </div>
         <div style="background:var(--surf2);border-radius:14px;padding:14px;text-align:center">
           <div style="font-size:11px;font-weight:600;color:var(--txt2);letter-spacing:.5px;text-transform:uppercase;margin-bottom:4px">Expenses</div>
           <div style="font-size:18px;font-weight:800;color:var(--red)">${kes(totalExp)}</div>
-        </div>
-        <div style="background:var(--surf2);border-radius:14px;padding:14px;text-align:center">
-          <div style="font-size:11px;font-weight:600;color:var(--txt2);letter-spacing:.5px;text-transform:uppercase;margin-bottom:4px">Nights</div>
-          <div style="font-size:18px;font-weight:800;color:var(--txt)">${totalNights}</div>
+          <div style="font-size:11px;color:var(--txt3);margin-top:2px">${(expenses||[]).length} items</div>
         </div>
       </div>
 
@@ -5236,7 +5260,7 @@ async function showBusinessHealth(period) {
         <div style="font-size:24px;margin-bottom:4px">${pIcon}</div>
         <div style="font-size:11px;font-weight:600;color:var(--txt2);letter-spacing:.5px;text-transform:uppercase;margin-bottom:4px">Net Profit</div>
         <div style="font-size:28px;font-weight:900;color:${pColor}">${kes(profit)}</div>
-        <div style="font-size:11px;color:var(--txt3);margin-top:4px">Revenue − Expenses</div>
+        <div style="font-size:11px;color:var(--txt3);margin-top:4px">Bookings + Commissions − Expenses</div>
       </div>
 
       <button class="btn-g" onclick="popSheet()" style="margin-top:20px">Close</button>`;
