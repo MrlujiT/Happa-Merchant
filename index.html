@@ -2992,29 +2992,54 @@ function showChangeEmail() {
     <div class="sh-hdr"><h2>✉️ Change Email</h2></div>
     <div class="sh-body">
       <div style="font-size:13px;color:var(--txt2);background:var(--surf2);border-radius:10px;padding:12px 14px;margin-bottom:16px;line-height:1.6">
-        Current email: <strong style="color:var(--txt)">${esc(current)}</strong><br>
-        <span style="font-size:12px">We'll send a confirmation link to your new address. Your email won't change until you click it.</span>
+        Current email: <strong style="color:var(--txt)">${esc(current)}</strong>
       </div>
+      <div class="fg-s"><label class="fl">Current Password</label>
+        <input type="password" id="chg-email-pwd" class="fi" placeholder="Confirm it's you" autocomplete="current-password"></div>
       <div class="fg-s"><label class="fl">New Email Address</label>
         <input type="email" id="chg-email-new" class="fi" placeholder="new@example.com" autocomplete="email"></div>
+      <div style="font-size:12px;color:var(--txt3);margin-bottom:14px">We'll send a confirmation link to the new address. Your email won't change until you click it.</div>
       <button class="btn-p" onclick="doChangeEmail()">Send Confirmation Link</button>
       <button class="btn-g" onclick="popSheet()">Cancel</button>
     </div>`);
   document.getElementById('sale-overlay').classList.add('on');
-  document.getElementById('chg-email-new')?.addEventListener('keydown', e=>{ if(e.key==='Enter') doChangeEmail(); });
+  ['chg-email-pwd','chg-email-new'].forEach(id=>{
+    document.getElementById(id)?.addEventListener('keydown', e=>{ if(e.key==='Enter') doChangeEmail(); });
+  });
 }
 
 async function doChangeEmail() {
+  const currentEmail = S.user?.email || '';
+  const pwd      = document.getElementById('chg-email-pwd')?.value;
   const newEmail = document.getElementById('chg-email-new')?.value.trim();
+  if (!pwd)      { showToast('Enter your current password', true); return; }
   if (!newEmail) { showToast('Enter a new email address', true); return; }
-  if (newEmail === S.user?.email) { showToast('That\'s already your email', true); return; }
-  const btn = document.querySelector('#sale-sheet .btn-p');
-  if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+  if (newEmail === currentEmail) { showToast("That's already your email", true); return; }
 
-  const { error } = await db.auth.updateUser({ email: newEmail });
+  const btn = document.querySelector('#sale-sheet .btn-p');
+  if (btn) { btn.disabled = true; btn.textContent = 'Verifying…'; }
+
+  // Step 1: verify current password by signing in
+  const { error: signInErr } = await db.auth.signInWithPassword({ email: currentEmail, password: pwd });
+  if (signInErr) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Send Confirmation Link'; }
+    showToast('Incorrect password', true); return;
+  }
+
+  if (btn) btn.textContent = 'Sending…';
+
+  // Step 2: raw fetch — db.auth.updateUser() hangs on supabase-js@2.50.0
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+    method: 'PUT',
+    headers: { ...apiHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: newEmail }),
+  });
 
   if (btn) { btn.disabled = false; btn.textContent = 'Send Confirmation Link'; }
-  if (error) { showToast('Error: ' + error.message, true); return; }
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    showToast('Error: ' + (e.message || 'Could not update email'), true); return;
+  }
 
   popSheet();
   pushSheet(`
@@ -3024,7 +3049,7 @@ async function doChangeEmail() {
       <div style="font-size:17px;font-weight:700;color:var(--txt);margin-bottom:8px">Check your new email</div>
       <p style="font-size:13px;color:var(--txt2);line-height:1.6;margin-bottom:20px">
         A confirmation link was sent to <strong>${esc(newEmail)}</strong>.<br>
-        Tap it to confirm your new email address. Until then your current email still works.
+        Tap it to confirm. Until then your current email still works.
       </p>
       <button class="btn-g" onclick="popSheet()">Got it</button>
     </div>`);
