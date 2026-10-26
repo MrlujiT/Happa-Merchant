@@ -192,6 +192,13 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 @keyframes spin{to{transform:rotate(360deg)}}
 .loader-msg{font-size:13px;color:var(--txt2)}
 
+/* ── HOUSEKEEPER TILES ── */
+.hk-tile{background:var(--surf2);border:1px solid var(--bdr);border-radius:16px;padding:18px 14px;text-align:left;cursor:pointer;transition:background .15s;width:100%}
+.hk-tile:hover{background:var(--surf)}
+.hk-tile-ico{font-size:28px;margin-bottom:8px}
+.hk-tile-nm{font-size:15px;font-weight:700;color:var(--txt)}
+.hk-tile-mt{font-size:11px;color:var(--txt2);margin-top:3px}
+
 /* ── MORE / SETTINGS ── */
 .more-item{display:flex;align-items:center;gap:12px;padding:13px 16px;border-bottom:1px solid var(--bdr);cursor:pointer;transition:background .1s}
 .more-item:hover{background:var(--surf2)}
@@ -682,21 +689,37 @@ async function loadUserContext() {
 
   // Update header
   document.getElementById('hdr-shop-name').textContent = S.shop.name;
-  const roleBadge = { owner: '👑 Owner', manager: '🏷️ Manager', cashier: '🧾 Cashier' };
+  const roleBadge = { owner: '👑 Owner', manager: '🏷️ Manager', cashier: '🧾 Cashier', housekeeper: '🧹 Housekeeper', 'co-host': '🤝 Co-host' };
   document.getElementById('hdr-role-badge').textContent = roleBadge[S.member.role] || '🧾 Staff';
 
   // Airbnb mode flag
   S.isAirbnb = S.shop.business_type === 'airbnb';
+  const role = S.member.role;
+  const isHousekeeper = S.isAirbnb && role === 'housekeeper';
+  const isCoHost = S.isAirbnb && role === 'co-host';
+  const isOwnerOrManager = role === 'owner' || role === 'manager';
 
-  // Nav: swapped for airbnb, limited for cashier
-  if (S.isAirbnb) {
+  // Nav: swapped for airbnb, limited for cashier/housekeeper
+  if (isHousekeeper) {
+    document.getElementById('bottom-nav').innerHTML = `
+      <button class="ni on" data-tab="home"><span class="ni-ico">🏠</span><span class="ni-lbl">Home</span></button>
+      <button class="ni" data-tab="supplies"><span class="ni-ico">🧻</span><span class="ni-lbl">Supplies</span></button>
+      <button class="ni" data-tab="more"><span class="ni-ico">☰</span><span class="ni-lbl">More</span></button>`;
+  } else if (isCoHost) {
     document.getElementById('bottom-nav').innerHTML = `
       <button class="ni on" data-tab="home"><span class="ni-ico">🏠</span><span class="ni-lbl">Home</span></button>
       <button class="ni" data-tab="bookings"><span class="ni-ico">📅</span><span class="ni-lbl">Bookings</span></button>
       <button class="ni" data-tab="units"><span class="ni-ico">🛏️</span><span class="ni-lbl">Units</span></button>
       <button class="ni" data-tab="supplies"><span class="ni-ico">🧻</span><span class="ni-lbl">Supplies</span></button>
       <button class="ni" data-tab="more"><span class="ni-ico">☰</span><span class="ni-lbl">More</span></button>`;
-  } else if (S.member.role === 'cashier') {
+  } else if (S.isAirbnb) {
+    document.getElementById('bottom-nav').innerHTML = `
+      <button class="ni on" data-tab="home"><span class="ni-ico">🏠</span><span class="ni-lbl">Home</span></button>
+      <button class="ni" data-tab="bookings"><span class="ni-ico">📅</span><span class="ni-lbl">Bookings</span></button>
+      <button class="ni" data-tab="units"><span class="ni-ico">🛏️</span><span class="ni-lbl">Units</span></button>
+      <button class="ni" data-tab="supplies"><span class="ni-ico">🧻</span><span class="ni-lbl">Supplies</span></button>
+      <button class="ni" data-tab="more"><span class="ni-ico">☰</span><span class="ni-lbl">More</span></button>`;
+  } else if (role === 'cashier') {
     document.getElementById('bottom-nav').innerHTML = `
       <button class="ni on" data-tab="home"><span class="ni-ico">🏠</span><span class="ni-lbl">Home</span></button>
       <button class="ni" data-tab="sales"><span class="ni-ico">💰</span><span class="ni-lbl">Sales</span></button>`;
@@ -739,6 +762,302 @@ async function loadUnits() {
 
 async function loadHosts() {
   S.hosts = await apiGet(`hosts?shop_id=eq.${S.shop.id}&order=name`) || [];
+}
+
+/* ═══════════════════════════════
+   HOUSEKEEPER HOME TAB
+═══════════════════════════════ */
+async function renderHousekeeperHome(el) {
+  // Load today's active job for this staff member
+  const today = todayStart();
+  const [activeJobs, recentAlerts] = await Promise.all([
+    apiGet(`housekeeper_jobs?shop_id=eq.${S.shop.id}&staff_id=eq.${S.user.id}&status=eq.in_progress&order=clocked_in_at.desc&limit=1`),
+    apiGet(`housekeeper_alerts?shop_id=eq.${S.shop.id}&resolved=eq.false&order=created_at.desc&limit=3`),
+  ]);
+  const activeJob = activeJobs?.[0] || null;
+  const unitName = activeJob ? esc(activeJob.unit_name || 'Unit') : '';
+  const clockedIn = activeJob ? new Date(activeJob.clocked_in_at) : null;
+  const elapsed = clockedIn ? Math.floor((Date.now() - clockedIn) / 60000) : 0;
+
+  el.innerHTML = `
+    <div style="padding:16px">
+      <div style="font-size:22px;font-weight:700;margin-bottom:4px">Good ${greeting()}, ${esc(S.member.name?.split(' ')[0] || 'Housekeeper')}! 🧹</div>
+      <div style="font-size:13px;color:var(--txt2);margin-bottom:20px">${new Date().toLocaleDateString('en-KE',{weekday:'long',day:'numeric',month:'long'})}</div>
+
+      ${activeJob ? `
+      <div style="background:linear-gradient(135deg,#1a3a1a,#1e4d1e);border:1px solid #2d6b2d;border-radius:16px;padding:16px;margin-bottom:20px">
+        <div style="font-size:11px;letter-spacing:.05em;color:#6fcf6f;margin-bottom:6px;font-weight:600">ACTIVE JOB</div>
+        <div style="font-size:17px;font-weight:700;color:#fff;margin-bottom:2px">🛏️ ${unitName}</div>
+        <div style="font-size:13px;color:#a8d8a8">Clocked in ${elapsed}m ago · ${clockedIn.toLocaleTimeString('en-KE',{hour:'2-digit',minute:'2-digit'})}</div>
+        <button class="btn-p" style="margin-top:12px;width:100%" onclick="showJobSheet('${activeJob.id}')">Continue Job →</button>
+      </div>` : ''}
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
+        <button class="hk-tile" onclick="showLogJobSheet()">
+          <div class="hk-tile-ico">🧹</div>
+          <div class="hk-tile-nm">Log a Job</div>
+          <div class="hk-tile-mt">Clock in & checklist</div>
+        </button>
+        <button class="hk-tile" onclick="showTab('supplies')">
+          <div class="hk-tile-ico">🧻</div>
+          <div class="hk-tile-nm">Supplies</div>
+          <div class="hk-tile-mt">View & request stock</div>
+        </button>
+        <button class="hk-tile" onclick="showUtilitySheet()">
+          <div class="hk-tile-ico">⚡</div>
+          <div class="hk-tile-nm">Utilities</div>
+          <div class="hk-tile-mt">Water & electricity</div>
+        </button>
+        <button class="hk-tile" onclick="showAlertSheet()">
+          <div class="hk-tile-ico">🚨</div>
+          <div class="hk-tile-nm">Report Alert</div>
+          <div class="hk-tile-mt">${(recentAlerts||[]).filter(a=>!a.resolved).length || 0} open alert${(recentAlerts||[]).filter(a=>!a.resolved).length !== 1 ? 's' : ''}</div>
+        </button>
+      </div>
+
+      ${(recentAlerts||[]).length ? `
+      <div style="margin-bottom:16px">
+        <div style="font-size:12px;font-weight:700;color:var(--txt2);letter-spacing:.05em;margin-bottom:10px">OPEN ALERTS</div>
+        ${recentAlerts.map(a => `
+          <div style="background:var(--surf2);border:1px solid var(--bdr);border-left:3px solid #e05;border-radius:10px;padding:12px;margin-bottom:8px">
+            <div style="font-weight:600;font-size:14px">${esc(a.unit_name||'Property')}</div>
+            <div style="font-size:13px;color:var(--txt2);margin-top:2px">${esc(a.description)}</div>
+          </div>`).join('')}
+      </div>` : ''}
+    </div>`;
+}
+
+function greeting() {
+  const h = new Date().getHours();
+  return h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
+}
+
+/* ═══════════════════════════════
+   LOG JOB SHEET (Housekeeper)
+═══════════════════════════════ */
+function showLogJobSheet() {
+  const unitOpts = (S.units||[]).map(u => `<option value="${u.id}" data-name="${esc(u.name)}">${esc(u.name)}</option>`).join('');
+  pushSheet(`
+    <div class="sh-hand"></div>
+    <div class="sh-hdr"><h2>Log a Cleaning Job</h2></div>
+    <div class="sh-body">
+      <div class="fg-s"><label class="fl">Unit / Room *</label>
+        <select id="job-unit" class="fi" style="appearance:auto">
+          <option value="">— select unit —</option>
+          ${unitOpts}
+        </select>
+      </div>
+      <div class="fg-s"><label class="fl">Notes (optional)</label>
+        <input type="text" id="job-notes" class="fi" placeholder="e.g. guest checkout, deep clean…">
+      </div>
+      <button class="btn-p" style="width:100%" onclick="startHousekeeperJob()">🧹 Clock In & Start</button>
+      <button class="btn-g" style="width:100%;margin-top:8px" onclick="popSheet()">Cancel</button>
+    </div>`);
+  document.getElementById('sale-overlay').classList.add('on');
+}
+
+async function startHousekeeperJob() {
+  const sel = document.getElementById('job-unit');
+  const unitId = sel?.value;
+  const unitName = sel?.options[sel.selectedIndex]?.dataset?.name || '';
+  const notes = document.getElementById('job-notes')?.value?.trim() || '';
+  if (!unitId) { showToast('Pick a unit first', true); return; }
+
+  const btn = document.querySelector('#sale-sheet .btn-p');
+  if (btn) { btn.disabled = true; btn.textContent = 'Starting…'; }
+
+  const { data: job, error } = await apiPost('housekeeper_jobs', {
+    shop_id: S.shop.id,
+    unit_id: unitId,
+    unit_name: unitName,
+    staff_id: S.user.id,
+    staff_name: S.member.name || '',
+    notes,
+    status: 'in_progress',
+    clocked_in_at: new Date().toISOString(),
+  });
+  if (error) { showToast('Error: ' + (error.message||'try again'), true); if (btn) { btn.disabled=false; btn.textContent='🧹 Clock In & Start'; } return; }
+  closeSaleSheet();
+  showToast('✓ Clocked in! Job started.');
+  if (job?.id) showJobSheet(job.id);
+  else showTab('home');
+}
+
+async function showJobSheet(jobId) {
+  pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>Active Job</h2></div><div class="sh-body"><div style="text-align:center;padding:24px;color:var(--txt2)">Loading…</div></div>`);
+  document.getElementById('sale-overlay').classList.add('on');
+
+  const [jobs, checklists] = await Promise.all([
+    apiGet(`housekeeper_jobs?id=eq.${jobId}&limit=1`),
+    apiGet(`unit_checklists?shop_id=eq.${S.shop.id}`),
+  ]);
+  const job = jobs?.[0];
+  if (!job) { closeSaleSheet(); showToast('Job not found', true); return; }
+
+  const unitChecklist = checklists?.find(c => c.unit_id === job.unit_id);
+  const items = unitChecklist?.items || [];
+  const completed = job.checklist_completed || {};
+  const elapsed = Math.floor((Date.now() - new Date(job.clocked_in_at)) / 60000);
+
+  const el = document.querySelector('#sale-sheet .sh-body');
+  if (!el) return;
+  el.innerHTML = `
+    <div style="background:var(--surf2);border-radius:12px;padding:14px;margin-bottom:16px">
+      <div style="font-weight:700;font-size:16px">🛏️ ${esc(job.unit_name||'Unit')}</div>
+      <div style="font-size:13px;color:var(--txt2);margin-top:4px">Clocked in ${elapsed}m ago · ${new Date(job.clocked_in_at).toLocaleTimeString('en-KE',{hour:'2-digit',minute:'2-digit'})}</div>
+    </div>
+    ${items.length ? `
+    <div style="margin-bottom:16px">
+      <div style="font-size:12px;font-weight:700;color:var(--txt2);letter-spacing:.05em;margin-bottom:10px">CHECKLIST</div>
+      ${items.map((item,i) => `
+        <label style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--bdr);cursor:pointer">
+          <input type="checkbox" id="chk-${i}" style="width:18px;height:18px;accent-color:var(--acc)" ${completed[i]?'checked':''} onchange="toggleJobCheck('${jobId}',${i},this.checked)">
+          <span style="font-size:14px;${completed[i]?'text-decoration:line-through;color:var(--txt2)':''}">${esc(item)}</span>
+        </label>`).join('')}
+    </div>` : `<div style="color:var(--txt2);font-size:13px;margin-bottom:16px">No checklist set up for this unit yet. Owner can add one in unit settings.</div>`}
+    <div class="fg-s"><label class="fl">Additional Notes</label>
+      <input type="text" id="job-final-notes" class="fi" value="${esc(job.notes||'')}" placeholder="Any remarks…">
+    </div>
+    <button class="btn-p" style="width:100%" onclick="clockOutJob('${jobId}')">✅ Clock Out & Complete</button>
+    <button class="btn-g" style="width:100%;margin-top:8px" onclick="popSheet()">Back</button>`;
+}
+
+async function toggleJobCheck(jobId, idx, checked) {
+  const jobs = await apiGet(`housekeeper_jobs?id=eq.${jobId}&limit=1`);
+  const job = jobs?.[0];
+  if (!job) return;
+  const completed = { ...(job.checklist_completed || {}) };
+  completed[idx] = checked;
+  await apiPatch('housekeeper_jobs', `id=eq.${jobId}`, { checklist_completed: completed });
+}
+
+async function clockOutJob(jobId) {
+  const notes = document.getElementById('job-final-notes')?.value?.trim() || '';
+  const btn = document.querySelector('#sale-sheet .btn-p');
+  if (btn) { btn.disabled=true; btn.textContent='Completing…'; }
+
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/housekeeper_jobs?id=eq.${jobId}`, {
+    method: 'PATCH',
+    headers: { ...apiHeaders(), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+    body: JSON.stringify({ status: 'completed', clocked_out_at: new Date().toISOString(), notes }),
+  });
+  if (!r.ok) { showToast('Error saving — try again', true); if (btn) { btn.disabled=false; btn.textContent='✅ Clock Out & Complete'; } return; }
+  closeSaleSheet();
+  showToast('✓ Job completed! Great work.');
+  showTab('home');
+}
+
+/* ═══════════════════════════════
+   UTILITY READINGS SHEET
+═══════════════════════════════ */
+function showUtilitySheet() {
+  const unitOpts = (S.units||[]).map(u => `<option value="${u.id}" data-name="${esc(u.name)}">${esc(u.name)}</option>`).join('');
+  pushSheet(`
+    <div class="sh-hand"></div>
+    <div class="sh-hdr"><h2>Record Utility Reading</h2></div>
+    <div class="sh-body">
+      <div class="fg-s"><label class="fl">Unit *</label>
+        <select id="util-unit" class="fi" style="appearance:auto">
+          <option value="">— select unit —</option>
+          ${unitOpts}
+        </select>
+      </div>
+      <div class="fg-s"><label class="fl">Type *</label>
+        <select id="util-type" class="fi" style="appearance:auto">
+          <option value="electricity">⚡ Electricity</option>
+          <option value="water">💧 Water</option>
+          <option value="gas">🔥 Gas</option>
+          <option value="other">📋 Other</option>
+        </select>
+      </div>
+      <div class="fg-s"><label class="fl">Reading / Token Number</label>
+        <input type="text" id="util-token" class="fi" placeholder="e.g. 4521.8 kWh or token 0012…">
+      </div>
+      <div class="fg-s"><label class="fl">Notes (optional)</label>
+        <input type="text" id="util-notes" class="fi" placeholder="Any remarks…">
+      </div>
+      <button class="btn-p" style="width:100%" onclick="saveUtilityReading()">Save Reading ✓</button>
+      <button class="btn-g" style="width:100%;margin-top:8px" onclick="popSheet()">Cancel</button>
+    </div>`);
+  document.getElementById('sale-overlay').classList.add('on');
+}
+
+async function saveUtilityReading() {
+  const sel = document.getElementById('util-unit');
+  const unitId = sel?.value;
+  const unitName = sel?.options[sel.selectedIndex]?.dataset?.name || '';
+  const type = document.getElementById('util-type')?.value;
+  const token = document.getElementById('util-token')?.value?.trim();
+  const notes = document.getElementById('util-notes')?.value?.trim();
+  if (!unitId) { showToast('Pick a unit', true); return; }
+
+  const btn = document.querySelector('#sale-sheet .btn-p');
+  if (btn) { btn.disabled=true; btn.textContent='Saving…'; }
+
+  const { error } = await apiPost('utility_readings', {
+    shop_id: S.shop.id, unit_id: unitId, unit_name: unitName,
+    type, token_number: token||null, notes: notes||null,
+    recorded_by: S.user.id, recorded_by_name: S.member.name||'',
+    recorded_at: new Date().toISOString(),
+  });
+  if (error) { showToast('Error: '+(error.message||'try again'), true); if (btn) { btn.disabled=false; btn.textContent='Save Reading ✓'; } return; }
+  closeSaleSheet();
+  showToast('✓ Utility reading saved');
+}
+
+/* ═══════════════════════════════
+   ALERT SHEET (Housekeeper)
+═══════════════════════════════ */
+function showAlertSheet() {
+  const unitOpts = (S.units||[]).map(u => `<option value="${u.id}" data-name="${esc(u.name)}">${esc(u.name)}</option>`).join('');
+  pushSheet(`
+    <div class="sh-hand"></div>
+    <div class="sh-hdr"><h2>Report an Alert</h2></div>
+    <div class="sh-body">
+      <div class="fg-s"><label class="fl">Unit *</label>
+        <select id="alert-unit" class="fi" style="appearance:auto">
+          <option value="">— select unit —</option>
+          ${unitOpts}
+        </select>
+      </div>
+      <div class="fg-s"><label class="fl">Alert Type</label>
+        <select id="alert-type" class="fi" style="appearance:auto">
+          <option value="missing_item">🔍 Missing Item</option>
+          <option value="damage">🔨 Damage</option>
+          <option value="maintenance">🔧 Maintenance Needed</option>
+          <option value="cleanliness">🧹 Cleanliness Issue</option>
+          <option value="general">📋 General</option>
+        </select>
+      </div>
+      <div class="fg-s"><label class="fl">Description *</label>
+        <textarea id="alert-desc" class="fi" rows="3" placeholder="Describe the issue clearly…" style="resize:none"></textarea>
+      </div>
+      <button class="btn-p" style="width:100%" onclick="saveAlert()">🚨 Submit Alert</button>
+      <button class="btn-g" style="width:100%;margin-top:8px" onclick="popSheet()">Cancel</button>
+    </div>`);
+  document.getElementById('sale-overlay').classList.add('on');
+}
+
+async function saveAlert() {
+  const sel = document.getElementById('alert-unit');
+  const unitId = sel?.value;
+  const unitName = sel?.options[sel.selectedIndex]?.dataset?.name || '';
+  const alertType = document.getElementById('alert-type')?.value;
+  const description = document.getElementById('alert-desc')?.value?.trim();
+  if (!unitId) { showToast('Pick a unit', true); return; }
+  if (!description) { showToast('Describe the issue', true); return; }
+
+  const btn = document.querySelector('#sale-sheet .btn-p');
+  if (btn) { btn.disabled=true; btn.textContent='Submitting…'; }
+
+  const { error } = await apiPost('housekeeper_alerts', {
+    shop_id: S.shop.id, unit_id: unitId, unit_name: unitName,
+    alert_type: alertType, description,
+    recorded_by: S.user.id, recorded_by_name: S.member.name||'',
+  });
+  if (error) { showToast('Error: '+(error.message||'try again'), true); if (btn) { btn.disabled=false; btn.textContent='🚨 Submit Alert'; } return; }
+  closeSaleSheet();
+  showToast('✓ Alert submitted — owner notified');
 }
 
 /* ═══════════════════════════════
@@ -1606,7 +1925,7 @@ function showTab(tab) {
 async function renderTab(tab) {
   const el = document.getElementById('main-content');
   el.innerHTML = '<div class="loader"><div class="spin"></div></div>';
-  if (tab === 'home')          await (S.isAirbnb ? renderAirbnbHome(el) : renderHome(el));
+  if (tab === 'home')          await (S.isAirbnb && S.member.role === 'housekeeper' ? renderHousekeeperHome(el) : S.isAirbnb ? renderAirbnbHome(el) : renderHome(el));
   else if (tab === 'sales')    await renderSales(el);
   else if (tab === 'stock')    await renderStock(el);
   else if (tab === 'debts')    await renderDebts(el);
@@ -1910,10 +2229,210 @@ async function saveLoyaltySettings() {
   showTab('more');
 }
 
+/* ═══════════════════════════════
+   HOUSEKEEPER JOBS HISTORY (Owner)
+═══════════════════════════════ */
+async function showHousekeeperJobsHistory() {
+  pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>Cleaning Jobs</h2></div><div class="sh-body"><div style="text-align:center;padding:24px;color:var(--txt2)">Loading…</div></div>`);
+  document.getElementById('sale-overlay').classList.add('on');
+  const jobs = await apiGet(`housekeeper_jobs?shop_id=eq.${S.shop.id}&order=clocked_in_at.desc&limit=50`);
+  const el = document.querySelector('#sale-sheet .sh-body');
+  if (!el) return;
+  if (!jobs?.length) { el.innerHTML = `<div style="text-align:center;padding:32px;color:var(--txt2)">No jobs recorded yet.</div><button class="btn-g" style="width:100%;margin-top:8px" onclick="popSheet()">Close</button>`; return; }
+  el.innerHTML = jobs.map(j => {
+    const dur = j.clocked_out_at ? Math.round((new Date(j.clocked_out_at)-new Date(j.clocked_in_at))/60000) : null;
+    const items = Object.values(j.checklist_completed||{}).filter(Boolean).length;
+    const total = Object.keys(j.checklist_completed||{}).length;
+    return `<div style="border:1px solid var(--bdr);border-radius:12px;padding:12px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:start">
+        <div>
+          <div style="font-weight:600">🛏️ ${esc(j.unit_name||'Unit')}</div>
+          <div style="font-size:12px;color:var(--txt2);margin-top:2px">${esc(j.staff_name||'Staff')} · ${new Date(j.clocked_in_at).toLocaleDateString('en-KE',{day:'numeric',month:'short'})}</div>
+        </div>
+        <span style="font-size:11px;padding:3px 8px;border-radius:20px;background:${j.status==='completed'?'#16a34a22':'#f59e0b22'};color:${j.status==='completed'?'#4ade80':'#fcd34d'}">${j.status==='completed'?'✓ Done':'In progress'}</span>
+      </div>
+      ${dur ? `<div style="font-size:12px;color:var(--txt2);margin-top:6px">⏱️ ${dur}m · ${items}/${total} checklist items</div>` : ''}
+      ${j.notes ? `<div style="font-size:12px;color:var(--txt2);margin-top:4px">📝 ${esc(j.notes)}</div>` : ''}
+    </div>`;
+  }).join('') + `<button class="btn-g" style="width:100%;margin-top:8px" onclick="popSheet()">Close</button>`;
+}
+
+async function showMyJobsHistory() {
+  pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>My Job History</h2></div><div class="sh-body"><div style="text-align:center;padding:24px;color:var(--txt2)">Loading…</div></div>`);
+  document.getElementById('sale-overlay').classList.add('on');
+  const jobs = await apiGet(`housekeeper_jobs?shop_id=eq.${S.shop.id}&staff_id=eq.${S.user.id}&order=clocked_in_at.desc&limit=30`);
+  const el = document.querySelector('#sale-sheet .sh-body');
+  if (!el) return;
+  if (!jobs?.length) { el.innerHTML = `<div style="text-align:center;padding:32px;color:var(--txt2)">No jobs yet.</div><button class="btn-g" style="width:100%;margin-top:8px" onclick="popSheet()">Close</button>`; return; }
+  el.innerHTML = jobs.map(j => {
+    const dur = j.clocked_out_at ? Math.round((new Date(j.clocked_out_at)-new Date(j.clocked_in_at))/60000) : null;
+    return `<div style="border:1px solid var(--bdr);border-radius:12px;padding:12px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between">
+        <div style="font-weight:600">🛏️ ${esc(j.unit_name||'Unit')}</div>
+        <span style="font-size:11px;padding:3px 8px;border-radius:20px;background:${j.status==='completed'?'#16a34a22':'#f59e0b22'};color:${j.status==='completed'?'#4ade80':'#fcd34d'}">${j.status==='completed'?'✓ Done':'Active'}</span>
+      </div>
+      <div style="font-size:12px;color:var(--txt2);margin-top:4px">${new Date(j.clocked_in_at).toLocaleDateString('en-KE',{weekday:'short',day:'numeric',month:'short'})} ${new Date(j.clocked_in_at).toLocaleTimeString('en-KE',{hour:'2-digit',minute:'2-digit'})}${dur?` · ${dur}m`:''}</div>
+      ${j.status==='in_progress' ? `<button style="margin-top:8px;background:var(--acc);color:#000;border:none;border-radius:8px;padding:6px 12px;font-size:13px;font-weight:600;cursor:pointer" onclick="showJobSheet('${j.id}')">Continue →</button>` : ''}
+    </div>`;
+  }).join('') + `<button class="btn-g" style="width:100%;margin-top:8px" onclick="popSheet()">Close</button>`;
+}
+
+/* ═══════════════════════════════
+   UNIT CHECKLIST CONFIG (Owner)
+═══════════════════════════════ */
+async function showUnitChecklistConfig() {
+  pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>Unit Checklists</h2></div><div class="sh-body"><div style="text-align:center;padding:24px;color:var(--txt2)">Loading…</div></div>`);
+  document.getElementById('sale-overlay').classList.add('on');
+  const checklists = await apiGet(`unit_checklists?shop_id=eq.${S.shop.id}`);
+  const el = document.querySelector('#sale-sheet .sh-body');
+  if (!el) return;
+  el.innerHTML = `
+    <p style="font-size:13px;color:var(--txt2);margin-bottom:16px">Configure the cleaning checklist for each unit. Housekeepers see this when logging a job.</p>
+    ${(S.units||[]).map(u => {
+      const cl = (checklists||[]).find(c => c.unit_id === u.id);
+      const count = cl?.items?.length || 0;
+      return `<div class="more-item" style="border:1px solid var(--bdr);border-radius:12px;margin-bottom:8px;padding:12px" onclick="editUnitChecklist('${u.id}','${esc(u.name)}')">
+        <div class="more-ico" style="background:var(--surf2)">🛏️</div>
+        <div class="more-inf">
+          <div class="more-nm">${esc(u.name)}</div>
+          <div class="more-mt">${count > 0 ? `${count} checklist item${count!==1?'s':''}` : 'No checklist yet — tap to add'}</div>
+        </div>
+        <span style="color:var(--txt3)">›</span>
+      </div>`;
+    }).join('')}
+    <button class="btn-g" style="width:100%;margin-top:8px" onclick="popSheet()">Done</button>`;
+}
+
+async function editUnitChecklist(unitId, unitName) {
+  const checklists = await apiGet(`unit_checklists?shop_id=eq.${S.shop.id}&unit_id=eq.${unitId}&limit=1`);
+  const existing = checklists?.[0];
+  const items = existing?.items || [];
+  S._editChecklist = { unitId, unitName, items: [...items], existingId: existing?.id || null };
+
+  pushSheet(`
+    <div class="sh-hand"></div>
+    <div class="sh-hdr"><h2>${esc(unitName)} Checklist</h2></div>
+    <div class="sh-body">
+      <p style="font-size:13px;color:var(--txt2);margin-bottom:14px">Add tasks housekeepers should complete for this unit.</p>
+      <div id="cl-items">${renderChecklistItems()}</div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <input type="text" id="cl-new-item" class="fi" placeholder="e.g. Change bed linen" style="flex:1">
+        <button style="background:var(--acc);color:#000;border:none;border-radius:10px;padding:0 14px;font-size:14px;font-weight:700;cursor:pointer" onclick="addChecklistItem()">+</button>
+      </div>
+      <button class="btn-p" style="width:100%;margin-top:14px" onclick="saveUnitChecklist()">Save Checklist ✓</button>
+      <button class="btn-g" style="width:100%;margin-top:8px" onclick="popSheet()">Cancel</button>
+    </div>`);
+  document.getElementById('sale-overlay').classList.add('on');
+}
+
+function renderChecklistItems() {
+  const items = S._editChecklist?.items || [];
+  if (!items.length) return `<div style="color:var(--txt2);font-size:13px;padding:8px 0">No items yet.</div>`;
+  return items.map((item, i) => `
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--bdr)">
+      <span style="flex:1;font-size:14px">${esc(item)}</span>
+      <button onclick="removeChecklistItem(${i})" style="background:none;border:none;color:var(--txt2);font-size:18px;cursor:pointer;padding:0 4px">×</button>
+    </div>`).join('');
+}
+
+function addChecklistItem() {
+  const inp = document.getElementById('cl-new-item');
+  const val = inp?.value?.trim();
+  if (!val) return;
+  S._editChecklist.items.push(val);
+  document.getElementById('cl-items').innerHTML = renderChecklistItems();
+  inp.value = '';
+  inp.focus();
+}
+
+function removeChecklistItem(idx) {
+  S._editChecklist.items.splice(idx, 1);
+  document.getElementById('cl-items').innerHTML = renderChecklistItems();
+}
+
+async function saveUnitChecklist() {
+  const { unitId, unitName, items, existingId } = S._editChecklist || {};
+  const btn = document.querySelector('#sale-sheet .btn-p');
+  if (btn) { btn.disabled=true; btn.textContent='Saving…'; }
+
+  let error;
+  if (existingId) {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/unit_checklists?id=eq.${existingId}`, {
+      method: 'PATCH', headers: { ...apiHeaders(), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ items, updated_at: new Date().toISOString() }),
+    });
+    if (!r.ok) error = true;
+  } else {
+    const res = await apiPost('unit_checklists', { shop_id: S.shop.id, unit_id: unitId, unit_name: unitName, items });
+    error = res?.error;
+  }
+  if (error) { showToast('Error saving — try again', true); if (btn) { btn.disabled=false; btn.textContent='Save Checklist ✓'; } return; }
+  closeSaleSheet();
+  showToast(`✓ Checklist for ${unitName} saved`);
+  showUnitChecklistConfig();
+}
+
+/* ═══════════════════════════════
+   ALERTS MANAGER (Owner)
+═══════════════════════════════ */
+async function showAlertsManager() {
+  pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>Housekeeper Alerts</h2></div><div class="sh-body"><div style="text-align:center;padding:24px;color:var(--txt2)">Loading…</div></div>`);
+  document.getElementById('sale-overlay').classList.add('on');
+  const alerts = await apiGet(`housekeeper_alerts?shop_id=eq.${S.shop.id}&order=created_at.desc&limit=50`);
+  const el = document.querySelector('#sale-sheet .sh-body');
+  if (!el) return;
+  if (!alerts?.length) { el.innerHTML = `<div style="text-align:center;padding:32px;color:var(--txt2)">No alerts yet.</div><button class="btn-g" style="width:100%;margin-top:8px" onclick="popSheet()">Close</button>`; return; }
+  const alertIcons = { missing_item:'🔍', damage:'🔨', maintenance:'🔧', cleanliness:'🧹', general:'📋' };
+  el.innerHTML = alerts.map(a => `
+    <div style="border:1px solid var(--bdr);border-left:3px solid ${a.resolved?'var(--bdr)':'#e05'};border-radius:10px;padding:12px;margin-bottom:10px;opacity:${a.resolved?.7:1}">
+      <div style="display:flex;justify-content:space-between;align-items:start;gap:8px">
+        <div style="flex:1">
+          <div style="font-weight:600;font-size:14px">${alertIcons[a.alert_type]||'📋'} ${esc(a.unit_name||'Property')}</div>
+          <div style="font-size:13px;margin-top:3px">${esc(a.description)}</div>
+          <div style="font-size:11px;color:var(--txt2);margin-top:4px">By ${esc(a.recorded_by_name||'Staff')} · ${new Date(a.created_at).toLocaleDateString('en-KE',{day:'numeric',month:'short'})}</div>
+        </div>
+        ${!a.resolved ? `<button onclick="resolveAlert('${a.id}')" style="background:#16a34a;color:#fff;border:none;border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer;flex-shrink:0">✓ Resolve</button>` : `<span style="font-size:11px;color:var(--txt2)">Resolved</span>`}
+      </div>
+    </div>`).join('') + `<button class="btn-g" style="width:100%;margin-top:8px" onclick="popSheet()">Close</button>`;
+}
+
+async function resolveAlert(alertId) {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/housekeeper_alerts?id=eq.${alertId}`, {
+    method: 'PATCH',
+    headers: { ...apiHeaders(), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+    body: JSON.stringify({ resolved: true, resolved_at: new Date().toISOString(), resolved_by: S.user?.id }),
+  });
+  if (r.ok) { showToast('✓ Alert resolved'); showAlertsManager(); }
+  else showToast('Error — try again', true);
+}
+
+/* ═══════════════════════════════
+   UTILITY HISTORY (Owner)
+═══════════════════════════════ */
+async function showUtilityHistory() {
+  pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>Utility Readings</h2></div><div class="sh-body"><div style="text-align:center;padding:24px;color:var(--txt2)">Loading…</div></div>`);
+  document.getElementById('sale-overlay').classList.add('on');
+  const readings = await apiGet(`utility_readings?shop_id=eq.${S.shop.id}&order=recorded_at.desc&limit=50`);
+  const el = document.querySelector('#sale-sheet .sh-body');
+  if (!el) return;
+  if (!readings?.length) { el.innerHTML = `<div style="text-align:center;padding:32px;color:var(--txt2)">No readings yet.</div><button class="btn-g" style="width:100%;margin-top:8px" onclick="popSheet()">Close</button>`; return; }
+  const typeIcons = { electricity:'⚡', water:'💧', gas:'🔥', other:'📋' };
+  el.innerHTML = readings.map(r => `
+    <div style="border:1px solid var(--bdr);border-radius:10px;padding:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-weight:600;font-size:14px">${typeIcons[r.type]||'📋'} ${esc(r.unit_name||'Unit')} · <span style="text-transform:capitalize">${r.type}</span></div>
+        ${r.token_number ? `<div style="font-size:13px;color:var(--txt2);margin-top:2px">Token: ${esc(r.token_number)}</div>` : ''}
+        <div style="font-size:11px;color:var(--txt2);margin-top:3px">${esc(r.recorded_by_name||'Staff')} · ${new Date(r.recorded_at).toLocaleDateString('en-KE',{day:'numeric',month:'short',year:'numeric'})}</div>
+      </div>
+    </div>`).join('') + `<button class="btn-g" style="width:100%;margin-top:8px" onclick="popSheet()">Close</button>`;
+}
+
 function renderMore(el) {
-  const isOwner   = S.member.role === 'owner';
-  const isManager = S.member.role === 'manager';
-  const canManage = isOwner || isManager;
+  const isOwner      = S.member.role === 'owner';
+  const isManager    = S.member.role === 'manager';
+  const isCoHost     = S.member.role === 'co-host';
+  const isHousekeeper = S.member.role === 'housekeeper';
+  const canManage    = isOwner || isManager || (S.isAirbnb && isCoHost);
   el.innerHTML = `
     <div style="padding:14px max(16px,env(safe-area-inset-right,0px)) 0">
       <div style="background:var(--surf);border:1px solid var(--bdr);border-radius:16px;padding:20px;text-align:center;margin-bottom:14px">
@@ -1944,6 +2463,7 @@ function renderMore(el) {
           <div class="more-ico" style="background:#7c3aed22">👥</div>
           <div class="more-inf"><div class="more-nm">Guests</div><div class="more-mt">All guests from booking history</div></div>
           <span style="color:var(--txt3)">›</span></div>
+        ${(isOwner||isManager) ? `
         <div class="more-item" onclick="showAirbnbTopGuests()">
           <div class="more-ico" style="background:#d9770622">🏆</div>
           <div class="more-inf"><div class="more-nm">Top Guests</div><div class="more-mt">Your highest-spending guests</div></div>
@@ -1967,7 +2487,7 @@ function renderMore(el) {
         <div class="more-item" onclick="showBusinessHealth()">
           <div class="more-ico" style="background:#16a34a22">💰</div>
           <div class="more-inf"><div class="more-nm">Business Health</div><div class="more-mt">Revenue minus expenses</div></div>
-          <span style="color:var(--txt3)">›</span></div>`:`
+          <span style="color:var(--txt3)">›</span></div>` : ''}`:`
         <div class="more-item" onclick="showAddProductSheet()">
           <div class="more-ico" style="background:var(--acc-d)">📦</div>
           <div class="more-inf"><div class="more-nm">Add Product</div><div class="more-mt">Add a new item to your inventory</div></div>
@@ -2009,6 +2529,36 @@ function renderMore(el) {
           <div class="more-inf"><div class="more-nm">Loyalty Points</div><div class="more-mt">${S.loyalty?.enabled?`On · ${S.loyalty.earn_rate} KES = 1 pt`:'Set up earn & redeem rates'}</div></div>
           <span style="color:var(--txt3)">›</span></div>` : ''}
       </div>`:''}
+
+      ${S.isAirbnb && isOwner ? `
+      <div class="sec-ttl" style="margin-bottom:10px;margin-top:14px">Housekeeping</div>
+      <div class="clist">
+        <div class="more-item" onclick="showHousekeeperJobsHistory()">
+          <div class="more-ico" style="background:#06474722">🧹</div>
+          <div class="more-inf"><div class="more-nm">Cleaning Jobs</div><div class="more-mt">View all housekeeper job logs</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showUnitChecklistConfig()">
+          <div class="more-ico" style="background:#1e3a5f22">✅</div>
+          <div class="more-inf"><div class="more-nm">Unit Checklists</div><div class="more-mt">Set up cleaning checklist per unit</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showAlertsManager()">
+          <div class="more-ico" style="background:#7f1d1d22">🚨</div>
+          <div class="more-inf"><div class="more-nm">Alerts</div><div class="more-mt">View & resolve housekeeper alerts</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showUtilityHistory()">
+          <div class="more-ico" style="background:#1a3a1a22">⚡</div>
+          <div class="more-inf"><div class="more-nm">Utility Readings</div><div class="more-mt">Water & electricity history</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+      </div>` : ''}
+
+      ${S.isAirbnb && S.member.role === 'housekeeper' ? `
+      <div class="sec-ttl" style="margin-bottom:10px;margin-top:14px">My Work</div>
+      <div class="clist">
+        <div class="more-item" onclick="showMyJobsHistory()">
+          <div class="more-ico" style="background:#06474722">📋</div>
+          <div class="more-inf"><div class="more-nm">My Job History</div><div class="more-mt">Your completed cleaning jobs</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+      </div>` : ''}
 
       <div class="sec-ttl" style="margin-bottom:10px;margin-top:14px">Team</div>
       <div class="clist">
@@ -2523,8 +3073,14 @@ function showInviteSheet() {
         <input type="email" id="inv-email" class="fi" placeholder="johnk@email.com"></div>
       <div class="fg-s"><label class="fl">Role</label>
         <select id="inv-role" class="fi" style="appearance:auto">
+          ${S.isAirbnb ? `
+          <option value="housekeeper">🧹 Housekeeper — log jobs, utilities &amp; alerts</option>
+          <option value="co-host">🤝 Co-host — bookings &amp; units access</option>
+          <option value="manager">🏷️ Manager — full access except billing</option>
+          ` : `
           <option value="cashier">🧾 Cashier — record sales only</option>
           <option value="manager">🏷️ Manager — full access except billing</option>
+          `}
         </select></div>
       <button class="btn-p" onclick="sendCashierInvite()">➕ Add Staff Member</button>
       <button class="btn-g" onclick="closeSaleSheet()">Cancel</button>
@@ -2625,10 +3181,10 @@ async function showManageStaff() {
     el.innerHTML = `<div style="text-align:center;padding:24px;color:var(--txt2);font-size:14px">No staff yet.<br>Tap Add Staff Member to invite someone.</div>`;
     return;
   }
-  const roleLabel = r => r === 'manager' ? '🏷️ Manager' : '🧾 Cashier';
-  el.innerHTML = `<div class="clist">${members.map(m=>`
+  const roleLabel = r => ({ owner:'👑 Owner', manager:'🏷️ Manager', cashier:'🧾 Cashier', housekeeper:'🧹 Housekeeper', 'co-host':'🤝 Co-host' }[r] || '🧾 Staff');
+  const renderStaffList = (members) => `<div class="clist">${members.map(m=>`
     <div class="more-item" style="padding:12px 14px">
-      <div class="more-ico" style="background:var(--grn-d);font-size:18px">${m.role==='manager'?'🏷️':'🧾'}</div>
+      <div class="more-ico" style="background:var(--surf2);font-size:18px">${{owner:'👑',manager:'🏷️',cashier:'🧾',housekeeper:'🧹','co-host':'🤝'}[m.role]||'🧾'}</div>
       <div class="more-inf" style="flex:1">
         <div class="more-nm">${esc(m.name||'Unnamed')}</div>
         <div class="more-mt">${roleLabel(m.role)} · Joined ${m.joined_at ? new Date(m.joined_at).toLocaleDateString('en-KE',{day:'numeric',month:'short',year:'numeric'}) : 'Pending'}</div>
@@ -2636,6 +3192,7 @@ async function showManageStaff() {
       <button onclick="removeStaff('${m.id}','${esc(m.name||'this staff member')}')"
         style="background:var(--red-d);color:#fff;border:none;border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer">Remove</button>
     </div>`).join('')}</div>`;
+  el.innerHTML = renderStaffList(members);
 }
 
 async function removeStaff(memberId, name) {
@@ -2653,10 +3210,10 @@ async function removeStaff(memberId, name) {
         el.innerHTML = `<div style="text-align:center;padding:24px;color:var(--txt2);font-size:14px">No staff yet.</div>`;
         return;
       }
-      const roleLabel = r => r === 'manager' ? '🏷️ Manager' : '🧾 Cashier';
+      const roleLabel = r => ({ owner:'👑 Owner', manager:'🏷️ Manager', cashier:'🧾 Cashier', housekeeper:'🧹 Housekeeper', 'co-host':'🤝 Co-host' }[r] || '🧾 Staff');
       el.innerHTML = `<div class="clist">${members.map(m=>`
         <div class="more-item" style="padding:12px 14px">
-          <div class="more-ico" style="background:var(--grn-d);font-size:18px">${m.role==='manager'?'🏷️':'🧾'}</div>
+          <div class="more-ico" style="background:var(--surf2);font-size:18px">${{owner:'👑',manager:'🏷️',cashier:'🧾',housekeeper:'🧹','co-host':'🤝'}[m.role]||'🧾'}</div>
           <div class="more-inf" style="flex:1">
             <div class="more-nm">${esc(m.name||'Unnamed')}</div>
             <div class="more-mt">${roleLabel(m.role)} · Joined ${m.joined_at ? new Date(m.joined_at).toLocaleDateString('en-KE',{day:'numeric',month:'short',year:'numeric'}) : 'Pending'}</div>
@@ -2700,7 +3257,7 @@ async function showStaffPerformance() {
 
   const rows = Object.values(byUser).sort((a,b) => b.total - a.total);
   const totalSales = rows.reduce((a,r)=>a+r.total,0);
-  const roleLabel = r => r==='owner'?'👑 Owner': r==='manager'?'🏷️ Manager':'🧾 Cashier';
+  const roleLabel = r => ({ owner:'👑 Owner', manager:'🏷️ Manager', cashier:'🧾 Cashier', housekeeper:'🧹 Housekeeper', 'co-host':'🤝 Co-host' }[r] || '🧾 Staff');
 
   el.innerHTML = rows.map(r => {
     const pct = totalSales > 0 ? Math.round(r.total / totalSales * 100) : 0;
