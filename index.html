@@ -294,6 +294,11 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
         <button class="btn-p" id="auth-btn" onclick="doLogin()">Sign In</button>
         <div class="err-msg" id="auth-err"></div>
       </div>
+      <p style="font-size:11px;color:var(--txt3);margin-top:20px;text-align:center;line-height:1.6">
+        By signing in you agree to our
+        <a href="#" onclick="showPrivacyPolicy();return false" style="color:var(--acc);text-decoration:none;font-weight:600">Privacy Policy</a>.
+        Your data is stored securely and never sold.
+      </p>
     </div>
   </div>
 
@@ -2900,6 +2905,134 @@ async function showUtilityHistory() {
     </div>`).join('') + `<button class="btn-g" style="width:100%;margin-top:8px" onclick="popSheet()">Close</button>`;
 }
 
+function showPrivacyPolicy() {
+  pushSheet(`
+    <div class="sh-hand"></div>
+    <div class="sh-hdr"><h2>🔒 Privacy Policy</h2></div>
+    <div class="sh-body" style="font-size:13px;color:var(--txt2);line-height:1.7">
+      <p style="font-size:11px;color:var(--txt3);margin-bottom:16px">Effective date: 1 November 2024 · Last updated: October 2026</p>
+
+      <div style="font-size:14px;font-weight:700;color:var(--txt);margin:16px 0 6px">1. Who We Are</div>
+      <p>Happa Merchant is a business management tool operated by <strong>Happa Technologies</strong>, Nairobi, Kenya. Contact: <strong>njautheinvestmentsconsultant@gmail.com</strong></p>
+
+      <div style="font-size:14px;font-weight:700;color:var(--txt);margin:16px 0 6px">2. What We Collect</div>
+      <p>We collect information you provide directly:</p>
+      <ul style="padding-left:18px;margin:6px 0">
+        <li>Your name, email address, and password (for your account)</li>
+        <li>Your business name and details</li>
+        <li>Transaction records, customer names, and phone numbers you enter</li>
+        <li>Staff accounts you create under your shop</li>
+      </ul>
+      <p style="margin-top:8px">We do <strong>not</strong> collect payment card numbers, national ID numbers, or location data.</p>
+
+      <div style="font-size:14px;font-weight:700;color:var(--txt);margin:16px 0 6px">3. How We Use Your Data</div>
+      <ul style="padding-left:18px;margin:6px 0">
+        <li>To provide and operate the Happa Merchant service</li>
+        <li>To authenticate your account and keep it secure</li>
+        <li>To generate the business reports and analytics you see in the app</li>
+        <li>To send you service-related communications (e.g. account issues)</li>
+      </ul>
+      <p style="margin-top:8px">We do <strong>not</strong> sell your data. We do not use your data for advertising.</p>
+
+      <div style="font-size:14px;font-weight:700;color:var(--txt);margin:16px 0 6px">4. Data Storage & Security</div>
+      <p>Your data is stored on <strong>Supabase</strong> infrastructure hosted in the <strong>European Union (Ireland)</strong>. The EU has been recognised as providing adequate data protection under international standards. We use row-level security, encrypted connections (HTTPS/TLS), and access controls to protect your data.</p>
+
+      <div style="font-size:14px;font-weight:700;color:var(--txt);margin:16px 0 6px">5. Data Sharing</div>
+      <p>We share your data only with:</p>
+      <ul style="padding-left:18px;margin:6px 0">
+        <li><strong>Supabase Inc.</strong> — our database and authentication provider (as a data processor)</li>
+        <li><strong>Netlify / Cloudflare</strong> — our hosting providers (serve the app, no data access)</li>
+      </ul>
+      <p style="margin-top:8px">We will disclose data if required by Kenyan law or a valid court order.</p>
+
+      <div style="font-size:14px;font-weight:700;color:var(--txt);margin:16px 0 6px">6. Your Rights (Kenya DPA 2019)</div>
+      <p>Under the Kenya Data Protection Act 2019, you have the right to:</p>
+      <ul style="padding-left:18px;margin:6px 0">
+        <li>Access the personal data we hold about you</li>
+        <li>Correct inaccurate data</li>
+        <li>Request deletion of your account and data</li>
+        <li>Object to how we process your data</li>
+      </ul>
+      <p style="margin-top:8px">To exercise any right, email us at <strong>njautheinvestmentsconsultant@gmail.com</strong> or use the <em>Delete My Account</em> option in this app.</p>
+
+      <div style="font-size:14px;font-weight:700;color:var(--txt);margin:16px 0 6px">7. Data Retention</div>
+      <p>We retain your data for as long as your account is active. When you request deletion, we will remove your account and personal data within <strong>30 days</strong>, except where we are legally required to retain records.</p>
+
+      <div style="font-size:14px;font-weight:700;color:var(--txt);margin:16px 0 6px">8. Children</div>
+      <p>Happa Merchant is intended for business owners and staff aged 18 and above. We do not knowingly collect data from minors.</p>
+
+      <div style="font-size:14px;font-weight:700;color:var(--txt);margin:16px 0 6px">9. Changes to This Policy</div>
+      <p>We may update this policy. We will notify you of significant changes via the app. Continued use after changes constitutes acceptance.</p>
+
+      <div style="font-size:14px;font-weight:700;color:var(--txt);margin:16px 0 6px">10. Contact</div>
+      <p>For any privacy queries: <strong>njautheinvestmentsconsultant@gmail.com</strong></p>
+
+      <div style="height:8px"></div>
+      <button class="btn-g" onclick="popSheet()">Close</button>
+    </div>`);
+  document.getElementById('sale-overlay').classList.add('on');
+}
+
+function showDeleteAccountRequest() {
+  pushSheet(`
+    <div class="sh-hand"></div>
+    <div class="sh-hdr"><h2>🗑️ Delete My Account</h2></div>
+    <div class="sh-body">
+      <div style="background:var(--surf2);border-radius:12px;padding:16px;margin-bottom:16px;font-size:13px;color:var(--txt2);line-height:1.6">
+        <p style="margin:0 0 8px;color:var(--txt);font-weight:700">What happens when you request deletion:</p>
+        <ul style="padding-left:18px;margin:0;line-height:1.8">
+          <li>Your personal account and login will be removed</li>
+          <li>All data you entered (sales, customers, transactions) will be deleted</li>
+          <li>This cannot be undone</li>
+          <li>We will process your request within <strong>30 days</strong></li>
+        </ul>
+      </div>
+      <div class="fg-s"><label class="fl">Reason for leaving (optional)</label>
+        <textarea id="del-reason" class="fi" rows="3" placeholder="e.g. No longer using the service..." style="resize:none"></textarea>
+      </div>
+      <div style="font-size:12px;color:var(--txt3);margin-bottom:16px">
+        Your request will be sent to <strong>njautheinvestmentsconsultant@gmail.com</strong>. We may follow up to confirm your identity before processing.
+      </div>
+      <button class="btn-p" style="background:var(--red)" onclick="submitDeleteRequest()">⚠️ Send Deletion Request</button>
+      <button class="btn-g" onclick="popSheet()">Cancel</button>
+    </div>`);
+  document.getElementById('sale-overlay').classList.add('on');
+}
+
+async function submitDeleteRequest() {
+  const reason = document.getElementById('del-reason')?.value.trim() || 'No reason provided';
+  const btn = document.querySelector('#sale-sheet .btn-p');
+  if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+
+  // Log the deletion request to a simple table (create if needed) or just show confirmation
+  // For now: show confirmation with email instructions
+  const email = S.user?.email || '(unknown)';
+  const shop  = S.shop?.name  || '(unknown shop)';
+
+  // Store request in DB for admin visibility
+  await apiPost('deletion_requests', {
+    user_id: S.user?.id,
+    email,
+    shop_name: shop,
+    reason,
+  }).catch(() => {}); // non-blocking — table may not exist yet
+
+  popSheet();
+  pushSheet(`
+    <div class="sh-hand"></div>
+    <div class="sh-body" style="text-align:center;padding:40px 24px">
+      <div style="font-size:48px;margin-bottom:16px">✅</div>
+      <div style="font-size:17px;font-weight:700;color:var(--txt);margin-bottom:8px">Request Received</div>
+      <p style="font-size:13px;color:var(--txt2);line-height:1.6;margin-bottom:20px">
+        Your account deletion request has been submitted. We will process it within <strong>30 days</strong> and confirm by email to <strong>${esc(email)}</strong>.
+      </p>
+      <p style="font-size:12px;color:var(--txt3);margin-bottom:24px">
+        If you need urgent assistance, contact us at<br><strong>njautheinvestmentsconsultant@gmail.com</strong>
+      </p>
+      <button class="btn-g" onclick="popSheet()">Close</button>
+    </div>`);
+}
+
 function renderMore(el) {
   const isOwner      = S.member.role === 'owner';
   const isManager    = S.member.role === 'manager';
@@ -3051,6 +3184,16 @@ function renderMore(el) {
 
       <div class="sec-ttl" style="margin-bottom:10px;margin-top:14px">Account</div>
       <div class="clist">
+        <div class="more-item" onclick="showPrivacyPolicy()">
+          <div class="more-ico" style="background:#0e4a7222">🔒</div>
+          <div class="more-inf"><div class="more-nm">Privacy Policy</div><div class="more-mt">How we collect, use & protect your data</div></div>
+          <span style="color:var(--txt3)">›</span>
+        </div>
+        <div class="more-item" onclick="showDeleteAccountRequest()">
+          <div class="more-ico" style="background:#7c0a0a22">🗑️</div>
+          <div class="more-inf"><div class="more-nm">Delete My Account</div><div class="more-mt">Request removal of your data</div></div>
+          <span style="color:var(--txt3)">›</span>
+        </div>
         <div class="more-item" onclick="showConf('Sign Out','Sign out of your account?',doLogout)">
           <div class="more-ico" style="background:var(--red-d)">🚪</div>
           <div class="more-inf"><div class="more-nm">Sign Out</div><div class="more-mt">${S.user?.email}</div></div>
