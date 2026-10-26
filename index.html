@@ -912,11 +912,12 @@ async function buildCommissionsHtml() {
       const dtStr = dt.toLocaleDateString('en-KE',{day:'numeric',month:'short'}) + ' ' + dt.toLocaleTimeString('en-KE',{hour:'2-digit',minute:'2-digit'});
       const meth = c.payment_method === 'mpesa' ? '📱 M-Pesa' : '💵 Cash';
       const prop = [c.house_number, c.apartment_name, c.size].filter(Boolean).join(' · ');
+      const rateInfo = c.given_rate && c.host_rate ? `Given: ${kes(c.given_rate)} · Paid: ${kes(c.host_rate)} · ` : '';
       h += `<div class="txi">
         <div class="txi-ico">🤝</div>
         <div class="txi-inf">
           <div class="txi-nm">${esc(c.host_name||'Host')}${c.guest_name?' → '+esc(c.guest_name):''}</div>
-          <div class="txi-sub">${prop?esc(prop)+' · ':''}${meth} · ${dtStr}</div>
+          <div class="txi-sub">${prop?esc(prop)+' · ':''}${rateInfo}${meth} · ${dtStr}</div>
         </div>
         <div class="txi-amt">${kes(c.amount)}</div></div>`;
     });
@@ -1356,8 +1357,18 @@ function openCommissionSheet() {
       </div>
       <div class="fg-s"><label class="fl">Apartment Name</label>
         <input id="cm-apt" class="fi" placeholder="e.g. Kilimani Heights"></div>
-      <div class="fg-s"><label class="fl">Guest Name</label>
-        <input id="cm-guest" class="fi" placeholder="e.g. John Kamau"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+        <div><label class="fl">Guest Name</label>
+          <input id="cm-guest" class="fi" placeholder="e.g. John Kamau"></div>
+        <div><label class="fl">Guest Phone</label>
+          <input id="cm-guest-phone" class="fi" type="tel" placeholder="e.g. 0712 345 678"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+        <div><label class="fl">Given Rate (KES)</label>
+          <input type="number" id="cm-given-rate" class="fi" placeholder="Guest paid host" min="0" inputmode="numeric"></div>
+        <div><label class="fl">Host Rate (KES)</label>
+          <input type="number" id="cm-host-rate" class="fi" placeholder="You paid host" min="0" inputmode="numeric"></div>
+      </div>
       <div class="fg-s">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
           <label class="fl" style="margin:0">Host (referred to) *</label>
@@ -1392,11 +1403,14 @@ async function saveCommission() {
   const houseNum  = document.getElementById('cm-hnum')?.value.trim();
   const size      = document.getElementById('cm-size')?.value;
   const aptName   = document.getElementById('cm-apt')?.value.trim();
-  const guestName = document.getElementById('cm-guest')?.value.trim();
-  const hostName  = document.getElementById('cm-host-inp')?.value.trim();
-  const amount    = parseFloat(document.getElementById('cm-amount')?.value);
-  const isMpesa   = document.getElementById('cm-mpesa')?.classList.contains('sel');
-  const mpesaCode = isMpesa ? (document.getElementById('cm-mpesa-code')?.value.trim().toUpperCase()) : null;
+  const guestName  = document.getElementById('cm-guest')?.value.trim();
+  const guestPhone = document.getElementById('cm-guest-phone')?.value.trim();
+  const givenRate  = parseFloat(document.getElementById('cm-given-rate')?.value) || null;
+  const hostRate   = parseFloat(document.getElementById('cm-host-rate')?.value) || null;
+  const hostName   = document.getElementById('cm-host-inp')?.value.trim();
+  const amount     = parseFloat(document.getElementById('cm-amount')?.value);
+  const isMpesa    = document.getElementById('cm-mpesa')?.classList.contains('sel');
+  const mpesaCode  = isMpesa ? (document.getElementById('cm-mpesa-code')?.value.trim().toUpperCase()) : null;
 
   if (!hostName) { showToast('Enter the host name', true); return; }
   if (!amount || amount <= 0) { showToast('Enter commission amount', true); return; }
@@ -1412,6 +1426,9 @@ async function saveCommission() {
     host_id: matchedHost?.id || null,
     host_name: hostName,
     guest_name: guestName || null,
+    guest_phone: guestPhone || null,
+    given_rate: givenRate,
+    host_rate: hostRate,
     apartment_name: aptName || null,
     house_number: houseNum || null,
     size: size || null,
@@ -1702,7 +1719,8 @@ async function renderDebts(el) {
   let h = `<div class="stats" style="padding-top:14px">
     <div class="scard" style="grid-column:span 2"><div class="scard-lbl">Total Outstanding</div><div class="scard-val">${kes(total)}</div></div>
     <div class="scard"><div class="scard-lbl">Open Debts</div><div class="scard-val">${debts?.length||0}</div></div>
-  </div>`;
+  </div>
+  <button class="fab" onclick="showRecordExistingDebtSheet()" style="background:var(--surf2);color:var(--txt);border:1.5px solid var(--bdr)"><span style="font-size:18px">📋</span> Record Existing Debt</button>`;
 
   if (debts?.length) {
     h += `<div class="clist" style="margin-top:12px">`;
@@ -2154,6 +2172,96 @@ async function recordDebtPayment(debtId, originalBalance) {
   closeSaleSheet();
   showToast(newBalance === 0 ? `✓ Debt cleared — ${kes(amt)} received` : `✓ ${kes(amt)} received — ${kes(newBalance)} remaining`);
   showTab('debts');
+}
+
+/* ═══════════════════════════════
+   RECORD EXISTING DEBT
+═══════════════════════════════ */
+function showRecordExistingDebtSheet(isAirbnb) {
+  const custOptions = (!isAirbnb && (S.customers||[]).length)
+    ? `<select id="ed-cust-sel" class="fi" style="appearance:auto;-webkit-appearance:auto;margin-bottom:6px" onchange="
+        const v=this.value;if(v){document.getElementById('ed-cust-inp').value=this.options[this.selectedIndex].text;}">
+        <option value="">— Pick saved customer —</option>
+        ${(S.customers||[]).map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}
+      </select>` : '';
+
+  const nameLabel = isAirbnb ? 'Guest Name *' : 'Customer Name *';
+  const namePh    = isAirbnb ? 'e.g. John Kamau' : 'e.g. Jane Wanjiru';
+
+  pushSheet(`
+    <div class="sh-hand"></div>
+    <div class="sh-hdr"><h2>📋 Record Existing Debt</h2></div>
+    <div class="sh-body">
+      <div style="background:var(--acc-d);border-radius:10px;padding:11px 14px;margin-bottom:16px;font-size:13px;color:var(--acc)">
+        Use this to log debts that existed before Happa — e.g. a customer who owes you from last month.
+      </div>
+      <div class="fg-s">
+        <label class="fl">${nameLabel}</label>
+        ${custOptions}
+        <input type="text" id="ed-cust-inp" class="fi" placeholder="${namePh}">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+        <div><label class="fl">Phone</label>
+          <input type="tel" id="ed-phone" class="fi" placeholder="e.g. 0712 345 678"></div>
+        <div><label class="fl">Amount Owed (KES) *</label>
+          <input type="number" id="ed-amount" class="fi" placeholder="e.g. 5000" min="1" inputmode="numeric"></div>
+      </div>
+      <div class="fg-s"><label class="fl">Due Date (optional)</label>
+        <input type="date" id="ed-due" class="fi"></div>
+      <div class="fg-s"><label class="fl">Notes (optional)</label>
+        <input type="text" id="ed-notes" class="fi" placeholder="e.g. Groceries from Oct 2026"></div>
+      <button class="btn-p" onclick="saveExistingDebt(${isAirbnb?'true':'false'})">Save Debt ✓</button>
+      <button class="btn-g" onclick="popSheet()">Cancel</button>
+    </div>`);
+  document.getElementById('sale-overlay').classList.add('on');
+}
+
+async function saveExistingDebt(isAirbnb) {
+  const name   = document.getElementById('ed-cust-inp')?.value.trim();
+  const phone  = document.getElementById('ed-phone')?.value.trim();
+  const amount = parseFloat(document.getElementById('ed-amount')?.value);
+  const due    = document.getElementById('ed-due')?.value || null;
+  const notes  = document.getElementById('ed-notes')?.value.trim() || null;
+
+  if (!name)              { showToast('Enter a name', true); return; }
+  if (!amount || amount <= 0) { showToast('Enter amount owed', true); return; }
+
+  const btn = document.querySelector('#sale-sheet .btn-p');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
+  // Find or create customer record (regular shops only)
+  let custId = null;
+  if (!isAirbnb) {
+    let cust = (S.customers||[]).find(c => c.name.toLowerCase() === name.toLowerCase());
+    if (!cust) {
+      const { data } = await apiPost('customers', { shop_id: S.shop.id, name, phone: phone||null });
+      cust = Array.isArray(data) ? data[0] : data;
+      if (cust) S.customers = [...(S.customers||[]), cust];
+    }
+    custId = cust?.id || null;
+  }
+
+  const { error } = await apiPost('debts', {
+    shop_id: S.shop.id,
+    customer_id: custId,
+    original_amt: amount,
+    balance: amount,
+    status: 'outstanding',
+    due_date: due,
+    notes,
+    source: 'manual',
+    recorded_by: S.user?.id || null,
+  });
+
+  if (error) {
+    showToast('Error: ' + error.message, true);
+    if (btn) { btn.disabled = false; btn.textContent = 'Save Debt ✓'; }
+    return;
+  }
+
+  closeSaleSheet();
+  showToast(`✓ Debt recorded — ${kes(amount)} for ${name}`);
+  if (isAirbnb) showAirbnbDebts(); else showTab('debts');
 }
 
 /* ═══════════════════════════════
@@ -2852,6 +2960,7 @@ async function showAirbnbDebts() {
       <div style="font-size:22px;font-weight:800;color:var(--red)">${kes(total)}</div>
     </div>
     <div class="clist">${list||'<div style="color:var(--txt2);text-align:center;padding:20px 0">No outstanding debts 🎉</div>'}</div>
+    <button class="btn-p" onclick="showRecordExistingDebtSheet(true)" style="background:var(--surf2);color:var(--txt);border:1.5px solid var(--bdr);margin-top:8px"><span style="font-size:16px">📋</span> Record Existing Debt</button>
     <button class="btn-g" onclick="popSheet()">Close</button>`;
 }
 
