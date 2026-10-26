@@ -3040,7 +3040,9 @@ async function doChangeEmail() {
   if (btn) { btn.disabled = false; btn.textContent = 'Send Confirmation Link'; }
   if (!res.ok) {
     const e = await res.json().catch(() => ({}));
-    showToast('Error: ' + (e.message || 'Could not update email'), true); return;
+    // Supabase Auth errors use .msg, not .message
+    const msg = e.msg || e.message || e.error_description || e.error || JSON.stringify(e);
+    showToast('Error: ' + msg, true); return;
   }
 
   popSheet();
