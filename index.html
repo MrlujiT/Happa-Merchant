@@ -1288,7 +1288,7 @@ async function renderBookings(el) {
       const dt = new Date(b.recorded_at);
       const dtStr = dt.toLocaleDateString('en-KE',{day:'numeric',month:'short'}) + ' ' + dt.toLocaleTimeString('en-KE',{hour:'2-digit',minute:'2-digit'});
       const meth = b.payment_method === 'mpesa' ? '📱 M-Pesa' : b.payment_method === 'debt' ? '📋 Debt' : '💵 Cash';
-      h += `<div class="txi" style="cursor:pointer" onclick="openBookingDetail(${JSON.stringify(JSON.stringify(b))})">
+      h += `<div class="txi" style="cursor:pointer" onclick="openBookingDetail('${JSON.stringify(b).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;')}')">
         <div class="txi-ico">🛏️</div>
         <div class="txi-inf">
           <div class="txi-nm">${esc(b.guest_name||'Guest')} · ${esc(b.unit_name||'Unit')}</div>
@@ -1348,7 +1348,7 @@ async function buildCommissionsHtml() {
         const coStr = new Date(c.check_out).toLocaleDateString('en-KE',{day:'numeric',month:'short'});
         stayInfo = ` · 🌙 ${nights}n (${ciStr}–${coStr})`;
       }
-      h += `<div class="txi" style="cursor:pointer" onclick="openCommissionDetail(${JSON.stringify(JSON.stringify(c))})">
+      h += `<div class="txi" style="cursor:pointer" onclick="openCommissionDetail('${JSON.stringify(c).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;')}')">
         <div class="txi-ico">🤝</div>
         <div class="txi-inf">
           <div class="txi-nm">${esc(c.host_name||'Host')}${c.guest_name?' → '+esc(c.guest_name):''}</div>
@@ -2065,7 +2065,7 @@ function openCommissionDetail(cJson) {
         <div class="det-row"><span class="det-lbl">Payment</span><span>${meth}${c.mpesa_code?' · '+esc(c.mpesa_code):''}</span></div>
       </div>
       ${canEdit ? `
-      <button class="btn-p" onclick="popSheet();editCommission(${JSON.stringify(JSON.stringify(c))})">✏️ Edit</button>
+      <button class="btn-p" onclick="popSheet();editCommission('${JSON.stringify(c).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;')}')">✏️ Edit</button>
       <button class="btn-g" style="color:var(--red);border-color:var(--red)" onclick="deleteCommission('${c.id}')">🗑️ Delete</button>
       ` : ''}
       <button class="btn-g" onclick="popSheet()">Close</button>
@@ -2121,7 +2121,7 @@ function openBookingDetail(bJson) {
         ${b.notes?`<div class="det-row"><span class="det-lbl">Notes</span><span>${esc(b.notes)}</span></div>`:''}
       </div>
       ${canEdit ? `
-      <button class="btn-p" onclick="popSheet();editBooking(${JSON.stringify(JSON.stringify(b))})">✏️ Edit</button>
+      <button class="btn-p" onclick="popSheet();editBooking('${JSON.stringify(b).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;')}')">✏️ Edit</button>
       <button class="btn-g" style="color:var(--red);border-color:var(--red)" onclick="deleteBooking('${b.id}')">🗑️ Delete</button>
       ` : ''}
       <button class="btn-g" onclick="popSheet()">Close</button>
