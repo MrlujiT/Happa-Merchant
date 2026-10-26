@@ -703,9 +703,9 @@ async function loadUserContext() {
   }
 
   if (S.isAirbnb) {
-    await Promise.all([loadUnits(), loadHosts()]);
+    await Promise.all([loadUnits(), loadHosts(), loadLoyalty()]);
   } else {
-    await Promise.all([loadProducts(), loadCustomers(), loadSuppliers()]);
+    await Promise.all([loadProducts(), loadCustomers(), loadSuppliers(), loadLoyalty()]);
   }
   showPage('app');
   setupNav();
@@ -718,6 +718,15 @@ async function loadProducts() {
 
 async function loadCustomers() {
   S.customers = await apiGet(`customers?shop_id=eq.${S.shop.id}&order=name`);
+}
+
+async function loadLoyalty() {
+  const [settings, accts] = await Promise.all([
+    apiGet(`loyalty_settings?shop_id=eq.${S.shop.id}&limit=1`),
+    apiGet(`loyalty_accounts?shop_id=eq.${S.shop.id}&order=name`),
+  ]);
+  S.loyalty     = settings?.[0] || null;
+  S.loyaltyAccts = accts || [];
 }
 
 async function loadSuppliers() {
@@ -1314,6 +1323,30 @@ async function saveBooking(forceOverride) {
     })
   });
 
+  // ── Loyalty: award points for booking ──
+  if (S.loyalty?.enabled && (guest || phone)) {
+    const earnedPts = Math.floor(total / (S.loyalty.earn_rate||50));
+    if (earnedPts > 0) {
+      let acct = S.loyaltyAccts.find(a =>
+        (phone && a.phone === phone) || (guest && a.name?.toLowerCase() === guest.toLowerCase())
+      );
+      if (!acct) {
+        const { data: na } = await apiPost('loyalty_accounts', { shop_id: S.shop.id, name: guest||null, phone: phone||null });
+        acct = Array.isArray(na) ? na[0] : na;
+        if (acct) S.loyaltyAccts.push(acct);
+      }
+      if (acct) {
+        const newBal = (acct.points_balance||0) + earnedPts;
+        await apiPatch('loyalty_accounts', `id=eq.${acct.id}`, {
+          points_balance: newBal,
+          total_earned: (acct.total_earned||0) + earnedPts,
+          ...(phone && !acct.phone ? {phone} : {}),
+        });
+        acct.points_balance = newBal;
+      }
+    }
+  }
+
   const sendReceipt = document.getElementById('bk-receipt')?.checked;
   closeSaleSheet();
   showToast(`✓ Booking saved — ${kes(total)}${forceOverride?' (double booking approved)':''}`);
@@ -1756,6 +1789,127 @@ async function renderDebts(el) {
 /* ═══════════════════════════════
    MORE TAB
 ═══════════════════════════════ */
+/* ═══════════════════════════════
+   LOYALTY POINTS
+═══════════════════════════════ */
+function loyaltySectionHtml(total) {
+  if (!S.loyalty?.enabled) return '';
+  const pv  = S.loyalty.point_value || 1;
+  const acct = S.loyaltyAccts.find(a => a.name?.toLowerCase() === (S.saleCust||'').toLowerCase());
+  const pts  = acct?.points_balance || 0;
+  const maxRedeemPts = pts > 0 ? Math.min(pts, Math.floor(total / pv)) : 0;
+  const redeemKES = Math.round(S.redeemPoints * pv);
+  const using = S.redeemPoints > 0;
+  return `<div style="background:var(--surf2);border-radius:12px;padding:12px 14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;${maxRedeemPts>0?'cursor:pointer':''};"
+       ${maxRedeemPts>0 ? `onclick="toggleRedeemPoints(${maxRedeemPts})"` : ''}>
+    <div>
+      <div style="font-size:13px;font-weight:600">⭐ Loyalty Points</div>
+      <div style="font-size:11px;color:var(--txt2)">
+        ${S.saleCust
+          ? pts > 0
+            ? `${pts.toLocaleString()} pts · worth ${kes(pts * pv)}`
+            : 'No points yet'
+          : 'Enter customer name to check points'}
+      </div>
+      ${using ? `<div style="font-size:11px;color:var(--grn);margin-top:2px">✓ Redeeming ${S.redeemPoints} pts = −${kes(redeemKES)}</div>` : ''}
+    </div>
+    ${maxRedeemPts>0 ? `<div style="width:40px;height:22px;border-radius:11px;background:${using?'var(--grn)':'var(--bdr)'};transition:.2s;position:relative;flex-shrink:0">
+      <div style="position:absolute;width:16px;height:16px;border-radius:50%;background:#fff;top:3px;${using?'left:21px':'left:3px'};transition:.2s"></div>
+    </div>` : ''}
+  </div>`;
+}
+
+function saleTotalsHtml(total, profit) {
+  const pv       = S.loyalty?.point_value || 1;
+  const er       = S.loyalty?.earn_rate   || 50;
+  const redeemKES = S.loyalty?.enabled ? Math.round(S.redeemPoints * pv) : 0;
+  const finalTotal = Math.max(0, total - redeemKES);
+  const earnedPts  = (S.loyalty?.enabled && S.saleCust && S.saleCust !== 'Walk-in')
+    ? Math.floor(finalTotal / er) : 0;
+  return `<div class="tot-box">
+    ${redeemKES > 0 ? `
+    <div class="tot-row"><span class="tot-lbl">Subtotal</span><span class="tot-val">${kes(total)}</span></div>
+    <div class="tot-row"><span class="tot-lbl" style="color:var(--grn)">⭐ Points Off</span><span class="tot-val" style="color:var(--grn)">−${kes(redeemKES)}</span></div>
+    <div class="tot-row" style="font-size:18px"><span class="tot-lbl" style="font-weight:800">Pay</span><span class="tot-val" style="font-weight:800">${kes(finalTotal)}</span></div>
+    ` : `<div class="tot-row"><span class="tot-lbl">Total</span><span class="tot-val">${kes(total)}</span></div>`}
+    ${earnedPts > 0 ? `<div style="font-size:11px;color:var(--acc);margin-top:4px">+${earnedPts.toLocaleString()} pts earned after this sale</div>` : ''}
+    <div style="font-size:11px;color:var(--grn);margin-top:4px">Profit: ${kes(profit)}</div>
+  </div>`;
+}
+
+function onSaleCustChange(name) {
+  S.saleCust = name;
+  S.redeemPoints = 0;
+  const total  = getCartTotal();
+  const profit = getCartProfit();
+  const el = document.getElementById('loyalty-section');
+  const te = document.getElementById('sale-totals');
+  if (el) el.innerHTML = loyaltySectionHtml(total);
+  if (te) te.innerHTML = saleTotalsHtml(total, profit);
+}
+
+function toggleRedeemPoints(maxPts) {
+  S.redeemPoints = S.redeemPoints > 0 ? 0 : maxPts;
+  const total  = getCartTotal();
+  const profit = getCartProfit();
+  const el = document.getElementById('loyalty-section');
+  const te = document.getElementById('sale-totals');
+  if (el) el.innerHTML = loyaltySectionHtml(total);
+  if (te) te.innerHTML = saleTotalsHtml(total, profit);
+}
+
+function showLoyaltySettings() {
+  const l = S.loyalty || { earn_rate: 50, point_value: 1, enabled: false };
+  pushSheet(`
+    <div class="sh-hand"></div>
+    <div class="sh-hdr"><h2>⭐ Loyalty Points</h2></div>
+    <div class="sh-body">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:var(--surf2);border-radius:12px;margin-bottom:16px;cursor:pointer"
+           onclick="document.getElementById('loy-on').click()">
+        <div>
+          <div style="font-weight:600">Enable Loyalty Points</div>
+          <div style="font-size:12px;color:var(--txt2)">Customers earn & redeem points at checkout</div>
+        </div>
+        <input type="checkbox" id="loy-on" ${l.enabled?'checked':''} style="width:20px;height:20px;accent-color:var(--acc);cursor:pointer;flex-shrink:0" onclick="event.stopPropagation()">
+      </div>
+      <div class="fg-s">
+        <label class="fl">Earn Rate — KES per 1 Point</label>
+        <input type="number" id="loy-earn" class="fi" value="${l.earn_rate}" min="1" inputmode="numeric">
+        <div style="font-size:11px;color:var(--txt2);margin-top:4px">e.g. 50 → spend KES 50 = 1 point</div>
+      </div>
+      <div class="fg-s">
+        <label class="fl">Point Value — 1 Point = KES</label>
+        <input type="number" id="loy-val" class="fi" value="${l.point_value}" min="0.01" step="0.01" inputmode="decimal">
+        <div style="font-size:11px;color:var(--txt2);margin-top:4px">e.g. 1 → 1 point = KES 1 discount</div>
+      </div>
+      <div style="background:var(--surf2);border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:13px;color:var(--txt2)">
+        💡 With earn=50 and value=1: a KES 500 sale earns 10 pts = KES 10 off next time.
+      </div>
+      <button class="btn-p" onclick="saveLoyaltySettings()">Save ✓</button>
+      <button class="btn-g" onclick="popSheet()">Cancel</button>
+    </div>`);
+  document.getElementById('sale-overlay').classList.add('on');
+}
+
+async function saveLoyaltySettings() {
+  const enabled  = document.getElementById('loy-on')?.checked;
+  const earnRate = parseFloat(document.getElementById('loy-earn')?.value);
+  const ptVal    = parseFloat(document.getElementById('loy-val')?.value);
+  if (!earnRate || earnRate < 1)    { showToast('Enter a valid earn rate (min 1)', true); return; }
+  if (!ptVal    || ptVal < 0.01)    { showToast('Enter a valid point value', true); return; }
+  const btn = document.querySelector('#sale-sheet .btn-p');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  await fetch(`${SUPABASE_URL}/rest/v1/loyalty_settings`, {
+    method: 'POST',
+    headers: { ...apiHeaders(), 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify({ shop_id: S.shop.id, earn_rate: earnRate, point_value: ptVal, enabled }),
+  });
+  S.loyalty = { shop_id: S.shop.id, earn_rate: earnRate, point_value: ptVal, enabled };
+  closeSaleSheet();
+  showToast(`✓ Loyalty Points ${enabled ? 'enabled' : 'disabled'}`);
+  showTab('more');
+}
+
 function renderMore(el) {
   const isOwner   = S.member.role === 'owner';
   const isManager = S.member.role === 'manager';
@@ -1850,6 +2004,10 @@ function renderMore(el) {
           <div class="more-ico" style="background:#16a34a22">💰</div>
           <div class="more-inf"><div class="more-nm">Business Health</div><div class="more-mt">Profit view — sales minus purchases & expenses</div></div>
           <span style="color:var(--txt3)">›</span></div>`}
+        ${isOwner ? `<div class="more-item" onclick="showLoyaltySettings()">
+          <div class="more-ico" style="background:#f59e0b22">⭐</div>
+          <div class="more-inf"><div class="more-nm">Loyalty Points</div><div class="more-mt">${S.loyalty?.enabled?`On · ${S.loyalty.earn_rate} KES = 1 pt`:'Set up earn & redeem rates'}</div></div>
+          <span style="color:var(--txt3)">›</span></div>` : ''}
       </div>`:''}
 
       <div class="sec-ttl" style="margin-bottom:10px;margin-top:14px">Team</div>
@@ -1887,7 +2045,7 @@ function renderMore(el) {
    RECORD SALE — MULTI-ITEM CART
 ═══════════════════════════════ */
 function openSaleSheet() {
-  S.cart = []; S.smethod = 'cash'; S.sendReceipt = false;
+  S.cart = []; S.smethod = 'cash'; S.sendReceipt = false; S.saleCust = ''; S.redeemPoints = 0;
   renderSaleSheet();
   document.getElementById('sale-overlay').classList.add('on');
 }
@@ -1961,16 +2119,16 @@ function renderSaleSheet() {
     });
     cartHtml += `</div></div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
-      <div><label class="fl">Customer (optional)</label>
-        ${S.customers.length ? `<select id="cust-sel" class="fi" onchange="if(this.value){document.getElementById('cust-inp').value=this.value;this.value=''}">
-          <option value="">— Pick saved customer —</option>
-          ${S.customers.map(c=>`<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('')}
-        </select>` : ''}
-        <input type="text" id="cust-inp" class="fi" placeholder="Walk-in (or pick above)" autocomplete="off" style="margin-top:${S.customers.length?'6px':'0'}">
-      </div>
-      <div></div>
+    <div class="fg-s"><label class="fl">Customer (optional)</label>
+      ${S.customers.length ? `<select id="cust-sel" class="fi" style="appearance:auto;-webkit-appearance:auto;margin-bottom:6px"
+          onchange="if(this.value){S.saleCust=this.value;document.getElementById('cust-inp').value=this.value;onSaleCustChange(this.value);this.value=''}">
+        <option value="">— Pick saved customer —</option>
+        ${S.customers.map(c=>`<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('')}
+      </select>` : ''}
+      <input type="text" id="cust-inp" class="fi" placeholder="Walk-in (or pick above)" autocomplete="off"
+             value="${esc(S.saleCust)}" oninput="onSaleCustChange(this.value)">
     </div>
+    <div id="loyalty-section">${loyaltySectionHtml(total)}</div>
 
     <label class="fl">Payment Method</label>
     <div class="method-row">
@@ -1996,10 +2154,7 @@ function renderSaleSheet() {
       </div>
     </div>
 
-    <div class="tot-box">
-      <div class="tot-row"><span class="tot-lbl">Total</span><span class="tot-val">${kes(total)}</span></div>
-      <div style="font-size:11px;color:var(--grn);margin-top:4px">Profit: ${kes(profit)}</div>
-    </div>
+    <div id="sale-totals">${saleTotalsHtml(total, profit)}</div>
     <button class="btn-p" onclick="confirmSale()">Confirm Sale ✓</button>`;
   }
 
@@ -2027,7 +2182,7 @@ function setMethod(m) {
 async function confirmSale() {
   if (S.cart.length === 0) { showToast('Add at least one item', true); return; }
 
-  const custName = (document.getElementById('cust-inp')?.value||'').trim() || 'Walk-in';
+  const custName = S.saleCust?.trim() || 'Walk-in';
 
   if (S.smethod === 'debt' && custName === 'Walk-in') {
     showToast('Enter customer name for debt sales', true); return;
@@ -2096,13 +2251,41 @@ async function confirmSale() {
   }
 
   const cartTot = getCartTotal();
+
+  // ── Loyalty points: deduct redeemed, award earned ──
+  if (S.loyalty?.enabled && custName !== 'Walk-in') {
+    const redeemKES  = Math.round(S.redeemPoints * (S.loyalty.point_value||1));
+    const finalPaid  = Math.max(0, cartTot - redeemKES);
+    const earnedPts  = Math.floor(finalPaid / (S.loyalty.earn_rate||50));
+    if (earnedPts > 0 || S.redeemPoints > 0) {
+      let acct = S.loyaltyAccts.find(a => a.name?.toLowerCase() === custName.toLowerCase());
+      if (!acct) {
+        const { data: na } = await apiPost('loyalty_accounts', { shop_id: S.shop.id, name: custName });
+        acct = Array.isArray(na) ? na[0] : na;
+        if (acct) S.loyaltyAccts.push(acct);
+      }
+      if (acct) {
+        const newBal = Math.max(0, (acct.points_balance||0) - S.redeemPoints + earnedPts);
+        await apiPatch('loyalty_accounts', `id=eq.${acct.id}`, {
+          points_balance: newBal,
+          total_earned:   (acct.total_earned||0)   + earnedPts,
+          total_redeemed: (acct.total_redeemed||0) + S.redeemPoints,
+        });
+        acct.points_balance = newBal;
+        acct.total_earned   = (acct.total_earned||0) + earnedPts;
+        acct.total_redeemed = (acct.total_redeemed||0) + S.redeemPoints;
+      }
+    }
+  }
+
+  const redeemKesSnap = S.loyalty?.enabled ? Math.round(S.redeemPoints * (S.loyalty.point_value||1)) : 0;
   const cartSnapshot = S.cart.map(i => ({...i}));
   const receiptRequested = S.sendReceipt;
   const receiptMethod = S.smethod;
   const receiptMpesa = mpesaCode;
   const receiptCust = custName;
   closeSaleSheet();
-  S.cart = [];
+  S.cart = []; S.redeemPoints = 0; S.saleCust = '';
   showToast(`✓ ${savedCount} item${savedCount!==1?'s':''} sold — ${kes(cartTot)}`);
   showTab(S.tab);
 
@@ -2111,7 +2294,9 @@ async function confirmSale() {
     const lines = cartSnapshot.map(i => `${i.product.emoji||'📦'} ${i.product.name} ×${i.qty} — KES ${(i.product.sell_price*i.qty).toLocaleString()}`).join('\n');
     const methodStr = receiptMethod==='mpesa' ? `📱 M-Pesa (${receiptMpesa})` : receiptMethod==='debt' ? '📋 Debt' : '💵 Cash';
     const header = receiptCust && receiptCust !== 'Walk-in' ? `For: ${receiptCust}\n` : '';
-    const receipt = `🧾 *Receipt from ${S.shop.name}*\n📅 ${now}\n\n${header}${lines}\n${'─'.repeat(28)}\n*Total: KES ${cartTot.toLocaleString()}*\n${methodStr}\n\nThank you! 🙏`;
+    const discountLine = redeemKesSnap > 0 ? `⭐ Points discount: −KES ${redeemKesSnap.toLocaleString()}\n` : '';
+    const finalPaidAmt = cartTot - redeemKesSnap;
+    const receipt = `🧾 *Receipt from ${S.shop.name}*\n📅 ${now}\n\n${header}${lines}\n${'─'.repeat(28)}\n${discountLine}*Total: KES ${finalPaidAmt.toLocaleString()}*\n${methodStr}\n\nThank you! 🙏`;
     window.open(`https://wa.me/?text=${encodeURIComponent(receipt)}`, '_blank');
   }
 }
