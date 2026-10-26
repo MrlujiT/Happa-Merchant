@@ -2985,6 +2985,92 @@ async function showUtilityHistory() {
     </div>`).join('') + `<button class="btn-g" style="width:100%;margin-top:8px" onclick="popSheet()">Close</button>`;
 }
 
+function showChangeEmail() {
+  const current = S.user?.email || '';
+  pushSheet(`
+    <div class="sh-hand"></div>
+    <div class="sh-hdr"><h2>✉️ Change Email</h2></div>
+    <div class="sh-body">
+      <div style="font-size:13px;color:var(--txt2);background:var(--surf2);border-radius:10px;padding:12px 14px;margin-bottom:16px;line-height:1.6">
+        Current email: <strong style="color:var(--txt)">${esc(current)}</strong><br>
+        <span style="font-size:12px">We'll send a confirmation link to your new address. Your email won't change until you click it.</span>
+      </div>
+      <div class="fg-s"><label class="fl">New Email Address</label>
+        <input type="email" id="chg-email-new" class="fi" placeholder="new@example.com" autocomplete="email"></div>
+      <button class="btn-p" onclick="doChangeEmail()">Send Confirmation Link</button>
+      <button class="btn-g" onclick="popSheet()">Cancel</button>
+    </div>`);
+  document.getElementById('sale-overlay').classList.add('on');
+  document.getElementById('chg-email-new')?.addEventListener('keydown', e=>{ if(e.key==='Enter') doChangeEmail(); });
+}
+
+async function doChangeEmail() {
+  const newEmail = document.getElementById('chg-email-new')?.value.trim();
+  if (!newEmail) { showToast('Enter a new email address', true); return; }
+  if (newEmail === S.user?.email) { showToast('That\'s already your email', true); return; }
+  const btn = document.querySelector('#sale-sheet .btn-p');
+  if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+
+  const { error } = await db.auth.updateUser({ email: newEmail });
+
+  if (btn) { btn.disabled = false; btn.textContent = 'Send Confirmation Link'; }
+  if (error) { showToast('Error: ' + error.message, true); return; }
+
+  popSheet();
+  pushSheet(`
+    <div class="sh-hand"></div>
+    <div class="sh-body" style="text-align:center;padding:40px 24px">
+      <div style="font-size:48px;margin-bottom:16px">📧</div>
+      <div style="font-size:17px;font-weight:700;color:var(--txt);margin-bottom:8px">Check your new email</div>
+      <p style="font-size:13px;color:var(--txt2);line-height:1.6;margin-bottom:20px">
+        A confirmation link was sent to <strong>${esc(newEmail)}</strong>.<br>
+        Tap it to confirm your new email address. Until then your current email still works.
+      </p>
+      <button class="btn-g" onclick="popSheet()">Got it</button>
+    </div>`);
+}
+
+function showChangePasswordSheet() {
+  pushSheet(`
+    <div class="sh-hand"></div>
+    <div class="sh-hdr"><h2>🔑 Change Password</h2></div>
+    <div class="sh-body">
+      <div class="fg-s"><label class="fl">New Password</label>
+        <input type="password" id="chg-pwd1" class="fi" placeholder="At least 8 characters" autocomplete="new-password"></div>
+      <div class="fg-s"><label class="fl">Confirm New Password</label>
+        <input type="password" id="chg-pwd2" class="fi" placeholder="Repeat password" autocomplete="new-password"></div>
+      <button class="btn-p" onclick="doChangePassword()">Save New Password</button>
+      <button class="btn-g" onclick="popSheet()">Cancel</button>
+    </div>`);
+  document.getElementById('sale-overlay').classList.add('on');
+  ['chg-pwd1','chg-pwd2'].forEach(id=>{
+    document.getElementById(id)?.addEventListener('keydown', e=>{ if(e.key==='Enter') doChangePassword(); });
+  });
+}
+
+async function doChangePassword() {
+  const p1 = document.getElementById('chg-pwd1')?.value;
+  const p2 = document.getElementById('chg-pwd2')?.value;
+  if (!p1 || p1.length < 8) { showToast('Password must be at least 8 characters', true); return; }
+  if (p1 !== p2) { showToast("Passwords don't match", true); return; }
+  const btn = document.querySelector('#sale-sheet .btn-p');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+    method: 'PUT',
+    headers: { ...apiHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: p1 }),
+  });
+
+  if (btn) { btn.disabled = false; btn.textContent = 'Save New Password'; }
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    showToast('Error: ' + (e.message || 'Failed to update password'), true); return;
+  }
+  closeSaleSheet();
+  showToast('✓ Password updated');
+}
+
 function showPrivacyPolicy() {
   pushSheet(`
     <div class="sh-hand"></div>
@@ -3267,6 +3353,16 @@ function renderMore(el) {
         <div class="more-item" onclick="showPrivacyPolicy()">
           <div class="more-ico" style="background:#0e4a7222">🔒</div>
           <div class="more-inf"><div class="more-nm">Privacy Policy</div><div class="more-mt">How we collect, use & protect your data</div></div>
+          <span style="color:var(--txt3)">›</span>
+        </div>
+        <div class="more-item" onclick="showChangeEmail()">
+          <div class="more-ico" style="background:#0e3a5022">✉️</div>
+          <div class="more-inf"><div class="more-nm">Change Email</div><div class="more-mt">${esc(S.user?.email||'')}</div></div>
+          <span style="color:var(--txt3)">›</span>
+        </div>
+        <div class="more-item" onclick="showChangePasswordSheet()">
+          <div class="more-ico" style="background:#1a2a0022">🔑</div>
+          <div class="more-inf"><div class="more-nm">Change Password</div><div class="more-mt">Update your login password</div></div>
           <span style="color:var(--txt3)">›</span>
         </div>
         <div class="more-item" onclick="showDeleteAccountRequest()">
