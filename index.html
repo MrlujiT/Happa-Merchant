@@ -1376,9 +1376,12 @@ async function renderBookings(el) {
 
   // ── Action buttons ──
   cal += `
-    <div style="display:flex;gap:8px;padding:0 16px 20px">
+    <div style="display:flex;gap:8px;padding:0 16px 8px">
       <button class="btn-p" onclick="openBookingSheet()" style="flex:1">+ Booking</button>
       <button onclick="openCommissionSheet()" style="flex:1;padding:12px;border:1.5px solid var(--bdr);background:var(--surf2);color:var(--txt);border-radius:12px;font-size:14px;font-weight:600;cursor:pointer">🤝 Commission</button>
+    </div>
+    <div style="padding:0 16px 20px">
+      <button onclick="openImportSheet()" style="width:100%;padding:10px;border:1.5px dashed var(--bdr);background:transparent;color:var(--txt2);border-radius:12px;font-size:13px;font-weight:500;cursor:pointer">📥 Import from Excel / CSV</button>
     </div>`;
 
   el.innerHTML = cal;
@@ -1445,6 +1448,227 @@ async function openDaySheet(dateStr) {
   <button class="btn-g" onclick="popSheet()" style="margin-top:8px">Close</button>`;
 
   el.innerHTML = h;
+}
+
+/* ═══════════════════════════════
+   IMPORT FROM EXCEL / CSV
+═══════════════════════════════ */
+let _xlsxReady = false;
+let _importRows = null; // staging area for parsed rows before confirm
+function _loadXlsx(cb) {
+  if (_xlsxReady) { cb(); return; }
+  const s = document.createElement('script');
+  s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+  s.onload = () => { _xlsxReady = true; cb(); };
+  s.onerror = () => showToast('Could not load Excel parser — check connection', true);
+  document.head.appendChild(s);
+}
+
+function openImportSheet() {
+  pushSheet(`
+    <div class="sh-hand"></div>
+    <div class="sh-hdr"><h2>📥 Import Commissions</h2></div>
+    <div class="sh-body">
+      <p style="font-size:14px;color:var(--txt2);margin:0 0 16px">Upload Vivian's Excel or CSV commission sheet. Columns should be: <strong>Guest · Date · Unit · Commission</strong>.</p>
+      <div style="background:var(--surf2);border-radius:12px;padding:14px;margin-bottom:16px;font-size:13px;color:var(--txt2)">
+        <div style="font-weight:600;color:var(--txt);margin-bottom:6px">Expected format</div>
+        <div>• Column A: Guest name</div>
+        <div>• Column B: Date (DD/MM/YYYY) — blank cells carry the date from above</div>
+        <div>• Column C: Unit / apartment name</div>
+        <div>• Column D: Commission amount (KES)</div>
+      </div>
+      <div class="fg-s"><label class="fl">Default host name <span style="color:var(--txt3)">(applied to all imported rows)</span></label>
+        <input id="imp-host" class="fi" placeholder="e.g. Vivian" value="Vivian"></div>
+      <label style="display:flex;align-items:center;gap:10px;padding:14px;background:var(--surf2);border-radius:12px;cursor:pointer;margin-bottom:16px">
+        <input type="file" id="imp-file" accept=".xlsx,.xls,.csv" style="display:none" onchange="previewImport(this)">
+        <div style="flex:1">
+          <div style="font-size:14px;font-weight:600;color:var(--txt)">Choose file</div>
+          <div style="font-size:12px;color:var(--txt2)" id="imp-fname">No file selected — .xlsx, .xls or .csv</div>
+        </div>
+        <div style="font-size:24px">📂</div>
+      </label>
+      <div id="imp-preview"></div>
+    </div>`);
+  // Trigger the file input when the label is tapped
+  setTimeout(() => {
+    const lbl = document.querySelector('label[for="imp-file"]');
+    // label already wraps input — clicking label opens picker; nothing extra needed
+    _loadXlsx(() => {}); // pre-load in background
+  }, 100);
+}
+
+async function previewImport(input) {
+  const file = input.files[0];
+  if (!file) return;
+  document.getElementById('imp-fname').textContent = file.name;
+  const preview = document.getElementById('imp-preview');
+  preview.innerHTML = `<div style="text-align:center;padding:20px 0;color:var(--txt2)">Parsing…</div>`;
+
+  _loadXlsx(async () => {
+    try {
+      const buf = await file.arrayBuffer();
+      const wb  = XLSX.read(buf, { type:'array', cellDates:false });
+      const ws  = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
+
+      const parsed = _parseImportRows(rows);
+      _importRows = parsed; // store for runImport()
+      if (!parsed.length) {
+        preview.innerHTML = `<div class="empty"><div class="empty-ico">📋</div><p>No valid rows found. Make sure columns are Guest, Date, Unit, Commission.</p></div>`;
+        return;
+      }
+
+      // Show preview
+      const sample = parsed.slice(0,5);
+      let h = `<div style="font-size:13px;font-weight:600;color:var(--txt);margin-bottom:8px">${parsed.length} rows ready to import</div>`;
+      h += `<div style="overflow-x:auto;border-radius:10px;border:1px solid var(--bdr);margin-bottom:16px">
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead><tr style="background:var(--surf2)">
+            <th style="padding:8px 10px;text-align:left;color:var(--txt2)">Date</th>
+            <th style="padding:8px 10px;text-align:left;color:var(--txt2)">Guest</th>
+            <th style="padding:8px 10px;text-align:left;color:var(--txt2)">Unit</th>
+            <th style="padding:8px 10px;text-align:right;color:var(--txt2)">Amount</th>
+          </tr></thead><tbody>`;
+      sample.forEach((r,i) => {
+        h += `<tr style="border-top:1px solid var(--bdr);background:${i%2?'var(--surf)':'transparent'}">
+          <td style="padding:7px 10px;color:var(--txt)">${r.commission_date}</td>
+          <td style="padding:7px 10px;color:var(--txt)">${esc(r.guest_name||'—')}</td>
+          <td style="padding:7px 10px;color:var(--txt2)">${esc(r.apartment_name||'—')}</td>
+          <td style="padding:7px 10px;text-align:right;color:var(--grn);font-weight:600">${kes(r.amount)}</td>
+        </tr>`;
+      });
+      if (parsed.length > 5) h += `<tr><td colspan="4" style="padding:8px 10px;color:var(--txt3);font-size:11px;text-align:center">… and ${parsed.length-5} more rows</td></tr>`;
+      h += `</tbody></table></div>`;
+      const total = parsed.reduce((a,r)=>a+r.amount,0);
+      h += `<div style="background:var(--surf2);border-radius:10px;padding:12px;text-align:center;margin-bottom:16px">
+        <div style="font-size:11px;color:var(--txt2);margin-bottom:4px">Total to import</div>
+        <div style="font-size:20px;font-weight:800;color:var(--grn)">${kes(total)}</div>
+        <div style="font-size:12px;color:var(--txt3)">${parsed.length} commissions</div>
+      </div>`;
+      h += `<button class="btn-p" style="width:100%" onclick="runImport()">✅ Import ${parsed.length} Commissions</button>`;
+      h += `<button class="btn-g" style="width:100%;margin-top:8px" onclick="popSheet()">Cancel</button>`;
+      preview.innerHTML = h;
+    } catch(e) {
+      preview.innerHTML = `<div class="empty"><div class="empty-ico">⚠️</div><p>Failed to read file: ${esc(e.message||'Unknown error')}</p></div>`;
+    }
+  });
+}
+
+function _parseImportRows(rows) {
+  // Find the header row (contains "Guest" or "guest" in col A)
+  let dataStart = 0;
+  for (let i=0; i<Math.min(rows.length,5); i++) {
+    const a = String(rows[i][0]||'').toLowerCase();
+    if (a === 'guest' || a === 'name') { dataStart = i+1; break; }
+  }
+
+  let lastDate = '';
+  const out = [];
+  for (let i=dataStart; i<rows.length; i++) {
+    const row = rows[i];
+    const rawGuest = String(row[0]||'').trim();
+    const rawDate  = String(row[1]||'').trim();
+    const rawUnit  = String(row[2]||'').trim();
+    const rawAmt   = row[3];
+
+    // Skip blank/zero rows
+    if (!rawGuest || rawGuest === '0') continue;
+    const amt = parseFloat(String(rawAmt).replace(/[^0-9.]/g,'')) || 0;
+    if (amt <= 0) continue;
+
+    // Parse date (DD/MM/YYYY or carry-down)
+    if (rawDate && rawDate !== '0') {
+      const parsed = _parseDMY(rawDate);
+      if (parsed) lastDate = parsed;
+    }
+    if (!lastDate) continue; // no date yet, skip
+
+    out.push({
+      guest_name:     rawGuest,
+      commission_date: lastDate,
+      apartment_name:  rawUnit || null,
+      amount:          amt,
+      payment_method: 'cash',
+    });
+  }
+  return out;
+}
+
+function _parseDMY(s) {
+  // Handles DD/MM/YYYY, DD-MM-YYYY, Excel serial numbers
+  s = String(s).trim();
+  const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if (m) {
+    const day   = m[1].padStart(2,'0');
+    const month = m[2].padStart(2,'0');
+    let year = m[3];
+    if (year.length === 2) year = '20' + year;
+    return `${year}-${month}-${day}`;
+  }
+  // Excel serial number (days since 1900-01-01)
+  const n = parseInt(s);
+  if (!isNaN(n) && n > 40000) {
+    const d = new Date(Date.UTC(1900,0,n-1));
+    return d.toISOString().slice(0,10);
+  }
+  return null;
+}
+
+async function runImport() {
+  const rows = _importRows;
+  if (!rows?.length) { showToast('No rows to import', true); return; }
+  const hostName = document.getElementById('imp-host')?.value?.trim() || 'Vivian';
+  const btn = document.querySelector('#imp-preview .btn-p');
+  if (btn) { btn.disabled = true; btn.textContent = 'Importing…'; }
+
+  // Fetch existing to deduplicate (guest_name + commission_date + amount)
+  const existing = await apiGet(`commissions?shop_id=eq.${S.shop.id}&select=guest_name,commission_date,amount`);
+  const dupSet = new Set((existing||[]).map(r => `${r.guest_name}|${r.commission_date}|${r.amount}`));
+
+  const toInsert = rows
+    .filter(r => !dupSet.has(`${r.guest_name}|${r.commission_date}|${r.amount}`))
+    .map(r => ({
+      ...r,
+      host_name:   hostName,
+      shop_id:     S.shop.id,
+      recorded_by: S.user.id,
+    }));
+
+  const skipped = rows.length - toInsert.length;
+
+  if (!toInsert.length) {
+    showToast(`All ${rows.length} rows already exist — nothing imported`, false);
+    if (btn) { btn.disabled = false; btn.textContent = 'Already imported'; }
+    return;
+  }
+
+  // Batch insert in chunks of 500
+  const CHUNK = 500;
+  let errors = 0;
+  for (let i=0; i<toInsert.length; i+=CHUNK) {
+    const chunk = toInsert.slice(i, i+CHUNK);
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/commissions`, {
+      method: 'POST',
+      headers: { ...apiHeaders(), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify(chunk),
+    });
+    if (!res.ok) errors++;
+  }
+
+  if (errors) {
+    showToast(`Import partially failed — ${errors} chunk(s) errored`, true);
+  } else {
+    const msg = skipped
+      ? `✅ Imported ${toInsert.length} commissions (${skipped} duplicates skipped)`
+      : `✅ Imported ${toInsert.length} commissions`;
+    showToast(msg);
+    // Navigate calendar to earliest imported month
+    const earliest = toInsert.reduce((a,r) => r.commission_date < a ? r.commission_date : a, toInsert[0].commission_date);
+    const ed = new Date(earliest + 'T00:00:00');
+    S.calMonth = { year: ed.getFullYear(), month: ed.getMonth() };
+    popSheet();
+    showTab('bookings');
+  }
 }
 
 /* ═══════════════════════════════
