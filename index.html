@@ -1500,13 +1500,27 @@ function openBookingSheet() {
           <span>Total</span><span id="bk-total-lbl" style="color:var(--acc)">—</span></div>
       </div>
       <div class="fg-s"><label class="fl">Payment</label>
-        <select id="bk-pay" class="fi" style="appearance:auto">
+        <select id="bk-pay" class="fi" style="appearance:auto" onchange="onBkPayChange(this.value)">
           <option value="cash">💵 Cash</option>
           <option value="mpesa">📱 M-Pesa</option>
+          <option value="wallet">💳 Guest Wallet</option>
           <option value="debt">📋 Balance Due</option>
         </select></div>
       <div class="fg-s" id="bk-mpesa-row" style="display:none"><label class="fl">M-Pesa Code</label>
         <input id="bk-mpesa" class="fi" placeholder="e.g. QK1234ABCD" style="text-transform:uppercase"></div>
+      <div id="bk-wallet-info" style="display:none;background:var(--surf2);border-radius:10px;padding:10px 12px;font-size:13px;margin-bottom:10px">
+        <span id="bk-wallet-bal-txt" style="color:#22d3ee">Loading wallet…</span>
+      </div>
+      <div id="bk-wallet-remainder" style="display:none;margin-bottom:10px">
+        <div style="font-size:12px;color:var(--txt2);margin-bottom:6px">Collect remainder via:</div>
+        <div class="method-row" style="grid-template-columns:1fr 1fr;margin-bottom:8px">
+          <button class="method-btn sel" id="bkwr-cash" onclick="document.getElementById('bkwr-cash').classList.add('sel');document.getElementById('bkwr-mpesa').classList.remove('sel');document.getElementById('bk-wallet-mpesa-row').style.display='none'"><span class="m-ico">💵</span>Cash</button>
+          <button class="method-btn" id="bkwr-mpesa" onclick="document.getElementById('bkwr-mpesa').classList.add('sel');document.getElementById('bkwr-cash').classList.remove('sel');document.getElementById('bk-wallet-mpesa-row').style.display='block'"><span class="m-ico">📱</span>M-Pesa</button>
+        </div>
+        <div id="bk-wallet-mpesa-row" style="display:none">
+          <input type="text" id="bk-wallet-mpesa-code" class="fi" placeholder="M-Pesa code for remainder" oninput="this.value=this.value.toUpperCase()">
+        </div>
+      </div>
       <div class="fg-s"><label class="fl">Notes</label>
         <input id="bk-notes" class="fi" placeholder="e.g. Door code 1234, Wi-Fi: Kilimani5G"></div>
       <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surf2);border-radius:12px;margin-bottom:14px;cursor:pointer"
@@ -1519,13 +1533,49 @@ function openBookingSheet() {
       <button class="btn-g" onclick="popSheet()">Cancel</button>
     </div>`);
 
-  // Wire up M-Pesa row toggle
-  document.getElementById('bk-pay').addEventListener('change', e => {
-    document.getElementById('bk-mpesa-row').style.display = e.target.value === 'mpesa' ? '' : 'none';
-  });
-
   // Populate rate from first unit
   calcBookingTotal();
+}
+
+function onBkPayChange(val) {
+  document.getElementById('bk-mpesa-row').style.display      = val === 'mpesa'   ? '' : 'none';
+  document.getElementById('bk-wallet-info').style.display    = val === 'wallet'  ? '' : 'none';
+  document.getElementById('bk-wallet-remainder').style.display = 'none';
+  if (val !== 'wallet') return;
+
+  // Look up guest wallet balance
+  const guest = document.getElementById('bk-guest')?.value?.trim();
+  const phone = document.getElementById('bk-phone')?.value?.trim();
+  const acct = (S.loyaltyAccts||[]).find(a =>
+    (phone && a.phone && a.phone.replace(/\D/g,'').slice(-9) === phone.replace(/\D/g,'').slice(-9)) ||
+    (guest && a.name?.toLowerCase() === guest.toLowerCase())
+  );
+  const bal = acct?.wallet_balance || 0;
+  const txt = document.getElementById('bk-wallet-bal-txt');
+  if (!guest && !phone) {
+    txt.textContent = '⚠️ Enter guest name or phone to check wallet balance';
+    txt.style.color = 'var(--acc)';
+    return;
+  }
+  if (!acct || bal <= 0) {
+    txt.textContent = acct ? `💳 Wallet balance: ${kes(0)} — no funds` : `💳 No wallet account found for this guest`;
+    txt.style.color = 'var(--txt2)';
+    return;
+  }
+  // Compute total to show remainder info
+  const nights = parseInt(document.getElementById('bk-nights-lbl')?.textContent)||0;
+  const rate   = parseFloat(document.getElementById('bk-rate')?.value)||0;
+  const total  = nights * rate;
+  const walletUse  = Math.min(bal, total);
+  const remainder  = Math.max(0, total - walletUse);
+  txt.textContent = `💳 Wallet balance: ${kes(bal)}${remainder > 0 ? ` — covers ${kes(walletUse)}, collect ${kes(remainder)} more` : ' — covers full amount ✓'}`;
+  txt.style.color = '#22d3ee';
+  if (remainder > 0) {
+    document.getElementById('bk-wallet-remainder').style.display = '';
+    document.getElementById('bkwr-cash').classList.add('sel');
+    document.getElementById('bkwr-mpesa').classList.remove('sel');
+    document.getElementById('bk-wallet-mpesa-row').style.display = 'none';
+  }
 }
 
 function calcBookingTotal() {
@@ -1589,6 +1639,28 @@ async function saveBooking(forceOverride) {
 
   const total = nights * rate;
 
+  // ── Wallet validation ──
+  const isWallet = payment === 'wallet';
+  const bkWalletAcct = isWallet ? (S.loyaltyAccts||[]).find(a =>
+    (phone && a.phone && a.phone.replace(/\D/g,'').slice(-9) === phone.replace(/\D/g,'').slice(-9)) ||
+    (guest && a.name?.toLowerCase() === guest.toLowerCase())
+  ) : null;
+  const bkWalletBal  = bkWalletAcct?.wallet_balance || 0;
+  const bkWalletUse  = isWallet ? Math.min(bkWalletBal, total) : 0;
+  const bkRemainder  = isWallet ? Math.max(0, total - bkWalletUse) : 0;
+  if (isWallet && bkWalletUse === 0) { showToast('No wallet balance for this guest', true); return; }
+  const bkRemainMethod = document.getElementById('bkwr-mpesa')?.classList.contains('sel') ? 'mpesa' : 'cash';
+  const bkRemainMpesa  = document.getElementById('bk-wallet-mpesa-code')?.value?.trim().toUpperCase();
+  if (isWallet && bkRemainder > 0 && bkRemainMethod === 'mpesa' && !bkRemainMpesa) {
+    showToast('Enter M-Pesa code for the remainder', true); return;
+  }
+  const finalPaymentMethod = isWallet
+    ? (bkRemainder > 0 ? `wallet+${bkRemainMethod}` : 'wallet')
+    : payment;
+  const finalMpesa = isWallet
+    ? (bkRemainMethod === 'mpesa' ? bkRemainMpesa : null)
+    : (payment === 'mpesa' ? mpesa : null);
+
   // ── Overlap check (skip if host has already approved override) ──
   if (!forceOverride) {
     const overlaps = await apiGet(
@@ -1636,7 +1708,7 @@ async function saveBooking(forceOverride) {
       shop_id: S.shop.id, unit_id: unitId, unit_name: unitName||'Unit',
       guest_name: guest||null, guest_phone: phone||null,
       check_in: checkIn, check_out: checkOut, nights, rate, total,
-      payment_method: payment, mpesa_code: mpesa||null, notes: notes||null,
+      payment_method: finalPaymentMethod, mpesa_code: finalMpesa||null, notes: notes||null,
       recorded_by: S.user.id,
       double_booking_override: forceOverride || false,
     })
@@ -1666,6 +1738,25 @@ async function saveBooking(forceOverride) {
     }
   }
 
+  // ── Wallet: deduct balance if paid by wallet ──
+  if (isWallet && bkWalletUse > 0 && bkWalletAcct) {
+    const newWalBal = Math.max(0, bkWalletBal - bkWalletUse);
+    await apiPatch('loyalty_accounts', `id=eq.${bkWalletAcct.id}`, {
+      wallet_balance: newWalBal,
+      wallet_total_spent: (bkWalletAcct.wallet_total_spent||0) + bkWalletUse,
+    });
+    bkWalletAcct.wallet_balance = newWalBal;
+    await apiPost('wallet_transactions', {
+      shop_id: S.shop.id, account_id: bkWalletAcct.id,
+      customer_name: guest||null, phone: phone||null,
+      type: 'spend', amount: bkWalletUse,
+      balance_after: newWalBal,
+      payment_method: finalPaymentMethod,
+      note: `Booking — ${unitName||'unit'}, ${nights} night${nights!==1?'s':''}`,
+      recorded_by: S.user.id,
+    });
+  }
+
   const sendReceipt = document.getElementById('bk-receipt')?.checked;
   closeSaleSheet();
   showToast(`✓ Booking saved — ${kes(total)}${forceOverride?' (double booking approved)':''}`);
@@ -1673,12 +1764,139 @@ async function saveBooking(forceOverride) {
 
   if (sendReceipt) {
     const now = new Date().toLocaleString('en-KE',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
-    const methodStr = payment==='mpesa' ? `📱 M-Pesa (${mpesa||'—'})` : payment==='debt' ? '📋 Balance Due' : '💵 Cash';
+    const methodStr = finalPaymentMethod==='mpesa' ? `📱 M-Pesa (${finalMpesa||'—'})`
+      : finalPaymentMethod==='debt' ? '📋 Balance Due'
+      : finalPaymentMethod.startsWith('wallet') ? `💳 Wallet${bkRemainder > 0 ? ` + ${bkRemainMethod==='mpesa'?'M-Pesa':'Cash'} (${kes(bkRemainder)})` : ''}`
+      : '💵 Cash';
     const guestLine = guest ? `👤 Guest: ${guest}\n` : '';
     const phoneLine = phone ? `📞 ${phone}\n` : '';
     const receipt = `🧾 *Booking Receipt — ${S.shop.name}*\n📅 ${now}\n\n🛏️ ${unitName||'Unit'}\n${guestLine}${phoneLine}📆 Check-in: ${checkIn}\n📆 Check-out: ${checkOut}\n🌙 ${nights} night${nights!==1?'s':''} × KES ${rate.toLocaleString()}\n${'─'.repeat(28)}\n*Total: KES ${total.toLocaleString()}*\n${methodStr}\n\nThank you! 🙏`;
     window.open(`https://wa.me/?text=${encodeURIComponent(receipt)}`, '_blank');
   }
+}
+
+/* ═══════════════════════════════
+   WALLET DEPOSIT SHEET
+═══════════════════════════════ */
+function showRecordDepositSheet() {
+  const custOptions = (S.loyaltyAccts||[])
+    .filter(a => a.name || a.phone)
+    .sort((a,b) => (a.name||'').localeCompare(b.name||''))
+    .map(a => `<option value="${esc(a.name||a.phone)}">${esc(a.name||'')}${a.phone?' ('+a.phone+')':''} — ${kes(a.wallet_balance||0)}</option>`)
+    .join('');
+
+  pushSheet(`
+    <div class="sh-hand"></div>
+    <div class="sh-hdr"><h2>💳 Record a Deposit</h2></div>
+    <div class="sh-body">
+      <p style="font-size:13px;color:var(--txt2);margin:0 0 16px">Add funds to a customer's prepaid wallet. Points are <b>not</b> earned on deposits.</p>
+
+      <div class="fg-s"><label class="fl">Customer Name</label>
+        <input id="dep-name" class="fi" placeholder="e.g. James Kamau" list="dep-name-list" oninput="onDepNameInput(this.value)">
+        <datalist id="dep-name-list">${custOptions}</datalist>
+      </div>
+      <div class="fg-s"><label class="fl">Phone (optional)</label>
+        <input id="dep-phone" class="fi" placeholder="e.g. 0712345678" type="tel" inputmode="tel" oninput="onDepPhoneInput(this.value)">
+      </div>
+      <div id="dep-wallet-info" style="display:none;background:var(--surf2);border-radius:10px;padding:10px 12px;font-size:13px;margin-bottom:10px">
+        <span id="dep-wallet-bal-txt" style="color:#22d3ee">—</span>
+      </div>
+      <div class="fg-s"><label class="fl">Deposit Amount (KES)</label>
+        <input id="dep-amount" class="fi" type="number" min="1" inputmode="numeric" placeholder="e.g. 5000">
+      </div>
+      <label class="fl" style="margin-bottom:8px">Payment Method</label>
+      <div class="method-row" style="margin-bottom:14px">
+        <button class="method-btn sel" id="dep-cash" onclick="depSetMethod('cash')"><span class="m-ico">💵</span>Cash</button>
+        <button class="method-btn" id="dep-mpesa" onclick="depSetMethod('mpesa')"><span class="m-ico">📱</span>M-Pesa</button>
+      </div>
+      <div id="dep-mpesa-row" style="display:none;margin-bottom:14px">
+        <label class="fl">M-Pesa Code</label>
+        <input id="dep-mpesa-code" class="fi" placeholder="e.g. QK1234ABCD" oninput="this.value=this.value.toUpperCase()">
+      </div>
+      <button class="btn-p" onclick="confirmDeposit()">💳 Record Deposit</button>
+      <button class="btn-g" onclick="popSheet()">Cancel</button>
+    </div>`);
+}
+
+let _depMethod = 'cash';
+function depSetMethod(m) {
+  _depMethod = m;
+  document.getElementById('dep-cash').classList.toggle('sel', m==='cash');
+  document.getElementById('dep-mpesa').classList.toggle('sel', m==='mpesa');
+  document.getElementById('dep-mpesa-row').style.display = m==='mpesa' ? '' : 'none';
+}
+
+function _depRefreshInfo() {
+  const name  = document.getElementById('dep-name')?.value?.trim();
+  const phone = document.getElementById('dep-phone')?.value?.trim();
+  const info  = document.getElementById('dep-wallet-info');
+  const txt   = document.getElementById('dep-wallet-bal-txt');
+  if (!info || !txt) return;
+  if (!name && !phone) { info.style.display = 'none'; return; }
+  const acct = (S.loyaltyAccts||[]).find(a =>
+    (phone && a.phone && a.phone.replace(/\D/g,'').slice(-9) === phone.replace(/\D/g,'').slice(-9)) ||
+    (name  && a.name?.toLowerCase() === name.toLowerCase())
+  );
+  info.style.display = '';
+  if (acct) {
+    txt.textContent = `Existing wallet — current balance: ${kes(acct.wallet_balance||0)}`;
+    txt.style.color = '#22d3ee';
+    // Auto-fill phone if blank
+    if (!phone && acct.phone) document.getElementById('dep-phone').value = acct.phone;
+  } else {
+    txt.textContent = `New customer — a wallet will be created on save`;
+    txt.style.color = 'var(--acc)';
+  }
+}
+function onDepNameInput(v)  { _depRefreshInfo(); }
+function onDepPhoneInput(v) { _depRefreshInfo(); }
+
+async function confirmDeposit() {
+  const name   = document.getElementById('dep-name')?.value?.trim();
+  const phone  = document.getElementById('dep-phone')?.value?.trim();
+  const amount = parseFloat(document.getElementById('dep-amount')?.value)||0;
+  const mpesa  = document.getElementById('dep-mpesa-code')?.value?.trim().toUpperCase();
+
+  if (!name && !phone) { showToast('Enter customer name or phone', true); return; }
+  if (amount <= 0)     { showToast('Enter a deposit amount', true); return; }
+  if (_depMethod === 'mpesa' && !mpesa) { showToast('Enter M-Pesa code', true); return; }
+
+  // Find or create loyalty account
+  let acct = (S.loyaltyAccts||[]).find(a =>
+    (phone && a.phone && a.phone.replace(/\D/g,'').slice(-9) === phone.replace(/\D/g,'').slice(-9)) ||
+    (name  && a.name?.toLowerCase() === name.toLowerCase())
+  );
+  if (!acct) {
+    const res = await apiPost('loyalty_accounts', { shop_id: S.shop.id, name: name||null, phone: phone||null });
+    acct = Array.isArray(res?.data) ? res.data[0] : (res?.data || res);
+    if (acct?.id) S.loyaltyAccts.push(acct);
+  }
+  if (!acct?.id) { showToast('Could not create wallet account', true); return; }
+
+  const newBal = (acct.wallet_balance||0) + amount;
+  await apiPatch('loyalty_accounts', `id=eq.${acct.id}`, {
+    wallet_balance: newBal,
+    wallet_total_deposited: (acct.wallet_total_deposited||0) + amount,
+    ...(phone && !acct.phone ? {phone} : {}),
+    ...(name  && !acct.name  ? {name}  : {}),
+  });
+  acct.wallet_balance = newBal;
+  acct.wallet_total_deposited = (acct.wallet_total_deposited||0) + amount;
+
+  await apiPost('wallet_transactions', {
+    shop_id: S.shop.id, account_id: acct.id,
+    customer_name: name||null, phone: phone||null,
+    type: 'deposit', amount,
+    balance_after: newBal,
+    payment_method: _depMethod,
+    mpesa_code: _depMethod === 'mpesa' ? mpesa : null,
+    note: `Deposit via ${_depMethod==='mpesa'?'M-Pesa ('+mpesa+')':'cash'}`,
+    recorded_by: S.user.id,
+    recorded_by_name: S.member?.name||null,
+  });
+
+  popSheet();
+  showToast(`✓ ${kes(amount)} deposited — wallet now ${kes(newBal)}`);
 }
 
 /* ═══════════════════════════════
@@ -2163,18 +2381,44 @@ function loyaltySectionHtml(total) {
   </div>`;
 }
 
+function walletSectionHtml(total) {
+  const acct = S.loyaltyAccts.find(a => a.name?.toLowerCase() === (S.saleCust||'').toLowerCase());
+  const bal  = acct?.wallet_balance || 0;
+  if (!S.saleCust || S.saleCust === 'Walk-in') return '';
+  if (bal <= 0) return '';
+  const walletUse = Math.min(bal, total);
+  const remainder = Math.max(0, total - walletUse);
+  const active = S.smethod === 'wallet';
+  return `<div id="wallet-toggle-row" style="background:${active?'#0e7490':'var(--surf2)'};border:${active?'1.5px solid #22d3ee':'1px solid var(--bdr)'};border-radius:12px;padding:12px 14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;cursor:pointer"
+       onclick="toggleWalletPayment(${walletUse},${remainder})">
+    <div>
+      <div style="font-size:13px;font-weight:600;color:${active?'#67e8f9':'var(--txt)'}">💳 Pay from Wallet</div>
+      <div style="font-size:11px;color:${active?'#a5f3fc':'var(--txt2)'}">Balance: ${kes(bal)}${remainder>0&&active?` · ${kes(walletUse)} from wallet + ${kes(remainder)} cash/M-Pesa`:''}</div>
+    </div>
+    <div style="width:40px;height:22px;border-radius:11px;background:${active?'#22d3ee':'var(--bdr)'};transition:.2s;position:relative;flex-shrink:0">
+      <div style="position:absolute;width:16px;height:16px;border-radius:50%;background:#fff;top:3px;${active?'left:21px':'left:3px'};transition:.2s"></div>
+    </div>
+  </div>`;
+}
+
 function saleTotalsHtml(total, profit) {
   const pv       = S.loyalty?.point_value || 1;
   const er       = S.loyalty?.earn_rate   || 50;
   const redeemKES = S.loyalty?.enabled ? Math.round(S.redeemPoints * pv) : 0;
-  const finalTotal = Math.max(0, total - redeemKES);
+  const acct = S.loyaltyAccts.find(a => a.name?.toLowerCase() === (S.saleCust||'').toLowerCase());
+  const walletBal = acct?.wallet_balance || 0;
+  const walletUse = S.smethod === 'wallet' ? Math.min(walletBal, Math.max(0, total - redeemKES)) : 0;
+  const afterPts = Math.max(0, total - redeemKES);
+  const finalTotal = Math.max(0, afterPts - walletUse);
   const earnedPts  = (S.loyalty?.enabled && S.saleCust && S.saleCust !== 'Walk-in')
-    ? Math.floor(finalTotal / er) : 0;
+    ? Math.floor(afterPts / er) : 0;
+  const hasDeductions = redeemKES > 0 || walletUse > 0;
   return `<div class="tot-box">
-    ${redeemKES > 0 ? `
+    ${hasDeductions ? `
     <div class="tot-row"><span class="tot-lbl">Subtotal</span><span class="tot-val">${kes(total)}</span></div>
-    <div class="tot-row"><span class="tot-lbl" style="color:var(--grn)">⭐ Points Off</span><span class="tot-val" style="color:var(--grn)">−${kes(redeemKES)}</span></div>
-    <div class="tot-row" style="font-size:18px"><span class="tot-lbl" style="font-weight:800">Pay</span><span class="tot-val" style="font-weight:800">${kes(finalTotal)}</span></div>
+    ${redeemKES > 0 ? `<div class="tot-row"><span class="tot-lbl" style="color:var(--grn)">⭐ Points Off</span><span class="tot-val" style="color:var(--grn)">−${kes(redeemKES)}</span></div>` : ''}
+    ${walletUse > 0 ? `<div class="tot-row"><span class="tot-lbl" style="color:#22d3ee">💳 Wallet</span><span class="tot-val" style="color:#22d3ee">−${kes(walletUse)}</span></div>` : ''}
+    <div class="tot-row" style="font-size:18px"><span class="tot-lbl" style="font-weight:800">Pay Now</span><span class="tot-val" style="font-weight:800">${kes(finalTotal)}</span></div>
     ` : `<div class="tot-row"><span class="tot-lbl">Total</span><span class="tot-val">${kes(total)}</span></div>`}
     ${earnedPts > 0 ? `<div style="font-size:11px;color:var(--acc);margin-top:4px">+${earnedPts.toLocaleString()} pts earned after this sale</div>` : ''}
     <div style="font-size:11px;color:var(--grn);margin-top:4px">Profit: ${kes(profit)}</div>
@@ -2184,12 +2428,38 @@ function saleTotalsHtml(total, profit) {
 function onSaleCustChange(name) {
   S.saleCust = name;
   S.redeemPoints = 0;
+  if (S.smethod === 'wallet') { S.smethod = 'cash'; }
   const total  = getCartTotal();
   const profit = getCartProfit();
   const el = document.getElementById('loyalty-section');
+  const we = document.getElementById('wallet-section');
   const te = document.getElementById('sale-totals');
   if (el) el.innerHTML = loyaltySectionHtml(total);
+  if (we) we.innerHTML = walletSectionHtml(total);
   if (te) te.innerHTML = saleTotalsHtml(total, profit);
+}
+
+function toggleWalletPayment(walletUse, remainder) {
+  if (S.smethod === 'wallet') {
+    S.smethod = 'cash';
+  } else {
+    S.smethod = 'wallet';
+  }
+  const total  = getCartTotal();
+  const profit = getCartProfit();
+  // Re-render wallet toggle + payment method highlight + totals
+  const we = document.getElementById('wallet-section');
+  const te = document.getElementById('sale-totals');
+  const mf = document.getElementById('mpesa-field');
+  const df = document.getElementById('debt-field');
+  const wf = document.getElementById('wallet-remainder-field');
+  if (we) we.innerHTML = walletSectionHtml(total);
+  if (te) te.innerHTML = saleTotalsHtml(total, profit);
+  if (mf) mf.style.display = 'none';
+  if (df) df.style.display = 'none';
+  if (wf) wf.style.display = S.smethod === 'wallet' && remainder > 0 ? '' : 'none';
+  // Unhighlight all payment method buttons
+  document.querySelectorAll('.method-btn').forEach(b => b.classList.remove('sel'));
 }
 
 function toggleRedeemPoints(maxPts) {
@@ -2255,6 +2525,68 @@ async function saveLoyaltySettings() {
 }
 
 /* ═══════════════════════════════
+   WALLET MANAGER (Owner)
+═══════════════════════════════ */
+async function showWalletManager() {
+  pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>💳 Customer Wallets</h2></div><div class="sh-body"><div style="color:var(--txt2);text-align:center;padding:30px 0">Loading…</div></div>`);
+  document.getElementById('sale-overlay').classList.add('on');
+
+  // Refresh accounts
+  const fresh = await apiGet(`loyalty_accounts?shop_id=eq.${S.shop.id}&order=wallet_balance.desc`);
+  if (fresh) S.loyaltyAccts = fresh;
+
+  const allAccts = S.loyaltyAccts || [];
+  const activeAccts = allAccts.filter(a => (a.wallet_balance||0) > 0 || (a.wallet_total_deposited||0) > 0);
+  const totalBal  = allAccts.reduce((s,a) => s+(a.wallet_balance||0), 0);
+  const totalDep  = allAccts.reduce((s,a) => s+(a.wallet_total_deposited||0), 0);
+  const totalSpent= allAccts.reduce((s,a) => s+(a.wallet_total_spent||0), 0);
+
+  let clientRows = '';
+  if (activeAccts.length === 0) {
+    clientRows = `<div class="empty" style="padding:30px 0"><div class="empty-ico">💳</div><p>No wallet activity yet.<br>Record a deposit to get started.</p></div>`;
+  } else {
+    activeAccts.forEach(a => {
+      const bal = a.wallet_balance||0;
+      clientRows += `<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--bdr)">
+        <div>
+          <div style="font-weight:600;font-size:14px">${esc(a.name||a.phone||'Unknown')}</div>
+          <div style="font-size:12px;color:var(--txt2)">${a.phone?a.phone+' · ':''}Deposited: ${kes(a.wallet_total_deposited||0)} · Spent: ${kes(a.wallet_total_spent||0)}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-weight:700;font-size:15px;color:${bal>0?'#22d3ee':'var(--txt3)'}">${kes(bal)}</div>
+          <div style="font-size:11px;color:var(--txt3)">balance</div>
+        </div>
+      </div>`;
+    });
+  }
+
+  const body = document.querySelector('.sh-body');
+  if (!body) return;
+  body.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px">
+      <div style="background:var(--surf2);border-radius:12px;padding:14px;text-align:center">
+        <div style="font-size:11px;color:var(--txt2);margin-bottom:4px">Outstanding</div>
+        <div style="font-size:20px;font-weight:800;color:#22d3ee">${kes(totalBal)}</div>
+      </div>
+      <div style="background:var(--surf2);border-radius:12px;padding:14px;text-align:center">
+        <div style="font-size:11px;color:var(--txt2);margin-bottom:4px">Total Deposited</div>
+        <div style="font-size:20px;font-weight:800;color:var(--acc)">${kes(totalDep)}</div>
+      </div>
+      <div style="background:var(--surf2);border-radius:12px;padding:14px;text-align:center">
+        <div style="font-size:11px;color:var(--txt2);margin-bottom:4px">Total Spent</div>
+        <div style="font-size:20px;font-weight:800;color:var(--grn)">${kes(totalSpent)}</div>
+      </div>
+      <div style="background:var(--surf2);border-radius:12px;padding:14px;text-align:center">
+        <div style="font-size:11px;color:var(--txt2);margin-bottom:4px">Clients</div>
+        <div style="font-size:20px;font-weight:800">${activeAccts.length}</div>
+      </div>
+    </div>
+    <button class="btn-p" style="margin-bottom:18px" onclick="showRecordDepositSheet()">＋ Record Deposit</button>
+    <div style="font-weight:700;font-size:14px;margin-bottom:4px">All Wallets</div>
+    ${clientRows}`;
+}
+
+/* ═══════════════════════════════
    LOYALTY OVERVIEW (Owner)
 ═══════════════════════════════ */
 async function showLoyaltyOverview() {
@@ -2268,20 +2600,22 @@ async function showLoyaltyOverview() {
   const l = S.loyalty || { earn_rate: 50, point_value: 1 };
   const pointValue = parseFloat(l.point_value) || 1;
 
-  const totalPts  = S.loyaltyAccts.reduce((s,a) => s + (a.points_balance||0), 0);
-  const totalKes  = totalPts * pointValue;
-  const totalEarned   = S.loyaltyAccts.reduce((s,a) => s + (a.total_earned||0), 0);
-  const totalRedeemed = S.loyaltyAccts.reduce((s,a) => s + (a.total_redeemed||0), 0);
-  const activeAccts   = S.loyaltyAccts.filter(a => (a.points_balance||0) > 0);
+  const totalPts       = S.loyaltyAccts.reduce((s,a) => s + (a.points_balance||0), 0);
+  const totalKes       = totalPts * pointValue;
+  const totalEarned    = S.loyaltyAccts.reduce((s,a) => s + (a.total_earned||0), 0);
+  const totalRedeemed  = S.loyaltyAccts.reduce((s,a) => s + (a.total_redeemed||0), 0);
+  const totalWalletBal = S.loyaltyAccts.reduce((s,a) => s + (a.wallet_balance||0), 0);
+  const activeAccts    = S.loyaltyAccts.filter(a => (a.points_balance||0) > 0);
 
   const rows = S.loyaltyAccts.map((a,i) => {
-    const bal = a.points_balance || 0;
-    const val = bal * pointValue;
+    const bal  = a.points_balance || 0;
+    const val  = bal * pointValue;
+    const wbal = a.wallet_balance || 0;
     return `<div class="more-item">
       <div class="more-ico" style="background:#f59e0b22;font-size:16px">${bal>0?'⭐':'☆'}</div>
       <div class="more-inf">
         <div class="more-nm">${esc(a.name||'—')}${a.phone?` <span style="color:var(--txt2);font-size:11px">${esc(a.phone)}</span>`:''}</div>
-        <div class="more-mt">${bal.toLocaleString()} pts · KES ${val.toLocaleString(undefined,{maximumFractionDigits:1})} value</div>
+        <div class="more-mt">${bal.toLocaleString()} pts · KES ${val.toLocaleString(undefined,{maximumFractionDigits:1})} value${wbal>0?` · 💳 ${kes(wbal)}`:''}</div>
       </div>
       <div style="text-align:right">
         <div style="font-size:13px;font-weight:700;color:${bal>0?'#f59e0b':'var(--txt2)'}">${bal.toLocaleString()}</div>
@@ -2310,6 +2644,10 @@ async function showLoyaltyOverview() {
         <div style="font-size:22px;font-weight:800;color:var(--txt)">${totalRedeemed.toLocaleString()}</div>
         <div style="font-size:11px;color:var(--txt2);margin-top:2px">Total Redeemed</div>
       </div>
+      ${totalWalletBal > 0 ? `<div style="background:var(--surf2);border-radius:12px;padding:14px;text-align:center;grid-column:1/-1">
+        <div style="font-size:22px;font-weight:800;color:#22d3ee">${kes(totalWalletBal)}</div>
+        <div style="font-size:11px;color:var(--txt2);margin-top:2px">💳 Wallet Balance Outstanding</div>
+      </div>` : ''}
     </div>
     <div style="font-size:12px;color:var(--txt2);margin-bottom:8px">1 point = KES ${pointValue} · ${activeAccts.length} client${activeAccts.length!==1?'s':''} with active balance</div>
     <div class="clist">${rows||'<div style="color:var(--txt2);text-align:center;padding:20px 0">No loyalty accounts yet</div>'}</div>
@@ -2615,6 +2953,10 @@ function renderMore(el) {
         ${isOwner ? `<div class="more-item" onclick="showLoyaltyOverview()">
           <div class="more-ico" style="background:#f59e0b22">⭐</div>
           <div class="more-inf"><div class="more-nm">Loyalty Points</div><div class="more-mt">${S.loyalty?.enabled?`On · ${S.loyalty.earn_rate} KES = 1 pt · ${(S.loyaltyAccts||[]).length} members`:'Set up earn & redeem rates'}</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showWalletManager()">
+          <div class="more-ico" style="background:#0e749022">💳</div>
+          <div class="more-inf"><div class="more-nm">Customer Wallets</div><div class="more-mt">${(()=>{const with_bal=(S.loyaltyAccts||[]).filter(a=>(a.wallet_balance||0)>0);const tot=with_bal.reduce((s,a)=>s+(a.wallet_balance||0),0);return with_bal.length>0?`${with_bal.length} active · ${kes(tot)} outstanding`:'Record prepaid deposits & balances';})()}</div></div>
           <span style="color:var(--txt3)">›</span></div>` : ''}
       </div>`:''}
 
@@ -2767,6 +3109,7 @@ function renderSaleSheet() {
              value="${esc(S.saleCust)}" oninput="onSaleCustChange(this.value)">
     </div>
     <div id="loyalty-section">${loyaltySectionHtml(total)}</div>
+    <div id="wallet-section">${walletSectionHtml(total)}</div>
 
     <label class="fl">Payment Method</label>
     <div class="method-row">
@@ -2782,6 +3125,16 @@ function renderSaleSheet() {
     <div id="debt-field" style="display:${S.smethod==='debt'?'block':'none'};margin-bottom:14px">
       <label class="fl">Due Date</label>
       <input type="date" id="debt-due" class="fi" value="${dateInDays(30)}">
+    </div>
+    <div id="wallet-remainder-field" style="display:none;margin-bottom:14px">
+      <div style="font-size:12px;color:var(--txt2);margin-bottom:8px">Wallet covers part — collect the rest:</div>
+      <div class="method-row" style="grid-template-columns:1fr 1fr;margin-bottom:10px">
+        <button class="method-btn sel" id="wr-cash" onclick="document.getElementById('wr-cash').classList.add('sel');document.getElementById('wr-mpesa').classList.remove('sel');document.getElementById('wallet-mpesa-row').style.display='none'"><span class="m-ico">💵</span>Cash</button>
+        <button class="method-btn" id="wr-mpesa" onclick="document.getElementById('wr-mpesa').classList.add('sel');document.getElementById('wr-cash').classList.remove('sel');document.getElementById('wallet-mpesa-row').style.display='block'"><span class="m-ico">📱</span>M-Pesa</button>
+      </div>
+      <div id="wallet-mpesa-row" style="display:none">
+        <input type="text" id="wallet-mpesa-code" class="fi" placeholder="M-Pesa code for remainder" oninput="this.value=this.value.toUpperCase()">
+      </div>
     </div>
 
     <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surf2);border-radius:12px;margin-bottom:14px;cursor:pointer"
@@ -2813,8 +3166,17 @@ function setMethod(m) {
   document.querySelectorAll('.method-btn').forEach(b => b.classList.toggle('sel', b.textContent.toLowerCase().includes(m==='cash'?'cash':m==='mpesa'?'pesa':'debt')));
   const mf = document.getElementById('mpesa-field');
   const df = document.getElementById('debt-field');
+  const wf = document.getElementById('wallet-remainder-field');
   if (mf) mf.style.display = m === 'mpesa' ? 'block' : 'none';
   if (df) df.style.display  = m === 'debt'  ? 'block' : 'none';
+  if (wf) wf.style.display  = 'none';
+  // Re-render wallet toggle so it shows deselected
+  const we = document.getElementById('wallet-section');
+  const te = document.getElementById('sale-totals');
+  const total  = getCartTotal();
+  const profit = getCartProfit();
+  if (we) we.innerHTML = walletSectionHtml(total);
+  if (te) te.innerHTML = saleTotalsHtml(total, profit);
 }
 
 async function confirmSale() {
@@ -2824,6 +3186,20 @@ async function confirmSale() {
 
   if (S.smethod === 'debt' && custName === 'Walk-in') {
     showToast('Enter customer name for debt sales', true); return;
+  }
+
+  // Wallet payment validation
+  const isWallet = S.smethod === 'wallet';
+  const cartTotForWallet = getCartTotal();
+  const walletAcct = isWallet ? S.loyaltyAccts.find(a => a.name?.toLowerCase() === custName.toLowerCase()) : null;
+  const walletBal = walletAcct?.wallet_balance || 0;
+  const walletUseAmt = isWallet ? Math.min(walletBal, Math.max(0, cartTotForWallet - Math.round(S.redeemPoints * (S.loyalty?.point_value||1)))) : 0;
+  const walletRemainder = isWallet ? Math.max(0, cartTotForWallet - Math.round(S.redeemPoints * (S.loyalty?.point_value||1)) - walletUseAmt) : 0;
+  let walletRemainMethod = null, walletRemainMpesa = null;
+  if (isWallet && walletRemainder > 0) {
+    walletRemainMethod = document.getElementById('wr-mpesa')?.classList.contains('sel') ? 'mpesa' : 'cash';
+    walletRemainMpesa  = walletRemainMethod === 'mpesa' ? (document.getElementById('wallet-mpesa-code')?.value||'').trim().toUpperCase() : null;
+    if (walletRemainMethod === 'mpesa' && !walletRemainMpesa) { showToast('Enter M-Pesa code for the remainder', true); return; }
   }
 
   const mpesaCode = S.smethod === 'mpesa' ? (document.getElementById('mpesa-code')?.value||'').trim().toUpperCase() : null;
@@ -2859,8 +3235,8 @@ async function confirmSale() {
       shop_id: S.shop.id, product_id: p.id, product_name: p.name, product_emoji: p.emoji||'📦',
       qty: item.qty, unit_price: p.sell_price, buy_price: p.buy_price,
       total: saleTotal, profit: saleProfit,
-      payment_method: S.smethod,
-      mpesa_code: savedCount === 0 ? mpesaCode : null,
+      payment_method: isWallet ? (walletRemainder > 0 ? `wallet+${walletRemainMethod}` : 'wallet') : S.smethod,
+      mpesa_code: savedCount === 0 ? (isWallet ? walletRemainMpesa : mpesaCode) : null,
       customer_id: custId, customer_name: custName,
       recorded_by: S.user.id,
     };
@@ -2916,11 +3292,28 @@ async function confirmSale() {
     }
   }
 
+  // ── Wallet: deduct amount used ──
+  if (isWallet && walletUseAmt > 0 && walletAcct) {
+    const newWalBal = Math.max(0, walletBal - walletUseAmt);
+    await apiPatch('loyalty_accounts', `id=eq.${walletAcct.id}`, {
+      wallet_balance: newWalBal,
+      wallet_total_spent: (walletAcct.wallet_total_spent||0) + walletUseAmt,
+    });
+    walletAcct.wallet_balance    = newWalBal;
+    walletAcct.wallet_total_spent = (walletAcct.wallet_total_spent||0) + walletUseAmt;
+    await apiPost('wallet_transactions', {
+      shop_id: S.shop.id, account_id: walletAcct.id,
+      customer_name: custName, type: 'spend', amount: walletUseAmt,
+      balance_after: newWalBal, note: `Sale — ${savedCount} item${savedCount!==1?'s':''}`,
+      recorded_by: S.user.id,
+    });
+  }
+
   const redeemKesSnap = S.loyalty?.enabled ? Math.round(S.redeemPoints * (S.loyalty.point_value||1)) : 0;
   const cartSnapshot = S.cart.map(i => ({...i}));
   const receiptRequested = S.sendReceipt;
-  const receiptMethod = S.smethod;
-  const receiptMpesa = mpesaCode;
+  const receiptMethod = isWallet ? (walletRemainder > 0 ? `wallet+${walletRemainMethod}` : 'wallet') : S.smethod;
+  const receiptMpesa = isWallet ? walletRemainMpesa : mpesaCode;
   const receiptCust = custName;
   closeSaleSheet();
   S.cart = []; S.redeemPoints = 0; S.saleCust = '';
@@ -2930,7 +3323,7 @@ async function confirmSale() {
   if (receiptRequested) {
     const now = new Date().toLocaleString('en-KE',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
     const lines = cartSnapshot.map(i => `${i.product.emoji||'📦'} ${i.product.name} ×${i.qty} — KES ${(i.product.sell_price*i.qty).toLocaleString()}`).join('\n');
-    const methodStr = receiptMethod==='mpesa' ? `📱 M-Pesa (${receiptMpesa})` : receiptMethod==='debt' ? '📋 Debt' : '💵 Cash';
+    const methodStr = receiptMethod==='mpesa' ? `📱 M-Pesa (${receiptMpesa})` : receiptMethod==='debt' ? '📋 Debt' : receiptMethod?.startsWith('wallet') ? `💳 Wallet${walletUseAmt>0?' ('+kes(walletUseAmt)+')':''}${walletRemainder>0?' + '+kes(walletRemainder):''}` : '💵 Cash';
     const header = receiptCust && receiptCust !== 'Walk-in' ? `For: ${receiptCust}\n` : '';
     const discountLine = redeemKesSnap > 0 ? `⭐ Points discount: −KES ${redeemKesSnap.toLocaleString()}\n` : '';
     const finalPaidAmt = cartTot - redeemKesSnap;
@@ -3753,7 +4146,12 @@ async function showAirbnbTopGuests() {
       (g.phone && a.phone && a.phone.replace(/\D/g,'').slice(-9) === g.phone.replace(/\D/g,'').slice(-9)) ||
       (a.name?.toLowerCase() === g.name?.toLowerCase())
     );
-    const pts = lacct ? lacct.points_balance : null;
+    const pts  = lacct ? lacct.points_balance  : null;
+    const wbal = lacct ? (lacct.wallet_balance||0) : null;
+    const gExtras = [
+      loyaltyOn && pts != null ? `⭐ ${pts.toLocaleString()} pts` : null,
+      wbal != null && wbal > 0  ? `💳 ${kes(wbal)}`              : null,
+    ].filter(Boolean).join(' · ');
     return `<div style="margin-bottom:14px">
       <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px">
         <span>${i===0?'🥇':i===1?'🥈':i===2?'🥉':'  '} <b>${esc(g.name||'Guest')}</b></span>
@@ -3762,7 +4160,7 @@ async function showAirbnbTopGuests() {
       <div style="background:var(--surf2);border-radius:6px;height:8px;overflow:hidden">
         <div style="width:${pct}%;height:100%;background:var(--acc);border-radius:6px"></div>
       </div>
-      <div style="font-size:11px;color:var(--txt2);margin-top:3px">${g.visits} stay${g.visits!==1?'s':''} · ${g.nights} nights${loyaltyOn&&pts!=null?' · ⭐ '+pts.toLocaleString()+' pts':''}</div>
+      <div style="font-size:11px;color:var(--txt2);margin-top:3px">${g.visits} stay${g.visits!==1?'s':''} · ${g.nights} nights${gExtras?' · '+gExtras:''}</div>
     </div>`;
   }).join('');
 
@@ -4773,12 +5171,17 @@ async function showTopClients() {
   sorted.forEach((c, i) => {
     // Match loyalty account by customer name (case-insensitive)
     const lacct = (S.loyaltyAccts||[]).find(a => a.name?.toLowerCase() === c.name?.toLowerCase());
-    const pts = lacct ? lacct.points_balance : null;
+    const pts  = lacct ? lacct.points_balance  : null;
+    const wbal = lacct ? (lacct.wallet_balance||0) : null;
+    const extras = [
+      loyaltyOn && pts != null ? `⭐ ${pts.toLocaleString()} pts` : null,
+      wbal != null && wbal > 0  ? `💳 ${kes(wbal)}`              : null,
+    ].filter(Boolean).join(' · ');
     list += `<div class="more-item">
       <div class="more-ico" style="background:${i<3?'#d9770622':'var(--surf2)'};font-size:${i<3?'22':'16'}px">${medals[i]||'👤'}</div>
       <div class="more-inf">
         <div class="more-nm">${esc(c.name)}</div>
-        <div class="more-mt">${c.count} purchase${c.count!==1?'s':''}${loyaltyOn&&pts!=null?` · ⭐ ${pts.toLocaleString()} pts`:''}</div>
+        <div class="more-mt">${c.count} purchase${c.count!==1?'s':''}${extras?' · '+extras:''}</div>
       </div>
       <div style="font-size:13px;font-weight:700;color:var(--grn)">${kes(c.total)}</div>
     </div>`;
