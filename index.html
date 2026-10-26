@@ -1245,125 +1245,179 @@ async function renderUnits(el) {
 /* ═══════════════════════════════
    BOOKINGS TAB
 ═══════════════════════════════ */
+function calPrev() {
+  if (!S.calMonth) { const n=new Date(); S.calMonth={year:n.getFullYear(),month:n.getMonth()}; }
+  S.calMonth.month--;
+  if (S.calMonth.month < 0) { S.calMonth.month = 11; S.calMonth.year--; }
+  renderTab('bookings');
+}
+function calNext() {
+  if (!S.calMonth) { const n=new Date(); S.calMonth={year:n.getFullYear(),month:n.getMonth()}; }
+  S.calMonth.month++;
+  if (S.calMonth.month > 11) { S.calMonth.month = 0; S.calMonth.year++; }
+  renderTab('bookings');
+}
+
 async function renderBookings(el) {
-  const subTab = S.bookingSubTab || 'bookings';
+  if (!S.calMonth) {
+    const n = new Date();
+    S.calMonth = { year: n.getFullYear(), month: n.getMonth() };
+  }
+  const { year, month } = S.calMonth;
 
-  // Sub-tab toggle (always shown)
-  let h = `<div style="display:flex;gap:8px;padding:14px 16px 0">
-    <button style="flex:1;padding:9px 0;border-radius:10px;border:1.5px solid ${subTab==='bookings'?'var(--acc)':'var(--bdr)'};background:${subTab==='bookings'?'var(--acc-d)':'var(--surf)'};color:${subTab==='bookings'?'var(--acc)':'var(--txt2)'};font-size:13px;font-weight:600;cursor:pointer"
-      onclick="S.bookingSubTab='bookings';renderTab('bookings')">📅 Bookings</button>
-    <button style="flex:1;padding:9px 0;border-radius:10px;border:1.5px solid ${subTab==='commissions'?'var(--acc)':'var(--bdr)'};background:${subTab==='commissions'?'var(--acc-d)':'var(--surf)'};color:${subTab==='commissions'?'var(--acc)':'var(--txt2)'};font-size:13px;font-weight:600;cursor:pointer"
-      onclick="S.bookingSubTab='commissions';renderTab('bookings')">🤝 Commissions</button>
-  </div>`;
+  const firstDay = `${year}-${String(month+1).padStart(2,'0')}-01`;
+  const lastDay  = new Date(year, month+1, 0).toISOString().slice(0,10);
 
-  if (subTab === 'commissions') {
-    h += await buildCommissionsHtml();
-    h += '<div style="height:8px"></div>';
-    el.innerHTML = h;
-    return;
+  const [bks, cms] = await Promise.all([
+    apiGet(`bookings?shop_id=eq.${S.shop.id}&check_in=gte.${firstDay}&check_in=lte.${lastDay}&order=check_in.asc`),
+    apiGet(`commissions?shop_id=eq.${S.shop.id}&commission_date=gte.${firstDay}&commission_date=lte.${lastDay}&order=commission_date.asc`),
+  ]);
+
+  // Build dot maps  { "2026-10-15": [booking,...] }
+  const bkMap = {};
+  (bks||[]).forEach(b => { (bkMap[b.check_in] = bkMap[b.check_in]||[]).push(b); });
+  const cmMap = {};
+  (cms||[]).forEach(c => { (cmMap[c.commission_date] = cmMap[c.commission_date]||[]).push(c); });
+
+  const totalBkRev = (bks||[]).reduce((a,b)=>a+(b.total||0),0);
+  const totalCmRev = (cms||[]).reduce((a,c)=>a+(c.amount||0),0);
+
+  const todayStr = new Date().toISOString().slice(0,10);
+  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+  const startDow    = new Date(year, month, 1).getDay(); // 0=Sun
+
+  // ── Calendar grid ──
+  let cal = `
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 16px 8px">
+      <button onclick="calPrev()" style="background:var(--surf2);border:none;border-radius:10px;padding:8px 16px;font-size:20px;cursor:pointer;color:var(--txt)">‹</button>
+      <div style="font-weight:700;font-size:16px;color:var(--txt)">${monthNames[month]} ${year}</div>
+      <button onclick="calNext()" style="background:var(--surf2);border:none;border-radius:10px;padding:8px 16px;font-size:20px;cursor:pointer;color:var(--txt)">›</button>
+    </div>
+    <div style="padding:0 12px">
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:3px">`;
+  ['Su','Mo','Tu','We','Th','Fr','Sa'].forEach(d => {
+    cal += `<div style="text-align:center;font-size:11px;font-weight:600;color:var(--txt2);padding:4px 0">${d}</div>`;
+  });
+  cal += `</div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px">`;
+
+  for (let i=0; i<startDow; i++) cal += '<div></div>';
+  for (let d=1; d<=daysInMonth; d++) {
+    const ds = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const isToday = ds === todayStr;
+    const hasBk   = !!bkMap[ds]?.length;
+    const hasCm   = !!cmMap[ds]?.length;
+    const hasAny  = hasBk || hasCm;
+    cal += `<div onclick="${hasAny?`openDaySheet('${ds}')`:'void(0)'}" style="text-align:center;padding:7px 2px 5px;border-radius:10px;
+      background:${isToday?'var(--acc)':'var(--surf2)'};cursor:${hasAny?'pointer':'default'};
+      border:1.5px solid ${isToday?'var(--acc)':'var(--bdr)'}">
+      <div style="font-size:13px;font-weight:${isToday||hasAny?'700':'400'};color:${isToday?'#fff':'var(--txt)'}">${d}</div>
+      <div style="display:flex;justify-content:center;gap:2px;min-height:6px;margin-top:2px">
+        ${hasBk?'<div style="width:5px;height:5px;border-radius:50%;background:#3b82f6;flex-shrink:0"></div>':''}
+        ${hasCm?'<div style="width:5px;height:5px;border-radius:50%;background:#10b981;flex-shrink:0"></div>':''}
+      </div>
+    </div>`;
+  }
+  cal += `</div></div>`;
+
+  // ── Legend ──
+  cal += `
+    <div style="display:flex;gap:16px;padding:10px 16px 4px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--txt2)">
+        <div style="width:8px;height:8px;border-radius:50%;background:#3b82f6;flex-shrink:0"></div>Booking
+      </div>
+      <div style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--txt2)">
+        <div style="width:8px;height:8px;border-radius:50%;background:#10b981;flex-shrink:0"></div>Commission
+      </div>
+      <div style="margin-left:auto;font-size:12px;color:var(--txt3)">${(bks||[]).length} bk · ${(cms||[]).length} cm</div>
+    </div>`;
+
+  // ── Monthly summary ──
+  cal += `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:8px 16px 12px">
+      <div style="background:var(--surf2);border-radius:12px;padding:12px;text-align:center">
+        <div style="font-size:11px;color:var(--txt2);font-weight:600;margin-bottom:4px">📅 Bookings</div>
+        <div style="font-size:16px;font-weight:800;color:var(--grn)">${kes(totalBkRev)}</div>
+        <div style="font-size:11px;color:var(--txt3)">${(bks||[]).length} bookings</div>
+      </div>
+      <div style="background:var(--surf2);border-radius:12px;padding:12px;text-align:center">
+        <div style="font-size:11px;color:var(--txt2);font-weight:600;margin-bottom:4px">🤝 Commissions</div>
+        <div style="font-size:16px;font-weight:800;color:var(--grn)">${kes(totalCmRev)}</div>
+        <div style="font-size:11px;color:var(--txt3)">${(cms||[]).length} deals</div>
+      </div>
+    </div>`;
+
+  // ── Action buttons ──
+  cal += `
+    <div style="display:flex;gap:8px;padding:0 16px 20px">
+      <button class="btn-p" onclick="openBookingSheet()" style="flex:1">+ Booking</button>
+      <button onclick="openCommissionSheet()" style="flex:1;padding:12px;border:1.5px solid var(--bdr);background:var(--surf2);color:var(--txt);border-radius:12px;font-size:14px;font-weight:600;cursor:pointer">🤝 Commission</button>
+    </div>`;
+
+  el.innerHTML = cal;
+}
+
+async function openDaySheet(dateStr) {
+  const dt = new Date(dateStr + 'T00:00:00');
+  const dayLabel = dt.toLocaleDateString('en-KE',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>${dayLabel}</h2></div><div class="sh-body"><div style="color:var(--txt2);text-align:center;padding:30px 0">Loading…</div></div>`);
+
+  const [bks, cms] = await Promise.all([
+    apiGet(`bookings?shop_id=eq.${S.shop.id}&check_in=eq.${dateStr}&order=recorded_at.desc`),
+    apiGet(`commissions?shop_id=eq.${S.shop.id}&commission_date=eq.${dateStr}&order=recorded_at.desc`),
+  ]);
+
+  const bkRev = (bks||[]).reduce((a,b)=>a+(b.total||0),0);
+  const cmRev = (cms||[]).reduce((a,c)=>a+(c.amount||0),0);
+
+  const el = document.querySelector('.sh-body');
+  if (!el) return;
+
+  let h = '';
+  if (!bks?.length && !cms?.length) {
+    h += `<div class="empty"><div class="empty-ico">📅</div><p>Nothing recorded on this day.</p></div>`;
   }
 
-  const filter = S.salesFilter || 'today';
-  let from = filter === 'today' ? todayStart() : filter === 'week' ? sevenDaysAgo() : '2000-01-01';
-  const bk = await apiGet(`bookings?shop_id=eq.${S.shop.id}&recorded_at=gte.${from}&order=recorded_at.desc`);
-
-  const rev = sum(bk, 'total');
-  const nights = (bk||[]).reduce((a,b)=>a+(b.nights||0),0);
-
-  h += `<div class="frow">
-    <button class="fchip ${filter==='today'?'on':''}" onclick="setSF('today')">Today</button>
-    <button class="fchip ${filter==='week'?'on':''}" onclick="setSF('week')">This Week</button>
-    <button class="fchip ${filter==='all'?'on':''}" onclick="setSF('all')">All Time</button>
-  </div>
-  <div class="stats">
-    <div class="scard"><div class="scard-lbl">Revenue</div><div class="scard-val" style="font-size:14px">${kshort(rev)}</div><div class="scard-sub">KES</div></div>
-    <div class="scard"><div class="scard-lbl">Bookings</div><div class="scard-val">${bk?.length||0}</div><div class="scard-sub">total</div></div>
-    <div class="scard"><div class="scard-lbl">Nights</div><div class="scard-val">${nights}</div><div class="scard-sub">booked</div></div>
-  </div>
-  <button class="fab" onclick="openBookingSheet()"><span style="font-size:22px">+</span> Record a Booking</button>`;
-
-  if (bk?.length) {
-    h += `<div class="clist" style="margin-top:10px">`;
-    bk.forEach(b => {
-      const dt = new Date(b.recorded_at);
-      const dtStr = dt.toLocaleDateString('en-KE',{day:'numeric',month:'short'}) + ' ' + dt.toLocaleTimeString('en-KE',{hour:'2-digit',minute:'2-digit'});
-      const meth = b.payment_method === 'mpesa' ? '📱 M-Pesa' : b.payment_method === 'debt' ? '📋 Debt' : '💵 Cash';
-      h += `<div class="txi" style="cursor:pointer" onclick="openBookingDetail('${JSON.stringify(b).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;')}')">
+  if (bks?.length) {
+    h += `<div style="font-size:12px;font-weight:700;color:var(--txt2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">📅 Bookings — ${kes(bkRev)}</div>`;
+    bks.forEach(b => {
+      const meth = b.payment_method==='mpesa'?'📱 M-Pesa':b.payment_method==='debt'?'📋 Debt':'💵 Cash';
+      h += `<div class="txi" style="cursor:pointer;margin-bottom:8px" onclick="popSheet();openBookingDetail('${JSON.stringify(b).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;')}')">
         <div class="txi-ico">🛏️</div>
         <div class="txi-inf">
           <div class="txi-nm">${esc(b.guest_name||'Guest')} · ${esc(b.unit_name||'Unit')}</div>
-          <div class="txi-sub">${b.nights} night${b.nights!==1?'s':''} · ${meth} · ${dtStr}</div>
+          <div class="txi-sub">${b.nights} night${b.nights!==1?'s':''} · ${meth}</div>
         </div>
         <div style="display:flex;align-items:center;gap:6px">
-          <div class="txi-amt">${kes(b.total)}</div>
-          <span style="color:var(--txt3);font-size:16px">›</span>
+          <div class="txi-amt">${kes(b.total)}</div><span style="color:var(--txt3);font-size:16px">›</span>
         </div></div>`;
     });
-    h += `</div>`;
-  } else {
-    h += `<div class="empty"><div class="empty-ico">📅</div><p>No bookings in this period.</p></div>`;
   }
-  h += '<div style="height:8px"></div>';
-  el.innerHTML = h;
-}
-
-async function buildCommissionsHtml() {
-  const filter = S.salesFilter || 'today';
-  let from = filter === 'today' ? todayStart() : filter === 'week' ? sevenDaysAgo() : '2000-01-01';
-  const fromDate = filter === 'today' ? new Date().toISOString().slice(0,10)
-    : filter === 'week' ? (() => { const d=new Date(); d.setDate(d.getDate()-7); return d.toISOString().slice(0,10); })()
-    : '2000-01-01';
-  const cms = await apiGet(`commissions?shop_id=eq.${S.shop.id}&commission_date=gte.${fromDate}&order=commission_date.desc,recorded_at.desc`);
-
-  const total = sum(cms, 'amount');
-
-  let h = `<div class="frow">
-    <button class="fchip ${filter==='today'?'on':''}" onclick="setSF('today')">Today</button>
-    <button class="fchip ${filter==='week'?'on':''}" onclick="setSF('week')">This Week</button>
-    <button class="fchip ${filter==='all'?'on':''}" onclick="setSF('all')">All Time</button>
-  </div>
-  <div class="stats">
-    <div class="scard"><div class="scard-lbl">Commissions</div><div class="scard-val" style="font-size:14px">${kshort(total)}</div><div class="scard-sub">KES earned</div></div>
-    <div class="scard"><div class="scard-lbl">Count</div><div class="scard-val">${cms?.length||0}</div><div class="scard-sub">referrals</div></div>
-    <div class="scard"><div class="scard-lbl">Avg</div><div class="scard-val" style="font-size:13px">${cms?.length?kshort(total/cms.length):'—'}</div><div class="scard-sub">per deal</div></div>
-  </div>
-  <button class="fab" onclick="openCommissionSheet()" style="background:var(--surf2);color:var(--txt);border:1.5px solid var(--bdr)"><span style="font-size:18px">🤝</span> Record a Commission</button>`;
 
   if (cms?.length) {
-    h += `<div class="clist" style="margin-top:10px">`;
+    h += `<div style="font-size:12px;font-weight:700;color:var(--txt2);text-transform:uppercase;letter-spacing:.5px;margin:${bks?.length?'16px 0':'0 0'} 8px 8px">🤝 Commissions — ${kes(cmRev)}</div>`;
     cms.forEach(c => {
-      const dealDate = c.commission_date || c.recorded_at;
-      const dt = new Date(dealDate);
-      // commission_date is a plain date (no time) — show date only; if from recorded_at show time too
-      const dtStr = c.commission_date
-        ? dt.toLocaleDateString('en-KE',{weekday:'short',day:'numeric',month:'short'})
-        : dt.toLocaleDateString('en-KE',{day:'numeric',month:'short'}) + ' ' + dt.toLocaleTimeString('en-KE',{hour:'2-digit',minute:'2-digit'});
-      const meth = c.payment_method === 'mpesa' ? '📱 M-Pesa' : '💵 Cash';
-      const prop = [c.house_number, c.apartment_name, c.size].filter(Boolean).join(' · ');
-      const rateInfo = c.given_rate && c.host_rate ? `Given: ${kes(c.given_rate)} · Paid: ${kes(c.host_rate)} · ` : '';
-      let stayInfo = '';
-      if (c.check_in && c.check_out) {
-        const nights = Math.round((new Date(c.check_out) - new Date(c.check_in)) / 86400000);
-        const ciStr = new Date(c.check_in).toLocaleDateString('en-KE',{day:'numeric',month:'short'});
-        const coStr = new Date(c.check_out).toLocaleDateString('en-KE',{day:'numeric',month:'short'});
-        stayInfo = ` · 🌙 ${nights}n (${ciStr}–${coStr})`;
-      }
-      h += `<div class="txi" style="cursor:pointer" onclick="openCommissionDetail('${JSON.stringify(c).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;')}')">
+      const meth = c.payment_method==='mpesa'?'📱 M-Pesa':'💵 Cash';
+      const prop = [c.house_number,c.apartment_name,c.size].filter(Boolean).join(' · ');
+      h += `<div class="txi" style="cursor:pointer;margin-bottom:8px" onclick="popSheet();openCommissionDetail('${JSON.stringify(c).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;')}')">
         <div class="txi-ico">🤝</div>
         <div class="txi-inf">
           <div class="txi-nm">${esc(c.host_name||'Host')}${c.guest_name?' → '+esc(c.guest_name):''}</div>
-          <div class="txi-sub">${prop?esc(prop)+' · ':''}${rateInfo}${meth} · ${dtStr}${stayInfo}</div>
+          <div class="txi-sub">${prop?esc(prop)+' · ':''}${meth}</div>
         </div>
         <div style="display:flex;align-items:center;gap:6px">
-          <div class="txi-amt">${kes(c.amount)}</div>
-          <span style="color:var(--txt3);font-size:16px">›</span>
+          <div class="txi-amt">${kes(c.amount)}</div><span style="color:var(--txt3);font-size:16px">›</span>
         </div></div>`;
     });
-    h += `</div>`;
-  } else {
-    h += `<div class="empty"><div class="empty-ico">🤝</div><p>No commissions in this period.</p></div>`;
   }
-  return h;
+
+  h += `<div style="display:flex;gap:8px;margin-top:16px">
+    <button class="btn-p" onclick="openBookingSheet()" style="flex:1">+ Booking</button>
+    <button onclick="openCommissionSheet()" style="flex:1;padding:12px;border:1.5px solid var(--bdr);background:var(--surf2);color:var(--txt);border-radius:12px;font-size:14px;font-weight:600;cursor:pointer">🤝 Commission</button>
+  </div>
+  <button class="btn-g" onclick="popSheet()" style="margin-top:8px">Close</button>`;
+
+  el.innerHTML = h;
 }
 
 /* ═══════════════════════════════
@@ -1901,6 +1955,7 @@ async function saveBooking(forceOverride) {
   const sendReceipt = document.getElementById('bk-receipt')?.checked;
   closeSaleSheet();
   showToast(`✓ Booking ${wasBookingEdit ? 'updated' : 'saved'} — ${kes(total)}${forceOverride?' (double booking approved)':''}`);
+  if (checkIn) { const _ci = new Date(checkIn + 'T00:00:00'); S.calMonth = { year: _ci.getFullYear(), month: _ci.getMonth() }; }
   showTab('bookings');
 
   if (sendReceipt) {
@@ -2347,7 +2402,8 @@ async function saveCommission() {
 
   closeSaleSheet();
   showToast(`✓ Commission ${wasEdit ? 'updated' : 'saved'} — ${kes(amount)}`);
-  S.bookingSubTab = 'commissions';
+  const _cd = new Date(commDate + 'T00:00:00');
+  S.calMonth = { year: _cd.getFullYear(), month: _cd.getMonth() };
   showTab('bookings');
 }
 
