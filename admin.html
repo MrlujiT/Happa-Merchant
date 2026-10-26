@@ -703,8 +703,7 @@ async function convertLead(leadId, bizName, ownerName, phone, bizType, location,
   const sel = document.getElementById('inv-agent');
   if (sel) sel.value = agentId;
   // Mark lead as contacted
-  const { data: freshData } = await db.auth.getSession();
-  const session = freshData?.session || currentSession;
+  const session = currentSession;
   await fetch(`${SUPABASE_URL}/rest/v1/leads?id=eq.${leadId}`, {
     method: 'PATCH',
     headers: { 'Content-Type':'application/json','Authorization':`Bearer ${session.access_token}`,'apikey':SUPABASE_KEY,'Prefer':'return=minimal' },
@@ -714,8 +713,7 @@ async function convertLead(leadId, bizName, ownerName, phone, bizType, location,
 
 async function markCommissionPaid(agentId, agentName, amount, monthKey, monthLabel) {
   if (!confirm(`Mark KES ${amount.toLocaleString()} paid to ${agentName} for ${monthLabel}?`)) return;
-  const { data: freshData } = await db.auth.getSession();
-  const session = freshData?.session || currentSession;
+  const session = currentSession;
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/commission_payments`, {
       method: 'POST',
@@ -775,8 +773,7 @@ async function saveAgent() {
   btn.disabled = true; btn.textContent = 'Saving…';
   try {
     const ref_code = genRefCode(name);
-    const { data: freshData } = await db.auth.getSession();
-    const session = freshData?.session || currentSession;
+    const session = currentSession;
     const res = await fetch(`${SUPABASE_URL}/rest/v1/agents`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}`, 'apikey': SUPABASE_KEY, 'Prefer': 'return=representation' },
@@ -798,8 +795,7 @@ async function setAgentPin(agentId, agentName, currentPin) {
     alert('PIN must be 4–6 digits'); return;
   }
   try {
-    const { data: freshData } = await db.auth.getSession();
-    const session = freshData?.session || currentSession;
+    const session = currentSession;
     const res = await fetch(`${SUPABASE_URL}/rest/v1/agents?id=eq.${agentId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}`, 'apikey': SUPABASE_KEY },
@@ -813,8 +809,7 @@ async function setAgentPin(agentId, agentName, currentPin) {
 
 async function deactivateAgent(agentId, agentName) {
   if (!confirm(`Remove ${agentName}? Their referred shops will remain but the agent link will be cleared.`)) return;
-  const { data: freshData } = await db.auth.getSession();
-  const session = freshData?.session || currentSession;
+  const session = currentSession;
   await fetch(`${SUPABASE_URL}/rest/v1/agents?id=eq.${agentId}`, {
     method: 'DELETE',
     headers: { 'Authorization': `Bearer ${session.access_token}`, 'apikey': SUPABASE_KEY },
@@ -1017,7 +1012,7 @@ async function saveResetPassword() {
     // Call edge function to reset password with service role
     const res = await fetch(`${EDGE_URL}/reset-password`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${(await db.auth.getSession()).data?.session?.access_token || currentSession?.access_token}`, 'apikey': SUPABASE_KEY },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentSession?.access_token}`, 'apikey': SUPABASE_KEY },
       body: JSON.stringify({ user_id: userId, new_password: newPwd }),
     });
     const data = await res.json().catch(() => ({}));
@@ -1206,7 +1201,7 @@ async function saveResetPasswordDirect(userId) {
   try {
     const res = await fetch(`${EDGE_URL}/reset-password`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${(await db.auth.getSession()).data?.session?.access_token || currentSession?.access_token}`, 'apikey': SUPABASE_KEY },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentSession?.access_token}`, 'apikey': SUPABASE_KEY },
       body: JSON.stringify({ user_id: userId, new_password: newPwd }),
     });
     const data = await res.json().catch(() => ({}));
@@ -1246,11 +1241,9 @@ async function sendOwnerInvite() {
   btn.disabled = true; btn.textContent = 'Sending invite…';
 
   try {
-    // Always get the freshest token — avoids stale session after 1h+ idle
-    const { data: freshData } = await db.auth.getSession();
-    const session = freshData?.session || currentSession;
+    // db.auth.getSession() hangs on supabase-js@2.50.0 — use stored session directly
+    const session = currentSession;
     if (!session) throw new Error('Session expired — please sign in again');
-    currentSession = session; // keep in sync
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 30000);
 
@@ -1285,11 +1278,9 @@ async function sendOwnerInvite() {
 
     // Assign agent to shop if selected
     if (agentId && result.shopId) {
-      const { data: freshData2 } = await db.auth.getSession();
-      const session2 = freshData2?.session || currentSession;
       await fetch(`${SUPABASE_URL}/rest/v1/shops?id=eq.${result.shopId}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session2.access_token}`, 'apikey': SUPABASE_KEY, 'Prefer': 'return=minimal' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}`, 'apikey': SUPABASE_KEY, 'Prefer': 'return=minimal' },
         body: JSON.stringify({ agent_id: agentId }),
       });
     }
