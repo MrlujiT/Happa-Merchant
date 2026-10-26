@@ -156,8 +156,9 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 .overlay.on{display:flex}
 .sheet{background:var(--surf);border-radius:22px 22px 0 0;width:100%;max-width:480px;margin:0 auto;padding:0 0 max(24px,env(safe-area-inset-bottom,0px));max-height:92vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .sh-hand{width:40px;height:4px;background:var(--bdr);border-radius:2px;margin:12px auto 0}
-.sh-hdr{padding:12px 20px 14px;border-bottom:1px solid var(--bdr)}
-.sh-hdr h2{font-size:18px;font-weight:700}
+.sh-hdr{padding:12px 20px 14px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:10px}
+.sh-hdr h2{font-size:18px;font-weight:700;margin:0;flex:1}
+.sh-back{background:none;border:none;color:var(--txt2);font-size:22px;cursor:pointer;padding:0 4px;line-height:1;flex-shrink:0;display:flex;align-items:center}
 .sh-body{padding:16px 20px}
 .fg-s{margin-bottom:14px}
 .method-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px}
@@ -1157,10 +1158,11 @@ async function renderAirbnbHome(el) {
   // Use Nairobi local date to avoid UTC day-boundary mismatch
   const nairobiToday = new Date().toLocaleDateString('en-CA', {timeZone:'Africa/Nairobi'}); // "YYYY-MM-DD"
   const sevenDaysAgoDate = (() => { const d = new Date(); d.setDate(d.getDate()-6); return d.toLocaleDateString('en-CA', {timeZone:'Africa/Nairobi'}); })();
-  const [todayBk, todayCm, weekly, allUnits, allSupplies] = await Promise.all([
+  const [todayBk, todayCm, weekly, weekCm, allUnits, allSupplies] = await Promise.all([
     apiGet(`bookings?shop_id=eq.${S.shop.id}&check_in=eq.${nairobiToday}&select=total,unit_name,guest_name,payment_method`),
     apiGet(`commissions?shop_id=eq.${S.shop.id}&commission_date=eq.${nairobiToday}&select=amount`),
-    apiGet(`bookings?shop_id=eq.${S.shop.id}&check_in=gte.${sevenDaysAgoDate}&select=total,check_in`),
+    apiGet(`bookings?shop_id=eq.${S.shop.id}&check_in=gte.${sevenDaysAgoDate}&check_in=lte.${nairobiToday}&select=total,check_in`),
+    apiGet(`commissions?shop_id=eq.${S.shop.id}&commission_date=gte.${sevenDaysAgoDate}&commission_date=lte.${nairobiToday}&select=amount,commission_date`),
     apiGet(`units?shop_id=eq.${S.shop.id}&active=eq.true&select=id,name`),
     apiGet(`house_supplies?shop_id=eq.${S.shop.id}&select=id,name,quantity,low_stock_at,unit_id,emoji`),
   ]);
@@ -1171,7 +1173,7 @@ async function renderAirbnbHome(el) {
   const txns   = todayBk?.length || 0;
   const lowSupplies = (allSupplies||[]).filter(s => s.quantity <= s.low_stock_at);
 
-  const days = build7Days(weekly || []);
+  const days = build7Days(weekly || [], weekCm || []);
   const maxR = Math.max(...days.map(d => d.rev), 1);
 
   let h = `
@@ -1469,7 +1471,7 @@ function openImportSheet() {
     <div class="sh-hand"></div>
     <div class="sh-hdr"><h2>📥 Import Commissions</h2></div>
     <div class="sh-body">
-      <p style="font-size:14px;color:var(--txt2);margin:0 0 16px">Upload Vivian's Excel or CSV commission sheet. Columns should be: <strong>Guest · Date · Unit · Commission</strong>.</p>
+      <p style="font-size:14px;color:var(--txt2);margin:0 0 16px">Upload your Excel or CSV commission sheet. Columns should be: <strong>Guest · Date · Unit · Commission</strong>.</p>
       <div style="background:var(--surf2);border-radius:12px;padding:14px;margin-bottom:16px;font-size:13px;color:var(--txt2)">
         <div style="font-weight:600;color:var(--txt);margin-bottom:6px">Expected format</div>
         <div>• Column A: Guest name</div>
@@ -4686,13 +4688,30 @@ function sevenDaysAgo() { const d=new Date(); d.setDate(d.getDate()-7); d.setHou
 function dateInDays(n) { const d=new Date(); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); }
 function dayName(d) { return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()]; }
 
-function build7Days(sales) {
-  const out = []; const now = new Date();
-  for (let i=6; i>=0; i--) {
-    const d = new Date(now); d.setDate(d.getDate()-i); d.setHours(0,0,0,0);
-    const end = new Date(d); end.setDate(end.getDate()+1);
-    const rev = sales.filter(s=>{const t=new Date(s.check_in||s.recorded_at);return t>=d&&t<end;}).reduce((a,s)=>a+s.total,0);
-    out.push({lbl:i===0?'Today':dayName(d), rev, tod:i===0});
+function build7Days(rows, rows2) {
+  // rows  = bookings (check_in date string) OR retail sales (recorded_at timestamp)
+  // rows2 = commissions (commission_date string) — optional, Airbnb only
+  const out = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    // Nairobi date string for exact date-field comparison (timezone-safe)
+    const ds = d.toLocaleDateString('en-CA', {timeZone: 'Africa/Nairobi'});
+    let rev = 0;
+    // Detect retail sales (have recorded_at, no check_in) vs Airbnb bookings (have check_in)
+    const isTimestamp = (rows||[]).length > 0 && rows[0].recorded_at !== undefined && rows[0].check_in === undefined;
+    if (isTimestamp) {
+      // Use timestamp window comparison for retail sales
+      const s = new Date(d); s.setHours(0,0,0,0);
+      const e = new Date(s); e.setDate(e.getDate() + 1);
+      rev = (rows||[]).filter(r => { const t = new Date(r.recorded_at); return t >= s && t < e; }).reduce((a,r) => a + r.total, 0);
+    } else {
+      // Use exact date string comparison — no UTC offset issues
+      rev += (rows||[]).filter(b => b.check_in === ds).reduce((a, b) => a + b.total, 0);
+    }
+    // Commissions (always date string comparison)
+    rev += (rows2||[]).filter(c => c.commission_date === ds).reduce((a, c) => a + c.amount, 0);
+    out.push({lbl: i === 0 ? 'Today' : dayName(d), rev, tod: i === 0});
   }
   return out;
 }
@@ -6094,6 +6113,16 @@ function pushSheet(html) {
   const sh = document.getElementById('sale-sheet');
   _sheetStack.push(sh.innerHTML);
   sh.innerHTML = html;
+  // Inject ← back button into every sheet header automatically
+  const hdr = sh.querySelector('.sh-hdr');
+  if (hdr && !hdr.querySelector('.sh-back')) {
+    const btn = document.createElement('button');
+    btn.className = 'sh-back';
+    btn.setAttribute('aria-label', 'Back');
+    btn.innerHTML = '&#8592;';
+    btn.onclick = popSheet;
+    hdr.insertBefore(btn, hdr.firstChild);
+  }
   ov.classList.add('on');
 }
 function popSheet() {
