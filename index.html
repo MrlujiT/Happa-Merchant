@@ -1715,11 +1715,16 @@ function openCommissionSheet() {
         <div><label class="fl">Guest Phone</label>
           <input id="cm-guest-phone" class="fi" type="tel" placeholder="e.g. 0712 345 678"></div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px">
         <div><label class="fl">Given Rate (KES)</label>
-          <input type="number" id="cm-given-rate" class="fi" placeholder="Guest paid host" min="0" inputmode="numeric"></div>
+          <input type="number" id="cm-given-rate" class="fi" placeholder="What you charged guest" min="0" inputmode="numeric"
+            oninput="calcCommission()"></div>
         <div><label class="fl">Host Rate (KES)</label>
-          <input type="number" id="cm-host-rate" class="fi" placeholder="You paid host" min="0" inputmode="numeric"></div>
+          <input type="number" id="cm-host-rate" class="fi" placeholder="What you paid host" min="0" inputmode="numeric"
+            oninput="calcCommission()"></div>
+      </div>
+      <div id="cm-calc-row" style="display:none;font-size:12px;color:var(--txt2);background:var(--surf2);border-radius:8px;padding:8px 12px;margin-bottom:14px">
+        Commission = <span id="cm-calc-given" style="color:var(--txt)">0</span> − <span id="cm-calc-host" style="color:var(--txt)">0</span> = <span id="cm-calc-result" style="color:var(--acc);font-weight:700">0</span> KES
       </div>
       <div class="fg-s">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
@@ -1735,7 +1740,7 @@ function openCommissionSheet() {
         <input type="text" id="cm-host-inp" class="fi" placeholder="Type host name">
       </div>
       <div class="fg-s"><label class="fl">Commission Amount (KES) *</label>
-        <input type="number" id="cm-amount" class="fi" placeholder="e.g. 3000" min="1" inputmode="numeric"></div>
+        <input type="number" id="cm-amount" class="fi" placeholder="Auto-calculated or enter manually" min="1" inputmode="numeric" oninput="this.dataset.manuallySet='1'"></div>
       <label class="fl">Payment Received Via</label>
       <div class="method-row" style="grid-template-columns:1fr 1fr;margin-bottom:14px">
         <button class="method-btn sel" id="cm-cash" onclick="document.getElementById('cm-cash').classList.add('sel');document.getElementById('cm-mpesa').classList.remove('sel');document.getElementById('cm-mpesa-row').style.display='none'"><span class="m-ico">💵</span>Cash</button>
@@ -1749,6 +1754,26 @@ function openCommissionSheet() {
       <button class="btn-g" onclick="popSheet()">Cancel</button>
     </div>`);
   document.getElementById('sale-overlay').classList.add('on');
+}
+
+function calcCommission() {
+  const g = parseFloat(document.getElementById('cm-given-rate')?.value) || 0;
+  const h = parseFloat(document.getElementById('cm-host-rate')?.value) || 0;
+  const row = document.getElementById('cm-calc-row');
+  if (!row) return;
+  if (g > 0 || h > 0) {
+    const comm = g - h;
+    document.getElementById('cm-calc-given').textContent = g.toLocaleString();
+    document.getElementById('cm-calc-host').textContent  = h.toLocaleString();
+    document.getElementById('cm-calc-result').textContent = comm.toLocaleString();
+    document.getElementById('cm-calc-result').style.color = comm >= 0 ? 'var(--acc)' : 'var(--red)';
+    row.style.display = '';
+    // Auto-fill commission amount if it hasn't been manually set
+    const amtEl = document.getElementById('cm-amount');
+    if (amtEl && !amtEl.dataset.manuallySet && comm > 0) amtEl.value = comm;
+  } else {
+    row.style.display = 'none';
+  }
 }
 
 async function saveCommission() {
@@ -2230,6 +2255,69 @@ async function saveLoyaltySettings() {
 }
 
 /* ═══════════════════════════════
+   LOYALTY OVERVIEW (Owner)
+═══════════════════════════════ */
+async function showLoyaltyOverview() {
+  pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>⭐ Loyalty Overview</h2></div><div class="sh-body"><div style="color:var(--txt2);text-align:center;padding:30px 0">Loading…</div></div>`);
+  document.getElementById('sale-overlay').classList.add('on');
+
+  // Refresh loyalty accounts
+  const accts = await apiGet(`loyalty_accounts?shop_id=eq.${S.shop.id}&order=points_balance.desc`);
+  S.loyaltyAccts = accts || [];
+
+  const l = S.loyalty || { earn_rate: 50, point_value: 1 };
+  const pointValue = parseFloat(l.point_value) || 1;
+
+  const totalPts  = S.loyaltyAccts.reduce((s,a) => s + (a.points_balance||0), 0);
+  const totalKes  = totalPts * pointValue;
+  const totalEarned   = S.loyaltyAccts.reduce((s,a) => s + (a.total_earned||0), 0);
+  const totalRedeemed = S.loyaltyAccts.reduce((s,a) => s + (a.total_redeemed||0), 0);
+  const activeAccts   = S.loyaltyAccts.filter(a => (a.points_balance||0) > 0);
+
+  const rows = S.loyaltyAccts.map((a,i) => {
+    const bal = a.points_balance || 0;
+    const val = bal * pointValue;
+    return `<div class="more-item">
+      <div class="more-ico" style="background:#f59e0b22;font-size:16px">${bal>0?'⭐':'☆'}</div>
+      <div class="more-inf">
+        <div class="more-nm">${esc(a.name||'—')}${a.phone?` <span style="color:var(--txt2);font-size:11px">${esc(a.phone)}</span>`:''}</div>
+        <div class="more-mt">${bal.toLocaleString()} pts · KES ${val.toLocaleString(undefined,{maximumFractionDigits:1})} value</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:13px;font-weight:700;color:${bal>0?'#f59e0b':'var(--txt2)'}">${bal.toLocaleString()}</div>
+        <div style="font-size:10px;color:var(--txt2)">pts</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const el = document.querySelector('#sale-sheet .sh-body');
+  if (!el) return;
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+      <div style="background:var(--surf2);border-radius:12px;padding:14px;text-align:center">
+        <div style="font-size:22px;font-weight:800;color:#f59e0b">${totalPts.toLocaleString()}</div>
+        <div style="font-size:11px;color:var(--txt2);margin-top:2px">Total Points</div>
+      </div>
+      <div style="background:var(--surf2);border-radius:12px;padding:14px;text-align:center">
+        <div style="font-size:22px;font-weight:800;color:var(--grn)">KES ${totalKes.toLocaleString(undefined,{maximumFractionDigits:0})}</div>
+        <div style="font-size:11px;color:var(--txt2);margin-top:2px">Outstanding Value</div>
+      </div>
+      <div style="background:var(--surf2);border-radius:12px;padding:14px;text-align:center">
+        <div style="font-size:22px;font-weight:800;color:var(--acc)">${S.loyaltyAccts.length}</div>
+        <div style="font-size:11px;color:var(--txt2);margin-top:2px">Members</div>
+      </div>
+      <div style="background:var(--surf2);border-radius:12px;padding:14px;text-align:center">
+        <div style="font-size:22px;font-weight:800;color:var(--txt)">${totalRedeemed.toLocaleString()}</div>
+        <div style="font-size:11px;color:var(--txt2);margin-top:2px">Total Redeemed</div>
+      </div>
+    </div>
+    <div style="font-size:12px;color:var(--txt2);margin-bottom:8px">1 point = KES ${pointValue} · ${activeAccts.length} client${activeAccts.length!==1?'s':''} with active balance</div>
+    <div class="clist">${rows||'<div style="color:var(--txt2);text-align:center;padding:20px 0">No loyalty accounts yet</div>'}</div>
+    <button class="btn-g" style="margin-top:8px" onclick="showLoyaltySettings()">⚙️ Loyalty Settings</button>
+    <button class="btn-g" onclick="popSheet()">Close</button>`;
+}
+
+/* ═══════════════════════════════
    HOUSEKEEPER JOBS HISTORY (Owner)
 ═══════════════════════════════ */
 async function showHousekeeperJobsHistory() {
@@ -2524,9 +2612,9 @@ function renderMore(el) {
           <div class="more-ico" style="background:#16a34a22">💰</div>
           <div class="more-inf"><div class="more-nm">Business Health</div><div class="more-mt">Profit view — sales minus purchases & expenses</div></div>
           <span style="color:var(--txt3)">›</span></div>`}
-        ${isOwner ? `<div class="more-item" onclick="showLoyaltySettings()">
+        ${isOwner ? `<div class="more-item" onclick="showLoyaltyOverview()">
           <div class="more-ico" style="background:#f59e0b22">⭐</div>
-          <div class="more-inf"><div class="more-nm">Loyalty Points</div><div class="more-mt">${S.loyalty?.enabled?`On · ${S.loyalty.earn_rate} KES = 1 pt`:'Set up earn & redeem rates'}</div></div>
+          <div class="more-inf"><div class="more-nm">Loyalty Points</div><div class="more-mt">${S.loyalty?.enabled?`On · ${S.loyalty.earn_rate} KES = 1 pt · ${(S.loyaltyAccts||[]).length} members`:'Set up earn & redeem rates'}</div></div>
           <span style="color:var(--txt3)">›</span></div>` : ''}
       </div>`:''}
 
@@ -3656,9 +3744,16 @@ async function showAirbnbTopGuests() {
   pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>Top Guests</h2></div><div class="sh-body"><div style="color:var(--txt2);text-align:center;padding:30px 0">Loading…</div></div>`);
   const all = (await buildGuestList()).sort((a,b)=>b.total-a.total).slice(0,10);
   const maxT = Math.max(...all.map(g=>g.total),1);
+  const loyaltyOn = S.loyalty?.enabled;
 
   let list = all.map((g,i) => {
     const pct = Math.max(6, Math.round(g.total/maxT*100));
+    // Match loyalty account by phone first, then by name
+    const lacct = (S.loyaltyAccts||[]).find(a =>
+      (g.phone && a.phone && a.phone.replace(/\D/g,'').slice(-9) === g.phone.replace(/\D/g,'').slice(-9)) ||
+      (a.name?.toLowerCase() === g.name?.toLowerCase())
+    );
+    const pts = lacct ? lacct.points_balance : null;
     return `<div style="margin-bottom:14px">
       <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px">
         <span>${i===0?'🥇':i===1?'🥈':i===2?'🥉':'  '} <b>${esc(g.name||'Guest')}</b></span>
@@ -3667,7 +3762,7 @@ async function showAirbnbTopGuests() {
       <div style="background:var(--surf2);border-radius:6px;height:8px;overflow:hidden">
         <div style="width:${pct}%;height:100%;background:var(--acc);border-radius:6px"></div>
       </div>
-      <div style="font-size:11px;color:var(--txt2);margin-top:3px">${g.visits} stay${g.visits!==1?'s':''} · ${g.nights} nights</div>
+      <div style="font-size:11px;color:var(--txt2);margin-top:3px">${g.visits} stay${g.visits!==1?'s':''} · ${g.nights} nights${loyaltyOn&&pts!=null?' · ⭐ '+pts.toLocaleString()+' pts':''}</div>
     </div>`;
   }).join('');
 
@@ -4672,14 +4767,18 @@ async function showTopClients() {
 
   const sorted = Object.values(map).sort((a,b)=>b.total-a.total);
   const medals = ['🥇','🥈','🥉'];
+  const loyaltyOn = S.loyalty?.enabled;
 
   let list = '';
   sorted.forEach((c, i) => {
+    // Match loyalty account by customer name (case-insensitive)
+    const lacct = (S.loyaltyAccts||[]).find(a => a.name?.toLowerCase() === c.name?.toLowerCase());
+    const pts = lacct ? lacct.points_balance : null;
     list += `<div class="more-item">
       <div class="more-ico" style="background:${i<3?'#d9770622':'var(--surf2)'};font-size:${i<3?'22':'16'}px">${medals[i]||'👤'}</div>
       <div class="more-inf">
         <div class="more-nm">${esc(c.name)}</div>
-        <div class="more-mt">${c.count} purchase${c.count!==1?'s':''}</div>
+        <div class="more-mt">${c.count} purchase${c.count!==1?'s':''}${loyaltyOn&&pts!=null?` · ⭐ ${pts.toLocaleString()} pts`:''}</div>
       </div>
       <div style="font-size:13px;font-weight:700;color:var(--grn)">${kes(c.total)}</div>
     </div>`;
