@@ -293,6 +293,7 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
           <input class="fi" id="auth-pwd" type="password" placeholder="Your password" autocomplete="current-password"></div>
         <button class="btn-p" id="auth-btn" onclick="doLogin()">Sign In</button>
         <div class="err-msg" id="auth-err"></div>
+        <button onclick="showForgotPassword()" style="background:none;border:none;color:var(--acc);font-size:13px;font-weight:600;cursor:pointer;margin-top:10px;padding:4px 0;width:100%;text-align:center">Forgot password?</button>
       </div>
       <p style="font-size:11px;color:var(--txt3);margin-top:20px;text-align:center;line-height:1.6">
         By signing in you agree to our
@@ -306,8 +307,8 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
   <div class="page" id="page-setpwd">
     <div class="auth-wrap">
       <div class="auth-logo">🔑</div>
-      <div class="auth-title">Set Your Password</div>
-      <div class="auth-sub">You're in! Create a password for your account.</div>
+      <div class="auth-title" id="setpwd-title">Set Your Password</div>
+      <div class="auth-sub" id="setpwd-sub">You're in! Create a password for your account.</div>
       <div class="auth-card">
         <div class="fg"><label class="fl">New Password</label>
           <input class="fi" id="new-pwd" type="password" placeholder="At least 8 characters" autocomplete="new-password"></div>
@@ -471,6 +472,7 @@ let _refCode    = null;
   const hash = window.location.hash;
   if (hash.includes('type=invite') || hash.includes('type=signup') || hash.includes('type=recovery')) {
     S.pendingPwdSetup = true;
+    S.pwdSetupIsReset = hash.includes('type=recovery');
   }
 
   // Race getSession against 3s — supabase-js@2.50.0 hangs on this call
@@ -481,7 +483,17 @@ let _refCode    = null;
   if (session) {
     currentSession = session;
     S.user = session.user;
-    if (S.pendingPwdSetup) { showPage('setpwd'); }
+    if (S.pendingPwdSetup) {
+      if (S.pwdSetupIsReset) {
+        const t = document.getElementById('setpwd-title');
+        const s = document.getElementById('setpwd-sub');
+        if (t) t.textContent = 'Reset Password';
+        if (s) s.textContent = 'Choose a new password for your account.';
+        const b = document.getElementById('setpwd-btn');
+        if (b) b.textContent = 'Save New Password';
+      }
+      showPage('setpwd');
+    }
     else { await loadUserContext(); }
   } else {
     showPage('auth');
@@ -631,6 +643,74 @@ async function doSetPassword() {
   S.pendingPwdSetup = false;
   window.history.replaceState(null, '', window.location.pathname);
   await loadUserContext();
+}
+
+function showForgotPassword() {
+  // Swap auth card content inline — no sheet needed since user isn't logged in
+  const card = document.querySelector('#page-auth .auth-card');
+  const sub  = document.querySelector('#page-auth .auth-sub');
+  const title = document.querySelector('#page-auth .auth-title');
+  if (!card) return;
+  if (sub)   sub.textContent   = 'Enter your email and we\'ll send a reset link.';
+  if (title) title.textContent = 'Reset Password';
+  card.innerHTML = `
+    <div class="fg" style="margin-bottom:20px"><label class="fl">Email Address</label>
+      <input class="fi" id="reset-email" type="email" placeholder="you@example.com" autocomplete="email"></div>
+    <button class="btn-p" id="reset-btn" onclick="doSendResetEmail()">Send Reset Link</button>
+    <div class="err-msg" id="reset-err"></div>
+    <button onclick="restoreLoginForm()" style="background:none;border:none;color:var(--txt2);font-size:13px;cursor:pointer;margin-top:10px;padding:4px 0;width:100%;text-align:center">← Back to Sign In</button>
+  `;
+  document.getElementById('reset-email')?.addEventListener('keydown', e=>{ if(e.key==='Enter') doSendResetEmail(); });
+}
+
+function restoreLoginForm() {
+  const card  = document.querySelector('#page-auth .auth-card');
+  const sub   = document.querySelector('#page-auth .auth-sub');
+  const title = document.querySelector('#page-auth .auth-title');
+  if (sub)   sub.textContent   = 'Njia smart ya ku-run bizna';
+  if (title) title.textContent = 'Happa Merchant';
+  card.innerHTML = `
+    <div class="fg"><label class="fl">Email Address</label>
+      <input class="fi" id="auth-email" type="email" placeholder="you@example.com" autocomplete="email"></div>
+    <div class="fg" style="margin-bottom:20px"><label class="fl">Password</label>
+      <input class="fi" id="auth-pwd" type="password" placeholder="Your password" autocomplete="current-password"></div>
+    <button class="btn-p" id="auth-btn" onclick="doLogin()">Sign In</button>
+    <div class="err-msg" id="auth-err"></div>
+    <button onclick="showForgotPassword()" style="background:none;border:none;color:var(--acc);font-size:13px;font-weight:600;cursor:pointer;margin-top:10px;padding:4px 0;width:100%;text-align:center">Forgot password?</button>
+  `;
+  ['auth-email','auth-pwd'].forEach(id=>{
+    document.getElementById(id)?.addEventListener('keydown', e=>{ if(e.key==='Enter') doLogin(); });
+  });
+}
+
+async function doSendResetEmail() {
+  const email = document.getElementById('reset-email')?.value.trim();
+  const err   = document.getElementById('reset-err');
+  const btn   = document.getElementById('reset-btn');
+  if (!email) { showErr(err, 'Enter your email address'); return; }
+  btn.disabled = true; btn.textContent = 'Sending…';
+
+  const appUrl = window.location.origin + window.location.pathname;
+  const { error } = await db.auth.resetPasswordForEmail(email, {
+    redirectTo: appUrl,
+  });
+
+  btn.disabled = false; btn.textContent = 'Send Reset Link';
+  if (error) { showErr(err, error.message); return; }
+
+  // Show success state
+  const card = document.querySelector('#page-auth .auth-card');
+  if (card) card.innerHTML = `
+    <div style="text-align:center;padding:16px 0">
+      <div style="font-size:40px;margin-bottom:12px">📧</div>
+      <div style="font-size:15px;font-weight:700;color:var(--txt);margin-bottom:8px">Check your email</div>
+      <p style="font-size:13px;color:var(--txt2);line-height:1.6;margin-bottom:20px">
+        We sent a reset link to <strong>${esc(email)}</strong>.<br>
+        Tap it on your phone to set a new password.
+      </p>
+      <button onclick="restoreLoginForm()" style="background:none;border:none;color:var(--acc);font-size:13px;font-weight:600;cursor:pointer;padding:4px 0">← Back to Sign In</button>
+    </div>
+  `;
 }
 
 async function doLogout() {
