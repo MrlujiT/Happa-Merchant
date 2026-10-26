@@ -1217,7 +1217,10 @@ async function renderBookings(el) {
 async function buildCommissionsHtml() {
   const filter = S.salesFilter || 'today';
   let from = filter === 'today' ? todayStart() : filter === 'week' ? sevenDaysAgo() : '2000-01-01';
-  const cms = await apiGet(`commissions?shop_id=eq.${S.shop.id}&recorded_at=gte.${from}&order=recorded_at.desc`);
+  const fromDate = filter === 'today' ? new Date().toISOString().slice(0,10)
+    : filter === 'week' ? (() => { const d=new Date(); d.setDate(d.getDate()-7); return d.toISOString().slice(0,10); })()
+    : '2000-01-01';
+  const cms = await apiGet(`commissions?shop_id=eq.${S.shop.id}&commission_date=gte.${fromDate}&order=commission_date.desc,recorded_at.desc`);
 
   const total = sum(cms, 'amount');
 
@@ -1236,16 +1239,27 @@ async function buildCommissionsHtml() {
   if (cms?.length) {
     h += `<div class="clist" style="margin-top:10px">`;
     cms.forEach(c => {
-      const dt = new Date(c.recorded_at);
-      const dtStr = dt.toLocaleDateString('en-KE',{day:'numeric',month:'short'}) + ' ' + dt.toLocaleTimeString('en-KE',{hour:'2-digit',minute:'2-digit'});
+      const dealDate = c.commission_date || c.recorded_at;
+      const dt = new Date(dealDate);
+      // commission_date is a plain date (no time) — show date only; if from recorded_at show time too
+      const dtStr = c.commission_date
+        ? dt.toLocaleDateString('en-KE',{weekday:'short',day:'numeric',month:'short'})
+        : dt.toLocaleDateString('en-KE',{day:'numeric',month:'short'}) + ' ' + dt.toLocaleTimeString('en-KE',{hour:'2-digit',minute:'2-digit'});
       const meth = c.payment_method === 'mpesa' ? '📱 M-Pesa' : '💵 Cash';
       const prop = [c.house_number, c.apartment_name, c.size].filter(Boolean).join(' · ');
       const rateInfo = c.given_rate && c.host_rate ? `Given: ${kes(c.given_rate)} · Paid: ${kes(c.host_rate)} · ` : '';
+      let stayInfo = '';
+      if (c.check_in && c.check_out) {
+        const nights = Math.round((new Date(c.check_out) - new Date(c.check_in)) / 86400000);
+        const ciStr = new Date(c.check_in).toLocaleDateString('en-KE',{day:'numeric',month:'short'});
+        const coStr = new Date(c.check_out).toLocaleDateString('en-KE',{day:'numeric',month:'short'});
+        stayInfo = ` · 🌙 ${nights}n (${ciStr}–${coStr})`;
+      }
       h += `<div class="txi">
         <div class="txi-ico">🤝</div>
         <div class="txi-inf">
           <div class="txi-nm">${esc(c.host_name||'Host')}${c.guest_name?' → '+esc(c.guest_name):''}</div>
-          <div class="txi-sub">${prop?esc(prop)+' · ':''}${rateInfo}${meth} · ${dtStr}</div>
+          <div class="txi-sub">${prop?esc(prop)+' · ':''}${rateInfo}${meth} · ${dtStr}${stayInfo}</div>
         </div>
         <div class="txi-amt">${kes(c.amount)}</div></div>`;
     });
@@ -1911,6 +1925,18 @@ function openCommissionSheet() {
     <div class="sh-hand"></div>
     <div class="sh-hdr"><h2>🤝 Record a Commission</h2></div>
     <div class="sh-body">
+      <div class="fg-s"><label class="fl">Date of Deal</label>
+        <input type="date" id="cm-date" class="fi" value="${new Date().toISOString().slice(0,10)}" max="${new Date().toISOString().slice(0,10)}">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+        <div><label class="fl">Check-In Date</label>
+          <input type="date" id="cm-checkin" class="fi" oninput="cmUpdateNights()"></div>
+        <div><label class="fl">Check-Out Date</label>
+          <input type="date" id="cm-checkout" class="fi" oninput="cmUpdateNights()"></div>
+      </div>
+      <div id="cm-nights-row" style="display:none;font-size:12px;color:var(--txt2);background:var(--surf2);border-radius:8px;padding:8px 12px;margin-bottom:14px">
+        🌙 <span id="cm-nights-lbl"></span>
+      </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
         <div><label class="fl">House Number</label>
           <input id="cm-hnum" class="fi" placeholder="e.g. A4, 12B"></div>
@@ -1994,7 +2020,25 @@ function calcCommission() {
   }
 }
 
+function cmUpdateNights() {
+  const ci = document.getElementById('cm-checkin')?.value;
+  const co = document.getElementById('cm-checkout')?.value;
+  const row = document.getElementById('cm-nights-row');
+  const lbl = document.getElementById('cm-nights-lbl');
+  if (!row || !lbl) return;
+  if (ci && co && co > ci) {
+    const nights = Math.round((new Date(co) - new Date(ci)) / 86400000);
+    lbl.textContent = `${nights} night${nights !== 1 ? 's' : ''} (${new Date(ci).toLocaleDateString('en-KE',{day:'numeric',month:'short'})} – ${new Date(co).toLocaleDateString('en-KE',{day:'numeric',month:'short'})})`;
+    row.style.display = '';
+  } else {
+    row.style.display = 'none';
+  }
+}
+
 async function saveCommission() {
+  const commDate  = document.getElementById('cm-date')?.value || new Date().toISOString().slice(0,10);
+  const checkIn   = document.getElementById('cm-checkin')?.value || null;
+  const checkOut  = document.getElementById('cm-checkout')?.value || null;
   const houseNum  = document.getElementById('cm-hnum')?.value.trim();
   const size      = document.getElementById('cm-size')?.value;
   const aptName   = document.getElementById('cm-apt')?.value.trim();
@@ -2028,6 +2072,9 @@ async function saveCommission() {
     house_number: houseNum || null,
     size: size || null,
     amount,
+    commission_date: commDate,
+    check_in: checkIn,
+    check_out: checkOut,
     payment_method: isMpesa ? 'mpesa' : 'cash',
     mpesa_code: mpesaCode || null,
     recorded_by: S.user.id,
