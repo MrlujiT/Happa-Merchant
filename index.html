@@ -79,6 +79,8 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 .hero::before{content:'';position:absolute;right:-30px;top:-30px;width:130px;height:130px;background:rgba(255,255,255,.08);border-radius:50%}
 .hero-lbl{font-size:12px;font-weight:600;opacity:.7;margin-bottom:3px}
 .hero-amt{font-size:36px;font-weight:800;letter-spacing:-1.5px;font-variant-numeric:tabular-nums;line-height:1}
+.hero-split{display:flex;gap:8px;margin-top:7px}
+.hero-chip{background:rgba(8,18,42,0.18);border-radius:20px;padding:3px 10px;font-size:11.5px;font-weight:700;color:rgba(8,18,42,0.75);letter-spacing:0.1px}
 .hero-sub{display:flex;align-items:center;gap:12px;margin-top:9px;font-size:12px;font-weight:500;opacity:.8}
 
 /* ── STATS ROW ── */
@@ -1180,6 +1182,7 @@ async function renderAirbnbHome(el) {
     <div class="hero">
       <div class="hero-lbl">Today's Revenue</div>
       <div class="hero-amt">${kes(rev)}</div>
+      ${bkRev > 0 && cmRev > 0 ? `<div class="hero-split"><span class="hero-chip">📅 ${kes(bkRev)}</span><span class="hero-chip">🤝 ${kes(cmRev)}</span></div>` : ''}
       <div class="hero-sub"><span>${txns} booking${txns!==1?'s':''}</span><span>·</span><span>${(todayCm||[]).length} commission${(todayCm||[]).length!==1?'s':''}</span><span>·</span><span>${(allUnits||[]).length} unit${(allUnits||[]).length!==1?'s':''}</span></div>
     </div>
     <div class="stats">
