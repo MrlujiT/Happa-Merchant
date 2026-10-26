@@ -3019,12 +3019,14 @@ async function doChangeEmail() {
   const btn = document.querySelector('#sale-sheet .btn-p');
   if (btn) { btn.disabled = true; btn.textContent = 'Verifying…'; }
 
-  // Step 1: verify current password by signing in
-  const { error: signInErr } = await db.auth.signInWithPassword({ email: currentEmail, password: pwd });
+  // Step 1: verify current password by signing in — capture fresh token
+  const { data: signInData, error: signInErr } = await db.auth.signInWithPassword({ email: currentEmail, password: pwd });
   if (signInErr) {
     if (btn) { btn.disabled = false; btn.textContent = 'Send Confirmation Link'; }
     showToast('Incorrect password', true); return;
   }
+  // Update currentSession so apiHeaders() uses the fresh token
+  if (signInData?.session) currentSession = signInData.session;
 
   if (btn) btn.textContent = 'Sending…';
 
