@@ -2034,7 +2034,7 @@ async function confirmDeposit() {
 /* ─── COMMISSION DETAIL / EDIT / DELETE ─── */
 function openCommissionDetail(cJson) {
   const c = typeof cJson === 'string' ? JSON.parse(cJson) : cJson;
-  const canEdit = ['owner','manager'].includes(S.role);
+  const canEdit = ['owner','manager'].includes(S.member?.role);
   const dt = new Date(c.commission_date || c.recorded_at);
   const dtStr = c.commission_date
     ? dt.toLocaleDateString('en-KE',{weekday:'long',day:'numeric',month:'long',year:'numeric'})
@@ -2099,7 +2099,7 @@ async function deleteCommission(id) {
 /* ─── BOOKING DETAIL / EDIT / DELETE ─── */
 function openBookingDetail(bJson) {
   const b = typeof bJson === 'string' ? JSON.parse(bJson) : bJson;
-  const canEdit = ['owner','manager'].includes(S.role);
+  const canEdit = ['owner','manager'].includes(S.member?.role);
   const dt = new Date(b.recorded_at);
   const dtStr = dt.toLocaleDateString('en-KE',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   const meth = b.payment_method === 'mpesa' ? '📱 M-Pesa' : b.payment_method === 'debt' ? '📋 Balance Due' : b.payment_method === 'wallet' ? '💳 Guest Wallet' : '💵 Cash';
