@@ -168,6 +168,37 @@ select.fi{appearance:auto;-webkit-appearance:auto}
 .btn-send{width:100%;padding:12px;background:var(--wa);border:none;border-radius:9px;font-family:inherit;font-size:14px;font-weight:700;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;text-decoration:none;transition:opacity .15s}
 .btn-send:hover{opacity:.9}
 
+/* ── EARNINGS ── */
+.earn-hero{background:linear-gradient(135deg,rgba(245,166,35,.15) 0%,rgba(34,197,94,.08) 100%);border:1px solid rgba(245,166,35,.25);border-radius:16px;padding:24px 20px;margin-bottom:20px;text-align:center}
+.earn-label{font-size:11px;font-weight:700;color:var(--txt2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+.earn-amount{font-size:42px;font-weight:800;color:var(--acc);font-variant-numeric:tabular-nums;line-height:1.1;margin-bottom:4px}
+.earn-sub{font-size:12px;color:var(--txt2);margin-bottom:20px}
+.btn-payout{padding:12px 28px;background:var(--acc);color:#08122A;border:none;border-radius:11px;font-family:inherit;font-size:14px;font-weight:800;cursor:pointer;transition:opacity .15s}
+.btn-payout:hover{opacity:.9}
+.earn-breakdown{margin-bottom:20px}
+.earn-breakdown-ttl{font-size:11px;font-weight:700;color:var(--txt2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px}
+.comm-row{display:flex;align-items:center;justify-content:space-between;background:var(--surf);border:1px solid var(--bdr);border-radius:10px;padding:12px 14px;margin-bottom:8px;gap:10px}
+.comm-row-left{flex:1;min-width:0}
+.comm-biz{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.comm-meta{font-size:11px;color:var(--txt2);margin-top:2px}
+.comm-amount{font-size:15px;font-weight:800;color:var(--grn);flex-shrink:0}
+.comm-upload-btn{padding:5px 10px;background:var(--surf2);border:1px solid var(--bdr);border-radius:7px;font-family:inherit;font-size:11px;font-weight:600;color:var(--txt2);cursor:pointer;transition:background .15s;margin-top:6px;white-space:nowrap}
+.comm-upload-btn:hover{background:var(--bdr)}
+.comm-upload-btn.done{border-color:rgba(34,197,94,.3);color:var(--grn)}
+.payout-history{margin-bottom:20px}
+.payout-row{background:var(--surf);border:1px solid var(--bdr);border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.payout-row-left{flex:1;min-width:0}
+.payout-method{font-size:13px;font-weight:700;text-transform:capitalize}
+.payout-date{font-size:11px;color:var(--txt2);margin-top:2px}
+.payout-right{text-align:right;flex-shrink:0}
+.payout-amt{font-size:14px;font-weight:800;font-variant-numeric:tabular-nums}
+.payout-status{font-size:10px;font-weight:700;margin-top:3px;display:inline-block;padding:2px 7px;border-radius:4px}
+.ps-pending{background:var(--yel-d);color:var(--yel)}
+.ps-approved{background:var(--blu-d);color:var(--blu)}
+.ps-paid{background:var(--grn-d);color:var(--grn)}
+.ps-rejected{background:var(--red-d);color:var(--red)}
+.section-ttl{font-size:13px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between}
+
 /* ── DEMO ── */
 .demo-intro{font-size:14px;color:var(--txt2);line-height:1.6;margin-bottom:20px}
 .demo-main-btn{width:100%;padding:14px;background:var(--acc);color:#08122A;border:none;border-radius:11px;font-family:inherit;font-size:15px;font-weight:800;cursor:pointer;margin-bottom:8px;transition:opacity .15s}
@@ -234,6 +265,7 @@ select.fi{appearance:auto;-webkit-appearance:auto}
     <button class="tab"     onclick="switchTab('prospects',this)">🎯 Prospects</button>
     <button class="tab"     onclick="switchTab('clients',this)">✅ Clients</button>
     <button class="tab"     id="tab-reminders" onclick="switchTab('reminders',this)">Reminders</button>
+    <button class="tab"     id="tab-earnings" onclick="switchTab('earnings',this)">💰 Earnings</button>
     <button class="tab"     onclick="switchTab('demo',this)">📱 Demo</button>
   </div>
 
@@ -265,7 +297,12 @@ select.fi{appearance:auto;-webkit-appearance:auto}
           <div class="qa-label">Add Prospect</div>
           <div class="qa-desc">Log a new business you've spoken to</div>
         </div>
-        <div class="qa" onclick="switchTab('demo', document.querySelectorAll('.tab')[4])">
+        <div class="qa" onclick="switchTab('earnings', document.querySelectorAll('.tab')[4])">
+          <div class="qa-icon">💰</div>
+          <div class="qa-label">My Earnings</div>
+          <div class="qa-desc" id="qa-earnings-sub">See your 20% commissions</div>
+        </div>
+        <div class="qa" onclick="switchTab('demo', document.querySelectorAll('.tab')[5])">
           <div class="qa-icon">📱</div>
           <div class="qa-label">Show Demo</div>
           <div class="qa-desc">Let a merchant try the app live</div>
@@ -309,6 +346,29 @@ select.fi{appearance:auto;-webkit-appearance:auto}
       <div id="reminders-list"></div>
     </div>
 
+    <!-- EARNINGS -->
+    <div class="page" id="page-earnings">
+      <div class="earn-hero">
+        <div class="earn-label">Monthly Commission</div>
+        <div class="earn-amount" id="earn-total">KES —</div>
+        <div class="earn-sub" id="earn-sub">20% of active client subscriptions</div>
+        <button class="btn-payout" onclick="openPayoutSheet()">💸 Request Payout</button>
+      </div>
+
+      <div class="earn-breakdown">
+        <div class="earn-breakdown-ttl">Active Client Breakdown</div>
+        <div id="earn-clients-list"></div>
+      </div>
+
+      <div class="payout-history">
+        <div class="section-ttl">
+          <span>Payout History</span>
+          <button class="btn-copy" onclick="loadPayoutHistory()" style="font-size:11px;padding:4px 10px">↻ Refresh</button>
+        </div>
+        <div id="payout-history-list"><div class="empty"><div class="empty-icon" style="font-size:22px">📋</div><div class="empty-text">No payout requests yet</div></div></div>
+      </div>
+    </div>
+
     <!-- DEMO -->
     <div class="page" id="page-demo">
       <div class="page-ttl" style="margin-bottom:8px">Product Demo</div>
@@ -348,6 +408,7 @@ const APP_URL      = 'https://happa-merchant.njautheinvestmentsconsultant.worker
 
 let _agent = null, _isAdmin = false, _leads = [], _shops = [], _loaded = false;
 let _filter = 'all', _proFilter = 'all';
+let _commissions = [], _payouts = [], _monthlyEarnings = 0;
 
 /* ════════════════════════════════
    AUTH
@@ -377,6 +438,7 @@ async function doLogin() {
 function doLogout() {
   try { localStorage.removeItem('happa_agent'); } catch(_){}
   _agent = null; _leads = []; _shops = []; _loaded = false; _isAdmin = false;
+  _commissions = []; _payouts = []; _monthlyEarnings = 0;
   document.getElementById('portal').style.display = 'none';
   document.getElementById('login-screen').style.display = '';
   document.getElementById('fab-add').classList.remove('show');
@@ -410,8 +472,11 @@ async function loadData() {
     _leads = data.leads || [];
     _shops = data.shops || [];
     _isAdmin = data.is_admin || false;
+    _commissions = data.commissions || [];
+    _payouts = data.payouts || [];
+    _monthlyEarnings = data.monthly_earnings || 0;
     _loaded = true;
-    renderStats(); renderProspects(); renderClients(); renderReminders();
+    renderStats(); renderProspects(); renderClients(); renderReminders(); renderEarnings();
   } catch(_) {}
 }
 
@@ -427,6 +492,9 @@ function renderStats() {
   document.getElementById('s-prospects').textContent = prospects.length;
   document.getElementById('s-active').textContent = _shops.filter(s => s.subscriptions?.[0]?.status === 'active').length;
   document.getElementById('s-trial').textContent  = _shops.filter(s => s.subscriptions?.[0]?.status === 'trial').length;
+  // Update earnings quick-action sub-label
+  const qaSub = document.getElementById('qa-earnings-sub');
+  if (qaSub && _monthlyEarnings > 0) qaSub.textContent = `KES ${Number(_monthlyEarnings).toLocaleString()} this month`;
 }
 
 /* ════════════════════════════════
@@ -808,6 +876,230 @@ function renderReminders() {
       </a>
     </div>`;
   }).join('');
+}
+
+/* ════════════════════════════════
+   EARNINGS
+════════════════════════════════ */
+function renderEarnings() {
+  // Hero amount
+  document.getElementById('earn-total').textContent = `KES ${Number(_monthlyEarnings).toLocaleString()}`;
+  const activeCount = _shops.filter(s => s.subscriptions?.[0]?.status === 'active').length;
+  document.getElementById('earn-sub').textContent =
+    `20% from ${activeCount} active client${activeCount!==1?'s':''}`;
+
+  // Per-client breakdown
+  const cl = document.getElementById('earn-clients-list');
+  const activeShops = _shops.filter(s => s.subscriptions?.[0]?.status === 'active');
+  if (!activeShops.length) {
+    cl.innerHTML = '<div class="empty" style="padding:24px 0"><div class="empty-icon" style="font-size:22px">💼</div><div class="empty-text">No active clients yet.<br>Commissions appear once a client subscribes.</div></div>';
+  } else {
+    cl.innerHTML = activeShops.map(s => {
+      const sub = s.subscriptions[0];
+      const rate = Number(sub.monthly_rate || 0);
+      const comm = Math.round(rate * 0.20);
+      // Find latest commission record for this shop
+      const record = _commissions.find(c => c.shop_id === s.id);
+      const hasCode = record?.payment_confirmation_code;
+      const uploadBtn = record
+        ? `<button class="comm-upload-btn${hasCode?' done':''}" onclick="openUploadCode('${record.id}','${esc(s.name)}','${esc(hasCode||'')}')">
+            ${hasCode ? `✅ Code: ${esc(hasCode)}` : '📤 Upload M-Pesa Code'}
+          </button>`
+        : `<div style="font-size:11px;color:var(--txt3);margin-top:4px">No payment record yet</div>`;
+      return `<div class="comm-row">
+        <div class="comm-row-left">
+          <div class="comm-biz">${esc(s.name)}</div>
+          <div class="comm-meta">KES ${Number(rate).toLocaleString()} / mo subscription</div>
+          ${uploadBtn}
+        </div>
+        <div class="comm-amount">KES ${Number(comm).toLocaleString()}</div>
+      </div>`;
+    }).join('');
+  }
+
+  // Payout history
+  renderPayoutHistory();
+}
+
+function renderPayoutHistory() {
+  const ph = document.getElementById('payout-history-list');
+  if (!_payouts.length) {
+    ph.innerHTML = '<div class="empty"><div class="empty-icon" style="font-size:22px">📋</div><div class="empty-text">No payout requests yet</div></div>';
+    return;
+  }
+  const methodIcons = { mpesa:'📱', bank:'🏦', crypto:'₿', cash:'💵' };
+  ph.innerHTML = _payouts.map(p => {
+    const cls = `ps-${p.status}`;
+    return `<div class="payout-row">
+      <div class="payout-row-left">
+        <div class="payout-method">${methodIcons[p.method]||'💸'} ${cap(p.method)}</div>
+        <div class="payout-date">${fmtDate(p.created_at)}${p.method_details ? ` · ${esc(p.method_details)}` : ''}</div>
+        ${p.agent_notes ? `<div style="font-size:11px;color:var(--txt3);margin-top:2px">${esc(p.agent_notes)}</div>` : ''}
+        ${p.admin_notes ? `<div style="font-size:11px;color:var(--acc);margin-top:2px">Admin: ${esc(p.admin_notes)}</div>` : ''}
+      </div>
+      <div class="payout-right">
+        <div class="payout-amt">KES ${Number(p.amount).toLocaleString()}</div>
+        <span class="payout-status ${cls}">${cap(p.status)}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function loadPayoutHistory() {
+  const s = savedCreds();
+  if (!s.phone || !s.pin || !_agent) return;
+  try {
+    const res = await fetch(`${FN_BASE}/agent-payouts`, {
+      method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${ANON_KEY}`},
+      body: JSON.stringify({ action:'list_payouts', agent_id:_agent.id, phone:s.phone, pin:s.pin })
+    });
+    const data = await res.json();
+    if (data.payouts) { _payouts = data.payouts; renderPayoutHistory(); }
+  } catch(_) {}
+}
+
+/* ── REQUEST PAYOUT SHEET ── */
+function openPayoutSheet() {
+  const pending = _payouts.filter(p => p.status === 'pending').length;
+  setSheetContent(`
+    <div class="sh-hdr">
+      <h2>💸 Request Payout</h2>
+      <button class="sh-close" onclick="closeSheetDirect()">✕</button>
+    </div>
+    <div class="sh-body">
+      ${pending > 0 ? `<div class="warn-box">⏳ You have ${pending} payout request${pending>1?'s':''} already pending. You can still submit another.</div>` : ''}
+      <div class="fg">
+        <label class="fl">Amount (KES) *</label>
+        <input class="fi" id="po-amount" type="number" min="1" placeholder="e.g. 5000" inputmode="numeric" value="${_monthlyEarnings||''}">
+      </div>
+      <div class="fg">
+        <label class="fl">Payout Method *</label>
+        <select class="fi" id="po-method" onchange="updateMethodDetails()">
+          <option value="mpesa">📱 M-Pesa</option>
+          <option value="bank">🏦 Bank Transfer</option>
+          <option value="crypto">₿ Crypto Wallet</option>
+          <option value="cash">💵 Cash</option>
+        </select>
+      </div>
+      <div class="fg" id="po-details-fg">
+        <label class="fl" id="po-details-lbl">M-Pesa Number</label>
+        <input class="fi" id="po-details" placeholder="e.g. 0712 345 678" autocomplete="off">
+      </div>
+      <div class="fg">
+        <label class="fl">Notes (optional)</label>
+        <textarea class="fi" id="po-notes" rows="2" placeholder="Any special instructions…" style="resize:vertical"></textarea>
+      </div>
+      <div class="err-box" id="po-err"></div>
+      <div class="sh-actions">
+        <button class="btn-ghost" onclick="closeSheetDirect()">Cancel</button>
+        <button class="btn-acc" id="po-submit-btn" onclick="submitPayoutRequest()">Request Payout</button>
+      </div>
+    </div>
+  `);
+  openSheet();
+}
+
+function updateMethodDetails() {
+  const method = document.getElementById('po-method')?.value;
+  const lbl = document.getElementById('po-details-lbl');
+  const input = document.getElementById('po-details');
+  const labels = { mpesa:'M-Pesa Number', bank:'Bank Account Details', crypto:'Wallet Address', cash:'Location / Notes' };
+  const placeholders = { mpesa:'e.g. 0712 345 678', bank:'Bank · Account No. · Account Name', crypto:'e.g. 0x… or bc1…', cash:'Where to collect cash' };
+  if (lbl) lbl.textContent = labels[method] || 'Details';
+  if (input) input.placeholder = placeholders[method] || '';
+}
+
+async function submitPayoutRequest() {
+  const btn = document.getElementById('po-submit-btn');
+  const errEl = document.getElementById('po-err');
+  const amount = parseInt(document.getElementById('po-amount').value, 10);
+  const method = document.getElementById('po-method').value;
+  const details = document.getElementById('po-details').value.trim();
+  const notes = document.getElementById('po-notes').value.trim();
+
+  errEl.style.display = 'none';
+  if (!amount || amount <= 0) { errEl.textContent = 'Enter a valid amount'; errEl.style.display='block'; return; }
+
+  btn.disabled = true; btn.textContent = 'Submitting…';
+  const s = savedCreds();
+  try {
+    const res = await fetch(`${FN_BASE}/agent-payouts`, {
+      method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${ANON_KEY}`},
+      body: JSON.stringify({ action:'request_payout', agent_id:_agent.id, phone:s.phone, pin:s.pin,
+        amount, method, method_details:details||null, agent_notes:notes||null })
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) { errEl.textContent = data.error||'Failed to submit'; errEl.style.display='block'; return; }
+    _payouts.unshift(data.payout_request);
+    closeSheetDirect();
+    toast('✅ Payout request submitted!');
+    renderEarnings();
+  } catch(e) { errEl.textContent='Network error'; errEl.style.display='block'; }
+  finally { btn.disabled=false; btn.textContent='Request Payout'; }
+}
+
+/* ── UPLOAD CONFIRMATION CODE SHEET ── */
+function openUploadCode(commissionId, bizName, existingCode) {
+  setSheetContent(`
+    <div class="sh-hdr">
+      <h2>📤 Upload M-Pesa Code</h2>
+      <button class="sh-close" onclick="closeSheetDirect()">✕</button>
+    </div>
+    <div class="sh-body">
+      <div style="font-size:13px;color:var(--txt2);margin-bottom:16px;line-height:1.5">
+        Upload the M-Pesa confirmation code for <strong>${esc(bizName)}</strong>'s subscription payment.
+      </div>
+      ${existingCode ? `<div class="warn-box" style="background:var(--grn-d);border-color:rgba(34,197,94,.3);color:var(--grn)">✅ Current code: <strong>${esc(existingCode)}</strong>. You can update it below.</div>` : ''}
+      <div class="fg">
+        <label class="fl">M-Pesa Confirmation Code *</label>
+        <input class="fi" id="code-input" placeholder="e.g. QJK2X4YGHA" autocomplete="off" style="text-transform:uppercase;letter-spacing:.05em" value="${esc(existingCode||'')}">
+      </div>
+      <div style="font-size:12px;color:var(--txt3);margin-bottom:16px;line-height:1.5">
+        The code is found in the M-Pesa SMS confirmation message sent to the business owner after payment.
+      </div>
+      <div class="err-box" id="code-err"></div>
+      <div class="sh-actions">
+        <button class="btn-ghost" onclick="closeSheetDirect()">Cancel</button>
+        <button class="btn-acc" id="code-save-btn" onclick="uploadConfirmationCode('${commissionId}')">Save Code</button>
+      </div>
+    </div>
+  `);
+  openSheet();
+  // Force uppercase while typing
+  setTimeout(() => {
+    const input = document.getElementById('code-input');
+    if (input) input.addEventListener('input', () => { input.value = input.value.toUpperCase(); });
+  }, 50);
+}
+
+async function uploadConfirmationCode(commissionId) {
+  const btn = document.getElementById('code-save-btn');
+  const errEl = document.getElementById('code-err');
+  const code = document.getElementById('code-input').value.trim().toUpperCase();
+  errEl.style.display = 'none';
+  if (!code) { errEl.textContent = 'Enter the M-Pesa code'; errEl.style.display='block'; return; }
+
+  btn.disabled = true; btn.textContent = 'Saving…';
+  const s = savedCreds();
+  try {
+    const res = await fetch(`${FN_BASE}/agent-payouts`, {
+      method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${ANON_KEY}`},
+      body: JSON.stringify({ action:'upload_confirmation', agent_id:_agent.id, phone:s.phone, pin:s.pin,
+        commission_id:commissionId, confirmation_code:code })
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) { errEl.textContent = data.error||'Failed to save'; errEl.style.display='block'; return; }
+    // Update local record
+    const idx = _commissions.findIndex(c => c.id === commissionId);
+    if (idx >= 0) {
+      _commissions[idx].payment_confirmation_code = code;
+      _commissions[idx].confirmation_uploaded_at = new Date().toISOString();
+    }
+    closeSheetDirect();
+    toast('✅ Code saved!');
+    renderEarnings();
+  } catch(e) { errEl.textContent='Network error'; errEl.style.display='block'; }
+  finally { btn.disabled=false; btn.textContent='Save Code'; }
 }
 
 /* ════════════════════════════════
