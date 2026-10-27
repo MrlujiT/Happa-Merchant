@@ -1,4 +1,4 @@
-const CACHE = 'happa-v54';
+const CACHE = 'happa-v55';
 const SHELL = [
   '/',
   '/index.html',
@@ -19,6 +19,33 @@ self.addEventListener('activate', e => {
     caches.keys().then(keys =>
       Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
     ).then(() => self.clients.claim())
+  );
+});
+
+/* ── Push Notifications ── */
+self.addEventListener('push', e => {
+  let data = {};
+  try { data = e.data?.json() || {}; } catch(_) { data = { title: e.data?.text() || 'Happa' }; }
+  const title = data.title || 'Happa Agent';
+  e.waitUntil(self.registration.showNotification(title, {
+    body: data.body || '',
+    icon: '/happa-logo.jpg',
+    badge: '/happa-logo.jpg',
+    tag: data.tag || 'happa-push',
+    renotify: !!data.tag,
+    data: { url: data.url || '/agent.html' }
+  }));
+});
+
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  const url = e.notification.data?.url || '/agent.html';
+  e.waitUntil(
+    clients.matchAll({ type:'window', includeUncontrolled:true }).then(wins => {
+      const match = wins.find(w => w.url.includes(url));
+      if (match) return match.focus();
+      return clients.openWindow(url);
+    })
   );
 });
 

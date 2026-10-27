@@ -199,6 +199,28 @@ select.fi{appearance:auto;-webkit-appearance:auto}
 .ps-rejected{background:var(--red-d);color:var(--red)}
 .section-ttl{font-size:13px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between}
 
+/* ── TARGET COUNTDOWN ── */
+.target-card{background:linear-gradient(135deg,rgba(59,130,246,.12) 0%,rgba(245,166,35,.08) 100%);border:1px solid rgba(59,130,246,.25);border-radius:16px;padding:20px;margin-bottom:20px}
+.target-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:12px}
+.target-title{font-size:15px;font-weight:800}
+.target-desc{font-size:12px;color:var(--txt2);margin-top:3px;line-height:1.4}
+.countdown-row{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
+.cd-unit{background:var(--surf);border:1px solid var(--bdr);border-radius:10px;padding:10px 6px;text-align:center}
+.cd-num{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1;color:var(--blu)}
+.cd-lbl{font-size:10px;color:var(--txt3);margin-top:3px;text-transform:uppercase;letter-spacing:.04em}
+.target-progress{margin-top:4px}
+.prog-header{display:flex;justify-content:space-between;font-size:12px;color:var(--txt2);margin-bottom:6px}
+.prog-bar{height:8px;background:var(--surf2);border-radius:4px;overflow:hidden}
+.prog-fill{height:100%;background:linear-gradient(90deg,var(--blu),var(--acc));border-radius:4px;transition:width .6s cubic-bezier(.4,0,.2,1)}
+.prog-fill.done{background:var(--grn)}
+.target-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:14px}
+.target-title{font-size:14px;font-weight:700;color:var(--txt);line-height:1.3;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.target-desc{font-size:12px;color:var(--txt3);margin-top:3px}
+.target-progress{margin-top:14px}
+.prog-header{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--txt2);margin-bottom:6px;font-weight:600}
+.btn-del-full{width:100%;margin-top:16px;padding:11px;border:1px solid var(--red,#ef4444);border-radius:10px;background:transparent;color:var(--red,#ef4444);font-size:13px;font-weight:600;cursor:pointer;letter-spacing:.01em}
+.target-expired{background:var(--surf);border:1px solid var(--bdr);border-radius:12px;padding:14px;text-align:center;color:var(--txt3);font-size:13px;margin-bottom:20px}
+
 /* ── DEMO ── */
 .demo-intro{font-size:14px;color:var(--txt2);line-height:1.6;margin-bottom:20px}
 .demo-main-btn{width:100%;padding:14px;background:var(--acc);color:#08122A;border:none;border-radius:11px;font-family:inherit;font-size:15px;font-weight:800;cursor:pointer;margin-bottom:8px;transition:opacity .15s}
@@ -273,6 +295,7 @@ select.fi{appearance:auto;-webkit-appearance:auto}
 
     <!-- HOME -->
     <div class="page on" id="page-home">
+      <div id="target-widget"></div>
       <div class="stat-row">
         <div class="sc"><div class="sc-lbl">Prospects</div><div class="sc-val" id="s-prospects">—</div></div>
         <div class="sc"><div class="sc-lbl">Active</div><div class="sc-val" style="color:var(--grn)" id="s-active">—</div></div>
@@ -306,6 +329,11 @@ select.fi{appearance:auto;-webkit-appearance:auto}
           <div class="qa-icon">📱</div>
           <div class="qa-label">Show Demo</div>
           <div class="qa-desc">Let a merchant try the app live</div>
+        </div>
+        <div class="qa" id="qa-admin-target" style="display:none" onclick="openSetTargetSheet()">
+          <div class="qa-icon">🎯</div>
+          <div class="qa-label">Set Target</div>
+          <div class="qa-desc">Assign a pitch drive to agents</div>
         </div>
       </div>
     </div>
@@ -457,6 +485,8 @@ function showPortal() {
   document.getElementById('wa-share').href = `https://wa.me/?text=${pitch}`;
   document.getElementById('fab-add').classList.add('show');
   loadData();
+  loadTargets();
+  requestPushPermission();
 }
 
 async function loadData() {
@@ -477,6 +507,7 @@ async function loadData() {
     _monthlyEarnings = data.monthly_earnings || 0;
     _loaded = true;
     renderStats(); renderProspects(); renderClients(); renderReminders(); renderEarnings();
+    renderTargetWidget();
   } catch(_) {}
 }
 
@@ -1108,6 +1139,306 @@ async function uploadConfirmationCode(commissionId) {
 function openDemo() {
   const ref = `${APP_URL}/?ref=${encodeURIComponent(_agent.ref_code || _agent.id)}`;
   window.open(ref, '_blank');
+}
+
+/* ════════════════════════════════
+   TARGETS + COUNTDOWN
+════════════════════════════════ */
+let _targets = [];
+let _countdownTimer = null;
+
+async function loadTargets() {
+  const s = savedCreds();
+  if (!s.phone || !s.pin || !_agent) return;
+  try {
+    const res = await fetch(`${FN_BASE}/agent-targets`, {
+      method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${ANON_KEY}`},
+      body: JSON.stringify({ action:'get_targets', agent_id:_agent.id, phone:s.phone, pin:s.pin })
+    });
+    const data = await res.json();
+    if (data.targets) { _targets = data.targets; renderTargetWidget(); }
+  } catch(_) {}
+}
+
+function renderTargetWidget() {
+  const widget = document.getElementById('target-widget');
+  if (!widget) return;
+  if (_countdownTimer) { clearInterval(_countdownTimer); _countdownTimer = null; }
+
+  // Show admin button if admin
+  const adminQA = document.getElementById('qa-admin-target');
+  if (adminQA) adminQA.style.display = _isAdmin ? '' : 'none';
+
+  if (!_targets.length) { widget.innerHTML = ''; return; }
+
+  // Use the nearest deadline target
+  const target = _targets[0];
+  const deadline = new Date(target.deadline + 'T23:59:59');
+  const totalProspects = _leads.filter(l => !l.shop_id).length;
+  const progress = Math.min(totalProspects, target.target_count);
+  const pct = target.target_count > 0 ? Math.round(progress / target.target_count * 100) : 0;
+  const isDone = progress >= target.target_count;
+  const isExpired = deadline < new Date();
+
+  function renderCountdown() {
+    const now = new Date();
+    const diff = deadline.getTime() - now.getTime();
+    if (diff <= 0) {
+      widget.querySelector('.countdown-row')?.replaceWith((() => {
+        const d = document.createElement('div');
+        d.style.cssText = 'text-align:center;font-size:13px;font-weight:700;color:var(--red);padding:8px 0;';
+        d.textContent = isDone ? '🎉 Target achieved!' : '⏰ Deadline passed';
+        return d;
+      })());
+      if (_countdownTimer) clearInterval(_countdownTimer);
+      return;
+    }
+    const days    = Math.floor(diff / 86400000);
+    const hours   = Math.floor((diff % 86400000) / 3600000);
+    const minutes = Math.floor((diff % 3600000) / 60000);
+    const seconds = Math.floor((diff % 60000) / 1000);
+    const row = widget.querySelector('.countdown-row');
+    if (row) {
+      row.innerHTML = `
+        <div class="cd-unit"><div class="cd-num">${days}</div><div class="cd-lbl">Days</div></div>
+        <div class="cd-unit"><div class="cd-num">${String(hours).padStart(2,'0')}</div><div class="cd-lbl">Hrs</div></div>
+        <div class="cd-unit"><div class="cd-num">${String(minutes).padStart(2,'0')}</div><div class="cd-lbl">Min</div></div>
+        <div class="cd-unit"><div class="cd-num" style="color:${seconds<30?'var(--red)':'var(--blu)'}">${String(seconds).padStart(2,'0')}</div><div class="cd-lbl">Sec</div></div>
+      `;
+    }
+  }
+
+  const scopeLabel = target.agent_id ? '' : '<span style="font-size:10px;background:var(--blu-d);color:var(--blu);border-radius:4px;padding:2px 7px;font-weight:700">ALL AGENTS</span>';
+  const targetAgentLabel = target.agent_id ? '' : scopeLabel;
+
+  widget.innerHTML = `<div class="target-card">
+    <div class="target-top">
+      <div>
+        <div class="target-title">🎯 ${esc(target.title)} ${targetAgentLabel}</div>
+        ${target.description ? `<div class="target-desc">${esc(target.description)}</div>` : ''}
+      </div>
+      ${_isAdmin ? `<button class="btn-copy" style="font-size:11px;padding:4px 10px;flex-shrink:0" onclick="openEditTargetSheet('${target.id}')">✏️ Edit</button>` : ''}
+    </div>
+    <div class="countdown-row">
+      <div class="cd-unit"><div class="cd-num">—</div><div class="cd-lbl">Days</div></div>
+      <div class="cd-unit"><div class="cd-num">—</div><div class="cd-lbl">Hrs</div></div>
+      <div class="cd-unit"><div class="cd-num">—</div><div class="cd-lbl">Min</div></div>
+      <div class="cd-unit"><div class="cd-num">—</div><div class="cd-lbl">Sec</div></div>
+    </div>
+    <div class="target-progress">
+      <div class="prog-header">
+        <span>${progress} of ${target.target_count} pitches</span>
+        <span style="font-weight:700;color:${isDone?'var(--grn)':pct>=75?'var(--acc)':'var(--txt2)'}">${pct}%${isDone?' ✅':''}</span>
+      </div>
+      <div class="prog-bar"><div class="prog-fill${isDone?' done':''}" style="width:${pct}%"></div></div>
+    </div>
+  </div>`;
+
+  renderCountdown();
+  if (!isExpired && !isDone) _countdownTimer = setInterval(renderCountdown, 1000);
+}
+
+/* ── SET TARGET SHEET (admin) ── */
+async function openSetTargetSheet() {
+  const s = savedCreds();
+  // Load agents list
+  let agentOptions = '<option value="">🌐 All Agents (Global)</option>';
+  try {
+    const res = await fetch(`${FN_BASE}/agent-targets`, {
+      method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${ANON_KEY}`},
+      body: JSON.stringify({ action:'list_agents', agent_id:_agent.id, phone:s.phone, pin:s.pin })
+    });
+    const data = await res.json();
+    if (data.agents) {
+      agentOptions += data.agents.map(a => `<option value="${a.id}">${esc(a.name)}</option>`).join('');
+    }
+  } catch(_) {}
+
+  const today = new Date().toISOString().slice(0,10);
+  setSheetContent(`
+    <div class="sh-hdr">
+      <h2>🎯 Set Agent Target</h2>
+      <button class="sh-close" onclick="closeSheetDirect()">✕</button>
+    </div>
+    <div class="sh-body">
+      <div class="fg">
+        <label class="fl">Assign To</label>
+        <select class="fi" id="tgt-agent">${agentOptions}</select>
+      </div>
+      <div class="fg">
+        <label class="fl">Title *</label>
+        <input class="fi" id="tgt-title" placeholder="e.g. Q4 Pitch Drive" value="Pitch Drive">
+      </div>
+      <div class="fg">
+        <label class="fl">Description</label>
+        <input class="fi" id="tgt-desc" placeholder="e.g. Target Westlands & Kilimani SMEs">
+      </div>
+      <div class="fg">
+        <label class="fl">Pitch Target (number of businesses) *</label>
+        <input class="fi" id="tgt-count" type="number" min="1" placeholder="e.g. 20" inputmode="numeric" value="20">
+      </div>
+      <div class="fg">
+        <label class="fl">Deadline *</label>
+        <input class="fi" id="tgt-deadline" type="date" min="${today}">
+      </div>
+      <div class="err-box" id="tgt-err"></div>
+      <div class="sh-actions">
+        <button class="btn-ghost" onclick="closeSheetDirect()">Cancel</button>
+        <button class="btn-acc" id="tgt-save-btn" onclick="saveTarget()">Set Target</button>
+      </div>
+    </div>
+  `);
+  openSheet();
+}
+
+async function saveTarget() {
+  const btn = document.getElementById('tgt-save-btn');
+  const errEl = document.getElementById('tgt-err');
+  const targetAgentId = document.getElementById('tgt-agent').value;
+  const title   = document.getElementById('tgt-title').value.trim();
+  const desc    = document.getElementById('tgt-desc').value.trim();
+  const count   = parseInt(document.getElementById('tgt-count').value, 10);
+  const deadline= document.getElementById('tgt-deadline').value;
+  errEl.style.display='none';
+  if (!title) { errEl.textContent='Title is required'; errEl.style.display='block'; return; }
+  if (!count || count < 1) { errEl.textContent='Enter a valid target number'; errEl.style.display='block'; return; }
+  if (!deadline) { errEl.textContent='Set a deadline'; errEl.style.display='block'; return; }
+  btn.disabled=true; btn.textContent='Saving…';
+  const s = savedCreds();
+  try {
+    const res = await fetch(`${FN_BASE}/agent-targets`, {
+      method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${ANON_KEY}`},
+      body: JSON.stringify({ action:'set_target', agent_id:_agent.id, phone:s.phone, pin:s.pin,
+        target_agent_id: targetAgentId || null, title, description:desc||null, target_count:count, deadline })
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) { errEl.textContent=data.error||'Failed'; errEl.style.display='block'; return; }
+    _targets.unshift(data.target);
+    closeSheetDirect();
+    toast('🎯 Target set!');
+    renderTargetWidget();
+  } catch(e) { errEl.textContent='Network error'; errEl.style.display='block'; }
+  finally { btn.disabled=false; btn.textContent='Set Target'; }
+}
+
+function openEditTargetSheet(targetId) {
+  const t = _targets.find(x => x.id === targetId);
+  if (!t) return;
+  setSheetContent(`
+    <div class="sh-hdr">
+      <h2>✏️ Edit Target</h2>
+      <button class="sh-close" onclick="closeSheetDirect()">✕</button>
+    </div>
+    <div class="sh-body">
+      <div class="fg">
+        <label class="fl">Title</label>
+        <input class="fi" id="etgt-title" value="${esc(t.title)}">
+      </div>
+      <div class="fg">
+        <label class="fl">Description</label>
+        <input class="fi" id="etgt-desc" value="${esc(t.description||'')}">
+      </div>
+      <div class="fg">
+        <label class="fl">Target Count</label>
+        <input class="fi" id="etgt-count" type="number" min="1" value="${t.target_count}" inputmode="numeric">
+      </div>
+      <div class="fg">
+        <label class="fl">Deadline</label>
+        <input class="fi" id="etgt-deadline" type="date" value="${esc(t.deadline)}">
+      </div>
+      <div class="err-box" id="etgt-err"></div>
+      <div class="sh-actions">
+        <button class="btn-ghost" onclick="closeSheetDirect()">Cancel</button>
+        <button class="btn-acc" id="etgt-save-btn" onclick="updateTarget('${t.id}')">Save Changes</button>
+      </div>
+      <button class="btn-del-full" onclick="deleteTarget('${t.id}')">🗑 Remove Target</button>
+    </div>
+  `);
+  openSheet();
+}
+
+async function updateTarget(targetId) {
+  const btn = document.getElementById('etgt-save-btn');
+  const errEl = document.getElementById('etgt-err');
+  btn.disabled=true; btn.textContent='Saving…';
+  const s = savedCreds();
+  try {
+    const res = await fetch(`${FN_BASE}/agent-targets`, {
+      method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${ANON_KEY}`},
+      body: JSON.stringify({ action:'update_target', agent_id:_agent.id, phone:s.phone, pin:s.pin,
+        target_id:targetId,
+        title: document.getElementById('etgt-title').value.trim(),
+        description: document.getElementById('etgt-desc').value.trim() || null,
+        target_count: parseInt(document.getElementById('etgt-count').value, 10),
+        deadline: document.getElementById('etgt-deadline').value,
+      })
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) { errEl.textContent=data.error||'Failed'; errEl.style.display='block'; return; }
+    const idx = _targets.findIndex(x => x.id === targetId);
+    if (idx >= 0) _targets[idx] = data.target;
+    closeSheetDirect(); toast('✅ Target updated!'); renderTargetWidget();
+  } catch(e) { errEl.textContent='Network error'; errEl.style.display='block'; }
+  finally { btn.disabled=false; btn.textContent='Save Changes'; }
+}
+
+async function deleteTarget(targetId) {
+  const s = savedCreds();
+  try {
+    await fetch(`${FN_BASE}/agent-targets`, {
+      method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${ANON_KEY}`},
+      body: JSON.stringify({ action:'delete_target', agent_id:_agent.id, phone:s.phone, pin:s.pin, target_id:targetId })
+    });
+    _targets = _targets.filter(x => x.id !== targetId);
+    closeSheetDirect(); toast('🗑 Target removed'); renderTargetWidget();
+  } catch(_) {}
+}
+
+/* ════════════════════════════════
+   PUSH NOTIFICATIONS
+════════════════════════════════ */
+const VAPID_PUBLIC_KEY = 'BMidbDdDZQtjWoSN5X8qoKFBHVbkeqWAgFyheGa8M5YGX_ccYYiuKX4Y_c9Q9kDDwYrjjn5J_N8JiR_qbMMV0fk';
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
+}
+
+async function requestPushPermission() {
+  if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  if (Notification.permission === 'denied') return;
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') return;
+    await subscribeToPush();
+  } catch(_) {}
+}
+
+async function subscribeToPush() {
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+      });
+    }
+    // Save to server
+    const s = savedCreds();
+    if (!s.phone || !s.pin || !_agent) return;
+    await fetch(`${FN_BASE}/send-notification`, {
+      method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${ANON_KEY}`},
+      body: JSON.stringify({
+        action:'save_subscription', agent_id:_agent.id, phone:s.phone, pin:s.pin,
+        user_type:'agent', user_id:_agent.id,
+        subscription: { endpoint:sub.endpoint, keys:{ p256dh:btoa(String.fromCharCode(...new Uint8Array(sub.getKey('p256dh')))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,''), auth:btoa(String.fromCharCode(...new Uint8Array(sub.getKey('auth')))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'') } },
+        user_agent: navigator.userAgent.slice(0,100)
+      })
+    });
+  } catch(_) {}
 }
 
 /* ════════════════════════════════

@@ -826,6 +826,41 @@ async function loadUserContext() {
   showPage('app');
   setupNav();
   showTab('home');
+  subscribeMerchantPush();
+}
+
+/* ── Merchant Push Subscriptions ── */
+const HAPPA_VAPID_PUBLIC_KEY = 'BMidbDdDZQtjWoSN5X8qoKFBHVbkeqWAgFyheGa8M5YGX_ccYYiuKX4Y_c9Q9kDDwYrjjn5J_N8JiR_qbMMV0fk';
+
+function urlBase64ToUint8Array(b64) {
+  const pad = '='.repeat((4 - b64.length % 4) % 4);
+  const raw = atob((b64 + pad).replace(/-/g,'+').replace(/_/g,'/'));
+  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+}
+
+async function subscribeMerchantPush() {
+  if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  if (Notification.permission === 'denied') return;
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') return;
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({ userVisibleOnly:true, applicationServerKey:urlBase64ToUint8Array(HAPPA_VAPID_PUBLIC_KEY) });
+    }
+    if (!S.user?.id) return;
+    const k256 = btoa(String.fromCharCode(...new Uint8Array(sub.getKey('p256dh')))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+    const kAuth = btoa(String.fromCharCode(...new Uint8Array(sub.getKey('auth')))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+    await fetch(`${SUPABASE_URL}/functions/v1/send-notification`, {
+      method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${SUPABASE_KEY}`},
+      body: JSON.stringify({
+        action:'save_subscription', user_type:'merchant', user_id:S.user.id,
+        subscription:{ endpoint:sub.endpoint, keys:{ p256dh:k256, auth:kAuth } },
+        user_agent: navigator.userAgent.slice(0,100)
+      })
+    });
+  } catch(_) {}
 }
 
 async function loadProducts() {
