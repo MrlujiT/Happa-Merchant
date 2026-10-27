@@ -2180,6 +2180,7 @@ async function renderBookings(el) {
     </div>
     <div style="padding:0 16px 20px">
       <button onclick="openImportSheet()" style="width:100%;padding:10px;border:1.5px dashed var(--bdr);background:transparent;color:var(--txt2);border-radius:12px;font-size:13px;font-weight:500;cursor:pointer">📥 Import from Excel / CSV</button>
+      <button onclick="openManageImports()" style="width:100%;padding:10px;margin-top:8px;border:1.5px dashed var(--bdr);background:transparent;color:var(--txt3);border-radius:12px;font-size:12px;font-weight:500;cursor:pointer">🗂 Manage / Delete Imports</button>
     </div>`;
 
   el.innerHTML = cal;
@@ -2310,15 +2311,29 @@ async function previewImport(input) {
       const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
 
       const parsed = _parseImportRows(rows);
-      _importRows = parsed; // store for runImport()
       if (!parsed.length) {
         preview.innerHTML = `<div class="empty"><div class="empty-ico">📋</div><p>No valid rows found. Make sure columns are Guest, Date, Unit, Commission.</p></div>`;
         return;
       }
 
-      // Show preview
-      const sample = parsed.slice(0,5);
-      let h = `<div style="font-size:13px;font-weight:600;color:var(--txt);margin-bottom:8px">${parsed.length} rows ready to import</div>`;
+      // Dedup check at preview time so displayed total matches what will actually be saved
+      preview.innerHTML = `<div style="text-align:center;padding:10px 0;color:var(--txt2)">Checking for duplicates…</div>`;
+      const existing = await apiGet(`commissions?shop_id=eq.${S.shop.id}&select=guest_name,commission_date,amount&limit=10000`);
+      const dupSet = new Set((existing||[]).map(r=>`${r.guest_name}|${r.commission_date}|${r.amount}`));
+      const newRows  = parsed.filter(r => !dupSet.has(`${r.guest_name}|${r.commission_date}|${r.amount}`));
+      const skipCount = parsed.length - newRows.length;
+
+      _importRows = parsed; // store full set; runImport() will re-dedup with fresh query
+
+      if (!newRows.length) {
+        preview.innerHTML = `<div class="empty"><div class="empty-ico">✅</div><p>All ${parsed.length} rows already exist — nothing new to import.</p></div>
+          <button class="btn-g" style="width:100%;margin-top:8px" onclick="popSheet()">Close</button>`;
+        return;
+      }
+
+      // Show preview of new rows only
+      const sample = newRows.slice(0,5);
+      let h = `<div style="font-size:13px;font-weight:600;color:var(--txt);margin-bottom:8px">${newRows.length} new rows to import${skipCount?` <span style="color:var(--txt3);font-weight:400">(${skipCount} already exist — will be skipped)</span>`:''}  </div>`;
       h += `<div style="overflow-x:auto;border-radius:10px;border:1px solid var(--bdr);margin-bottom:16px">
         <table style="width:100%;border-collapse:collapse;font-size:12px">
           <thead><tr style="background:var(--surf2)">
@@ -2335,15 +2350,15 @@ async function previewImport(input) {
           <td style="padding:7px 10px;text-align:right;color:var(--grn);font-weight:600">${kes(r.amount)}</td>
         </tr>`;
       });
-      if (parsed.length > 5) h += `<tr><td colspan="4" style="padding:8px 10px;color:var(--txt3);font-size:11px;text-align:center">… and ${parsed.length-5} more rows</td></tr>`;
+      if (newRows.length > 5) h += `<tr><td colspan="4" style="padding:8px 10px;color:var(--txt3);font-size:11px;text-align:center">… and ${newRows.length-5} more rows</td></tr>`;
       h += `</tbody></table></div>`;
-      const total = parsed.reduce((a,r)=>a+r.amount,0);
+      const total = newRows.reduce((a,r)=>a+r.amount,0);
       h += `<div style="background:var(--surf2);border-radius:10px;padding:12px;text-align:center;margin-bottom:16px">
         <div style="font-size:11px;color:var(--txt2);margin-bottom:4px">Total to import</div>
         <div style="font-size:20px;font-weight:800;color:var(--grn)">${kes(total)}</div>
-        <div style="font-size:12px;color:var(--txt3)">${parsed.length} commissions</div>
+        <div style="font-size:12px;color:var(--txt3)">${newRows.length} new commissions</div>
       </div>`;
-      h += `<button class="btn-p" style="width:100%" onclick="runImport()">✅ Import ${parsed.length} Commissions</button>`;
+      h += `<button class="btn-p" style="width:100%" onclick="runImport()">✅ Import ${newRows.length} Commissions</button>`;
       h += `<button class="btn-g" style="width:100%;margin-top:8px" onclick="popSheet()">Cancel</button>`;
       preview.innerHTML = h;
     } catch(e) {
@@ -2419,9 +2434,12 @@ async function runImport() {
   const btn = document.querySelector('#imp-preview .btn-p');
   if (btn) { btn.disabled = true; btn.textContent = 'Importing…'; }
 
-  // Fetch existing to deduplicate (guest_name + commission_date + amount)
-  const existing = await apiGet(`commissions?shop_id=eq.${S.shop.id}&select=guest_name,commission_date,amount`);
+  // Re-fetch existing with high limit to avoid missing records when >1000 rows
+  const existing = await apiGet(`commissions?shop_id=eq.${S.shop.id}&select=guest_name,commission_date,amount&limit=10000`);
   const dupSet = new Set((existing||[]).map(r => `${r.guest_name}|${r.commission_date}|${r.amount}`));
+
+  // Batch reference: filename + timestamp so batches can be identified and deleted
+  const batchRef = `${document.getElementById('imp-fname')?.textContent||'upload'}_${new Date().toISOString().slice(0,16)}`;
 
   const toInsert = rows
     .filter(r => !dupSet.has(`${r.guest_name}|${r.commission_date}|${r.amount}`))
@@ -2429,7 +2447,8 @@ async function runImport() {
       ...r,
       host_name:   hostName,
       shop_id:     S.shop.id,
-      recorded_by: S.user.id,
+      recorded_by: S.user?.id||null,
+      batch_ref:   batchRef,
     }));
 
   const skipped = rows.length - toInsert.length;
@@ -2467,6 +2486,57 @@ async function runImport() {
     popSheet();
     showTab('bookings');
   }
+}
+
+async function openManageImports() {
+  pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>🗂 Manage Imports</h2></div>
+    <div class="sh-body" id="imp-mgr-body"><div style="text-align:center;padding:30px 0;color:var(--txt2)">Loading…</div></div>`);
+  setTimeout(async () => {
+    const el = document.getElementById('imp-mgr-body');
+    if (!el) return;
+    // Get distinct batches with count + total + date range
+    const rows = await apiGet(`commissions?shop_id=eq.${S.shop.id}&batch_ref=not.is.null&select=batch_ref,commission_date,amount&limit=10000`);
+    if (!rows?.length) {
+      el.innerHTML = `<div class="empty"><div class="empty-ico">🗂</div><p>No tracked import batches found.<br>Future uploads will appear here.</p></div>`;
+      return;
+    }
+    // Group by batch_ref
+    const batches = {};
+    rows.forEach(r => {
+      if (!batches[r.batch_ref]) batches[r.batch_ref] = { count:0, total:0, minDate:'', maxDate:'' };
+      const b = batches[r.batch_ref];
+      b.count++;
+      b.total += Number(r.amount)||0;
+      if (!b.minDate || r.commission_date < b.minDate) b.minDate = r.commission_date;
+      if (!b.maxDate || r.commission_date > b.maxDate) b.maxDate = r.commission_date;
+    });
+    const keys = Object.keys(batches).sort().reverse();
+    let h = `<p style="font-size:13px;color:var(--txt2);margin:0 0 16px">Tap a batch to delete all its records. This cannot be undone.</p>`;
+    keys.forEach(ref => {
+      const b = batches[ref];
+      const label = ref.replace(/_\d{4}-\d{2}-\d{2}T.*$/,''); // strip timestamp suffix for display
+      h += `<div class="dbi" style="cursor:pointer" onclick="confirmDeleteBatch('${esc(ref)}',${b.count})">
+        <div class="db-av" style="font-size:16px;background:#ef444420;color:#ef4444">🗑</div>
+        <div class="db-inf">
+          <div class="db-nm" style="font-size:13px">${esc(label)}</div>
+          <div class="db-mt">${b.minDate}${b.minDate!==b.maxDate?` → ${b.maxDate}`:''} · ${b.count} rows</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:13px;font-weight:700;color:var(--grn)">${kes(b.total)}</div>
+          <div style="font-size:11px;color:var(--red);margin-top:2px">Delete</div>
+        </div>
+      </div>`;
+    });
+    el.innerHTML = h;
+  }, 50);
+}
+
+async function confirmDeleteBatch(batchRef, count) {
+  if (!confirm(`Delete all ${count} records from this import? This cannot be undone.`)) return;
+  const { error } = await db.from('commissions').delete().eq('shop_id', S.shop.id).eq('batch_ref', batchRef);
+  if (error) { showToast('Delete failed: ' + error.message, true); return; }
+  showToast(`🗑 Deleted ${count} records`);
+  openManageImports(); // refresh
 }
 
 /* ═══════════════════════════════
