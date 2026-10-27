@@ -274,6 +274,7 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
             <option value="services">Services (Salon, Barber, Repairs…)</option>
             <option value="mixed">Restaurant / Cafe (Mixed)</option>
             <option value="airbnb">🏠 Airbnb / Short-term Rental</option>
+            <option value="fit">🏋️ Gym / Fitness Studio</option>
           </select></div>
         <div class="fg"><label class="fl">Location</label>
           <input class="fi" id="ref-location" type="text" placeholder="e.g. Ngara, Nairobi"></div>
@@ -784,18 +785,29 @@ async function loadUserContext() {
 
   // Update header
   document.getElementById('hdr-shop-name').textContent = S.shop.name;
-  const roleBadge = { owner: '👑 Owner', manager: '🏷️ Manager', cashier: '🧾 Cashier', housekeeper: '🧹 Housekeeper', 'co-host': '🤝 Co-host' };
+  const roleBadge = { owner: '👑 Owner', manager: '🏷️ Manager', cashier: '🧾 Cashier', housekeeper: '🧹 Housekeeper', 'co-host': '🤝 Co-host', trainer: '🏋️ Trainer', 'boxing-coach': '🥊 Boxing Coach', 'yoga-meditation': '🧘 Yoga & Meditation', masseuse: '💆 Masseuse' };
   document.getElementById('hdr-role-badge').textContent = roleBadge[S.member.role] || '🧾 Staff';
 
-  // Airbnb mode flag
+  // Business type flags
   S.isAirbnb = S.shop.business_type === 'airbnb';
+  S.isFit    = S.shop.business_type === 'fit';
   const role = S.member.role;
   const isHousekeeper = S.isAirbnb && role === 'housekeeper';
   const isCoHost = S.isAirbnb && role === 'co-host';
   const isOwnerOrManager = role === 'owner' || role === 'manager';
 
-  // Nav: swapped for airbnb, limited for cashier/housekeeper
-  if (isHousekeeper) {
+  // Nav: swapped for airbnb/fit, limited for cashier/housekeeper
+  if (S.isFit) {
+    const isCashier = role === 'cashier';
+    document.getElementById('bottom-nav').innerHTML = isCashier ? `
+      <button class="ni on" data-tab="home"><span class="ni-ico">🏠</span><span class="ni-lbl">Home</span></button>
+      <button class="ni" data-tab="fit-sessions"><span class="ni-ico">📅</span><span class="ni-lbl">Sessions</span></button>` : `
+      <button class="ni on" data-tab="home"><span class="ni-ico">🏠</span><span class="ni-lbl">Home</span></button>
+      <button class="ni" data-tab="fit-sessions"><span class="ni-ico">📅</span><span class="ni-lbl">Sessions</span></button>
+      <button class="ni" data-tab="fit-services"><span class="ni-ico">🏋️</span><span class="ni-lbl">Services</span></button>
+      <button class="ni" data-tab="fit-clients"><span class="ni-ico">👥</span><span class="ni-lbl">Clients</span></button>
+      <button class="ni" data-tab="more"><span class="ni-ico">☰</span><span class="ni-lbl">More</span></button>`;
+  } else if (isHousekeeper) {
     document.getElementById('bottom-nav').innerHTML = `
       <button class="ni on" data-tab="home"><span class="ni-ico">🏠</span><span class="ni-lbl">Home</span></button>
       <button class="ni" data-tab="supplies"><span class="ni-ico">🧻</span><span class="ni-lbl">Supplies</span></button>
@@ -822,6 +834,8 @@ async function loadUserContext() {
 
   if (S.isAirbnb) {
     await Promise.all([loadUnits(), loadHosts(), loadLoyalty()]);
+  } else if (S.isFit) {
+    await Promise.all([loadFitServices(), loadFitClients()]);
   } else {
     await Promise.all([loadProducts(), loadCustomers(), loadSuppliers(), loadLoyalty()]);
   }
@@ -1188,6 +1202,526 @@ async function saveAlert() {
   if (error) { showToast('Error: '+(error.message||'try again'), true); if (btn) { btn.disabled=false; btn.textContent='🚨 Submit Alert'; } return; }
   closeSaleSheet();
   showToast('✓ Alert submitted — owner notified');
+}
+
+/* ═══════════════════════════════════════════════════════
+   HAPPA FIT
+═══════════════════════════════════════════════════════ */
+let _fitServices = [], _fitClients = [], _fitSessions = [];
+
+async function loadFitServices() {
+  const d = await apiGet(`fit_services?shop_id=eq.${S.shop.id}&active=eq.true&order=name`).catch(()=>[]);
+  _fitServices = d || [];
+}
+async function loadFitClients() {
+  const d = await apiGet(`fit_clients?shop_id=eq.${S.shop.id}&active=eq.true&order=name`).catch(()=>[]);
+  _fitClients = d || [];
+}
+
+// ── Fit Home Dashboard ──
+async function renderFitHome(el) {
+  const today = new Date().toLocaleDateString('en-KE',{timeZone:'Africa/Nairobi'}).split('/').reverse().join('-').replace(/(\d+)-(\d+)-(\d+)/,(_,y,m,d)=>`${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`);
+  const todaySessions = await apiGet(`fit_sessions?shop_id=eq.${S.shop.id}&scheduled_date=eq.${today}&order=start_time`).catch(()=>[]);
+  _fitSessions = todaySessions || [];
+  const totalRev  = _fitSessions.filter(s=>s.status==='completed').reduce((a,s)=>a+parseFloat(s.revenue||0),0);
+  const done      = _fitSessions.filter(s=>s.status==='completed').length;
+  const upcoming  = _fitSessions.filter(s=>s.status==='scheduled').length;
+
+  const sessionCards = _fitSessions.length ? _fitSessions.map(s => {
+    const statusColor = s.status==='completed' ? 'var(--grn,#22c55e)' : s.status==='cancelled' ? 'var(--red,#ef4444)' : 'var(--acc)';
+    const statusLabel = s.status==='completed' ? '✅ Done' : s.status==='cancelled' ? '❌ Cancelled' : '⏰ Upcoming';
+    return `<div class="card" style="margin-bottom:10px;cursor:pointer" onclick="openFitSessionSheet(${JSON.stringify(s).replace(/"/g,'&quot;')})">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <div style="font-weight:700;font-size:14px">${s.service_name||'Session'}</div>
+          <div style="font-size:12px;color:var(--txt2);margin-top:2px">${s.trainer_name||''} ${s.start_time ? '· '+s.start_time.slice(0,5) : ''}</div>
+        </div>
+        <span style="font-size:11px;font-weight:700;color:${statusColor};background:${statusColor}18;padding:3px 8px;border-radius:20px">${statusLabel}</span>
+      </div>
+      ${s.client_count ? `<div style="font-size:12px;color:var(--txt2);margin-top:6px">👥 ${s.client_count} client${s.client_count>1?'s':''} ${s.revenue>0?'· '+kes(s.revenue):''}</div>` : ''}
+    </div>`;
+  }).join('') : `<div style="text-align:center;color:var(--txt2);padding:24px 0;font-size:13px">No sessions today<br><span style="font-size:11px">Tap Sessions to schedule one</span></div>`;
+
+  el.innerHTML = `
+    <div style="padding:16px;max-width:520px;margin:0 auto">
+      <div style="font-size:20px;font-weight:800;margin-bottom:16px">💪 ${S.shop.name}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:20px">
+        <div class="card" style="text-align:center;padding:14px 8px">
+          <div style="font-size:22px;font-weight:800;color:var(--acc)">${upcoming}</div>
+          <div style="font-size:11px;color:var(--txt2);margin-top:2px">Upcoming</div>
+        </div>
+        <div class="card" style="text-align:center;padding:14px 8px">
+          <div style="font-size:22px;font-weight:800;color:var(--grn,#22c55e)">${done}</div>
+          <div style="font-size:11px;color:var(--txt2);margin-top:2px">Done Today</div>
+        </div>
+        <div class="card" style="text-align:center;padding:14px 8px">
+          <div style="font-size:18px;font-weight:800;color:var(--acc)">${kes(totalRev)}</div>
+          <div style="font-size:11px;color:var(--txt2);margin-top:2px">Revenue</div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div style="font-weight:700;font-size:14px">Today's Sessions</div>
+        <button class="btn-p" style="padding:7px 14px;font-size:12px" onclick="openNewFitSessionSheet()">+ Schedule</button>
+      </div>
+      ${sessionCards}
+    </div>`;
+}
+
+// ── Fit Sessions Tab (calendar + list) ──
+async function renderFitSessions(el) {
+  const now = new Date();
+  const yr  = now.getFullYear(), mo = now.getMonth();
+  renderFitCalendar(el, yr, mo);
+}
+
+async function renderFitCalendar(el, yr, mo) {
+  const monthStr = `${yr}-${String(mo+1).padStart(2,'0')}`;
+  const sessions = await apiGet(`fit_sessions?shop_id=eq.${S.shop.id}&scheduled_date=gte.${monthStr}-01&scheduled_date=lte.${monthStr}-31&order=scheduled_date,start_time`).catch(()=>[]);
+  const byDate = {};
+  (sessions||[]).forEach(s => { (byDate[s.scheduled_date]||(byDate[s.scheduled_date]=[])).push(s); });
+
+  const firstDay = new Date(yr,mo,1).getDay();
+  const daysIn   = new Date(yr,mo+1,0).getDate();
+  const today    = new Date().toISOString().slice(0,10);
+  const monthName = new Date(yr,mo).toLocaleString('en-KE',{month:'long',year:'numeric'});
+
+  let cells = '';
+  for (let i=0;i<firstDay;i++) cells += '<div></div>';
+  for (let d=1;d<=daysIn;d++) {
+    const ds = `${yr}-${String(mo+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const dot = byDate[ds]?.length ? `<span style="display:block;width:5px;height:5px;border-radius:50%;background:var(--acc);margin:2px auto 0"></span>` : '';
+    const isToday = ds===today;
+    cells += `<div onclick="openFitDaySheet('${ds}',${JSON.stringify(byDate[ds]||[]).replace(/"/g,'&quot;')})"
+      style="aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;border-radius:10px;font-size:13px;font-weight:${isToday?'800':'500'};background:${isToday?'var(--acc)':'transparent'};color:${isToday?'#fff':'var(--txt)'}">
+      ${d}${dot}
+    </div>`;
+  }
+
+  el.innerHTML = `
+    <div style="padding:16px;max-width:520px;margin:0 auto">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <button class="btn-g" onclick="renderFitCalendar(document.getElementById('main-content'),${yr},${mo-1<0?yr-1+',11':yr+','+(mo-1)})">‹</button>
+        <div style="font-weight:700;font-size:15px">${monthName}</div>
+        <button class="btn-g" onclick="renderFitCalendar(document.getElementById('main-content'),${yr},${mo+1>11?yr+1+',0':yr+','+(mo+1)})">›</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:8px">
+        ${['Su','Mo','Tu','We','Th','Fr','Sa'].map(d=>`<div style="text-align:center;font-size:11px;color:var(--txt2);padding:4px 0">${d}</div>`).join('')}
+        ${cells}
+      </div>
+      <button class="btn-p" style="width:100%;margin-top:12px" onclick="openNewFitSessionSheet()">+ Schedule Session</button>
+    </div>`;
+}
+
+function openFitDaySheet(date, sessions) {
+  const label = new Date(date+'T12:00:00').toLocaleDateString('en-KE',{weekday:'long',day:'numeric',month:'long'});
+  const rows = sessions.length ? sessions.map(s=>`
+    <div class="card" style="margin-bottom:8px;cursor:pointer" onclick="closeAdminTool();openFitSessionSheet(${JSON.stringify(s).replace(/"/g,'&quot;')})">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-weight:700;font-size:13px">${s.service_name||'Session'}</div>
+          <div style="font-size:11px;color:var(--txt2)">${s.trainer_name||''} ${s.start_time?'· '+s.start_time.slice(0,5):''}</div>
+        </div>
+        <span style="font-size:11px;padding:2px 8px;border-radius:20px;background:var(--surf2);color:var(--txt2)">${s.status}</span>
+      </div>
+    </div>`).join('') : `<div style="color:var(--txt2);font-size:13px;text-align:center;padding:12px 0">No sessions this day</div>`;
+  openAdminTool(`
+    <h2 style="margin:0 0 4px;font-size:17px">📅 ${label}</h2>
+    <div style="margin-top:12px">${rows}</div>
+    <button class="btn-p" style="width:100%;margin-top:12px" onclick="closeAdminTool();openNewFitSessionSheet('${date}')">+ Add Session</button>
+    <div class="modal-acts"><button class="btn-g" onclick="closeAdminTool()">Close</button></div>`);
+}
+
+// ── New / Edit Session sheet ──
+function openNewFitSessionSheet(prefillDate='') {
+  const today = prefillDate || new Date().toISOString().slice(0,10);
+  const svcOpts = _fitServices.map(s=>`<option value="${s.id}" data-price="${s.price}">${s.emoji} ${s.name} — ${kes(s.price)}</option>`).join('');
+  openAdminTool(`
+    <h2 style="margin:0 0 4px;font-size:17px">📅 Schedule Session</h2>
+    <div style="margin-top:14px;display:flex;flex-direction:column;gap:11px">
+      <div><label class="fl">Service *</label>
+        <select class="fi" id="fs-svc" style="width:100%;margin-top:4px">${svcOpts||'<option value="">No services yet — add in Services tab</option>'}</select></div>
+      <div><label class="fl">Date *</label>
+        <input class="fi" id="fs-date" type="date" value="${today}" style="width:100%;margin-top:4px"></div>
+      <div><label class="fl">Start Time</label>
+        <input class="fi" id="fs-time" type="time" style="width:100%;margin-top:4px"></div>
+      <div><label class="fl">Trainer Name</label>
+        <input class="fi" id="fs-trainer" placeholder="e.g. Coach Mike" style="width:100%;margin-top:4px"></div>
+      <div><label class="fl">Notes</label>
+        <input class="fi" id="fs-notes" placeholder="Optional" style="width:100%;margin-top:4px"></div>
+      <div id="fs-err" class="err-msg" style="display:none"></div>
+    </div>
+    <div class="modal-acts">
+      <button class="btn-g" onclick="closeAdminTool()">Cancel</button>
+      <button class="btn-p" id="fs-save" onclick="saveFitSession()">Schedule</button>
+    </div>`);
+}
+
+async function saveFitSession() {
+  const btn = document.getElementById('fs-save');
+  const errEl = document.getElementById('fs-err');
+  const svcId   = document.getElementById('fs-svc')?.value;
+  const date    = document.getElementById('fs-date').value;
+  const time    = document.getElementById('fs-time').value || null;
+  const trainer = document.getElementById('fs-trainer').value.trim();
+  const notes   = document.getElementById('fs-notes').value.trim();
+  const svc     = _fitServices.find(s=>s.id===svcId);
+  errEl.style.display='none';
+  if (!date) { errEl.textContent='Set a date'; errEl.style.display='block'; return; }
+  btn.disabled=true; btn.textContent='Saving…';
+  try {
+    const { error } = await db.from('fit_sessions').insert({
+      shop_id: S.shop.id,
+      service_id: svcId||null, service_name: svc?.name||'Session',
+      trainer_name: trainer||null,
+      scheduled_date: date, start_time: time,
+      status:'scheduled', notes:notes||null, revenue: svc?.price||0
+    });
+    if (error) throw error;
+    closeAdminTool();
+    showToast('📅 Session scheduled!');
+    renderTab(S.tab);
+  } catch(e) { errEl.textContent=e.message||'Failed'; errEl.style.display='block'; }
+  finally { btn.disabled=false; btn.textContent='Schedule'; }
+}
+
+// ── View / Complete / Cancel session ──
+function openFitSessionSheet(s) {
+  const statusBtns = s.status==='scheduled' ? `
+    <button class="btn-p" style="flex:1" onclick="completeFitSession('${s.id}')">✅ Mark Complete</button>
+    <button class="btn-g" style="flex:1;border:1px solid var(--red);color:var(--red)" onclick="cancelFitSession('${s.id}')">Cancel</button>` : '';
+  openAdminTool(`
+    <h2 style="margin:0 0 4px;font-size:17px">${s.service_name||'Session'}</h2>
+    <div style="font-size:12px;color:var(--txt2);margin-bottom:14px">${s.scheduled_date} ${s.start_time?'· '+s.start_time.slice(0,5):''}</div>
+    <div style="display:flex;flex-direction:column;gap:8px;font-size:13px">
+      ${s.trainer_name?`<div>👤 <b>Trainer:</b> ${s.trainer_name}</div>`:''}
+      ${s.client_count?`<div>👥 <b>Clients:</b> ${s.client_count}</div>`:''}
+      ${s.revenue?`<div>💰 <b>Revenue:</b> ${kes(s.revenue)}</div>`:''}
+      ${s.notes?`<div>📝 <b>Notes:</b> ${s.notes}</div>`:''}
+      <div>📌 <b>Status:</b> ${s.status}</div>
+    </div>
+    ${s.status==='scheduled'?`
+    <div style="margin-top:14px;display:flex;flex-direction:column;gap:8px">
+      <div><label class="fl">Clients attended</label>
+        <input class="fi" id="fc-count" type="number" min="0" value="${s.client_count||0}" style="width:100%;margin-top:4px" inputmode="numeric"></div>
+      <div><label class="fl">Revenue (KES)</label>
+        <input class="fi" id="fc-rev" type="number" min="0" value="${s.revenue||0}" style="width:100%;margin-top:4px" inputmode="decimal"></div>
+    </div>`:''}
+    <div class="modal-acts" style="flex-wrap:wrap;gap:8px">
+      ${statusBtns}
+      <button class="btn-g" onclick="closeAdminTool()">Close</button>
+    </div>`);
+}
+
+async function completeFitSession(id) {
+  const count = parseInt(document.getElementById('fc-count')?.value||0);
+  const rev   = parseFloat(document.getElementById('fc-rev')?.value||0);
+  const { error } = await db.from('fit_sessions').update({status:'completed',client_count:count,revenue:rev}).eq('id',id);
+  if (error) { showToast(error.message,true); return; }
+  closeAdminTool(); showToast('✅ Session completed!'); renderTab(S.tab);
+}
+async function cancelFitSession(id) {
+  const { error } = await db.from('fit_sessions').update({status:'cancelled'}).eq('id',id);
+  if (error) { showToast(error.message,true); return; }
+  closeAdminTool(); showToast('Session cancelled'); renderTab(S.tab);
+}
+
+// ── Fit Services Tab ──
+async function renderFitServices(el) {
+  await loadFitServices();
+  const cats = {group_class:'Group Class',package:'Package',drop_in:'Drop-in',personal:'Personal Training',other:'Other'};
+  const cards = _fitServices.length ? _fitServices.map(s=>`
+    <div class="card" style="margin-bottom:10px;cursor:pointer;display:flex;align-items:center;gap:12px" onclick="openEditFitService(${JSON.stringify(s).replace(/"/g,'&quot;')})">
+      <div style="font-size:28px">${s.emoji}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:14px">${s.name}</div>
+        <div style="font-size:11px;color:var(--txt2);margin-top:2px">${cats[s.category]||s.category} ${s.duration_mins?'· '+s.duration_mins+'min':''} ${s.capacity?'· max '+s.capacity:''}</div>
+      </div>
+      <div style="font-weight:700;font-size:14px;color:var(--acc)">${kes(s.price)}</div>
+    </div>`).join('') : `<div style="text-align:center;color:var(--txt2);padding:32px 0;font-size:13px">No services yet<br><span style="font-size:11px">Add your classes and packages below</span></div>`;
+
+  el.innerHTML = `
+    <div style="padding:16px;max-width:520px;margin:0 auto">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div style="font-weight:800;font-size:18px">🏋️ Services</div>
+        <button class="btn-p" onclick="openNewFitService()">+ Add</button>
+      </div>
+      ${cards}
+    </div>`;
+}
+
+function openNewFitService() {
+  openAdminTool(`
+    <h2 style="margin:0 0 4px;font-size:17px">➕ New Service</h2>
+    <div style="margin-top:14px;display:flex;flex-direction:column;gap:11px">
+      <div style="display:flex;gap:8px">
+        <div style="width:64px"><label class="fl">Emoji</label><input class="fi" id="fsv-emoji" value="🏋️" style="width:100%;margin-top:4px;text-align:center"></div>
+        <div style="flex:1"><label class="fl">Name *</label><input class="fi" id="fsv-name" placeholder="e.g. Boxing Class" style="width:100%;margin-top:4px"></div>
+      </div>
+      <div><label class="fl">Category</label>
+        <select class="fi" id="fsv-cat" style="width:100%;margin-top:4px">
+          <option value="group_class">Group Class</option>
+          <option value="package">Package</option>
+          <option value="drop_in">Drop-in</option>
+          <option value="personal">Personal Training</option>
+          <option value="other">Other</option>
+        </select></div>
+      <div><label class="fl">Price (KES) *</label><input class="fi" id="fsv-price" type="number" min="0" step="0.01" inputmode="decimal" placeholder="e.g. 500" style="width:100%;margin-top:4px"></div>
+      <div style="display:flex;gap:8px">
+        <div style="flex:1"><label class="fl">Duration (min)</label><input class="fi" id="fsv-dur" type="number" min="1" inputmode="numeric" placeholder="e.g. 60" style="width:100%;margin-top:4px"></div>
+        <div style="flex:1"><label class="fl">Capacity</label><input class="fi" id="fsv-cap" type="number" min="1" inputmode="numeric" placeholder="Unlimited" style="width:100%;margin-top:4px"></div>
+      </div>
+      <div id="fsv-err" class="err-msg" style="display:none"></div>
+    </div>
+    <div class="modal-acts">
+      <button class="btn-g" onclick="closeAdminTool()">Cancel</button>
+      <button class="btn-p" id="fsv-save" onclick="saveFitService()">Save</button>
+    </div>`);
+}
+
+async function saveFitService(editId=null) {
+  const btn=document.getElementById('fsv-save'), errEl=document.getElementById('fsv-err');
+  const name  = document.getElementById('fsv-name').value.trim();
+  const emoji = document.getElementById('fsv-emoji').value.trim()||'🏋️';
+  const cat   = document.getElementById('fsv-cat').value;
+  const price = parseFloat(document.getElementById('fsv-price').value);
+  const dur   = parseInt(document.getElementById('fsv-dur')?.value)||null;
+  const cap   = parseInt(document.getElementById('fsv-cap')?.value)||null;
+  errEl.style.display='none';
+  if (!name)       { errEl.textContent='Name required'; errEl.style.display='block'; return; }
+  if (isNaN(price)){ errEl.textContent='Enter a price'; errEl.style.display='block'; return; }
+  btn.disabled=true; btn.textContent='Saving…';
+  try {
+    const payload = {shop_id:S.shop.id,name,emoji,category:cat,price,duration_mins:dur,capacity:cap};
+    const { error } = editId
+      ? await db.from('fit_services').update(payload).eq('id',editId)
+      : await db.from('fit_services').insert(payload);
+    if (error) throw error;
+    await loadFitServices();
+    closeAdminTool(); showToast('✅ Service saved!');
+    renderTab(S.tab);
+  } catch(e){ errEl.textContent=e.message||'Failed'; errEl.style.display='block'; }
+  finally { btn.disabled=false; btn.textContent='Save'; }
+}
+
+function openEditFitService(s) {
+  openAdminTool(`
+    <h2 style="margin:0 0 4px;font-size:17px">✏️ Edit Service</h2>
+    <div style="margin-top:14px;display:flex;flex-direction:column;gap:11px">
+      <div style="display:flex;gap:8px">
+        <div style="width:64px"><label class="fl">Emoji</label><input class="fi" id="fsv-emoji" value="${s.emoji}" style="width:100%;margin-top:4px;text-align:center"></div>
+        <div style="flex:1"><label class="fl">Name *</label><input class="fi" id="fsv-name" value="${esc(s.name)}" style="width:100%;margin-top:4px"></div>
+      </div>
+      <div><label class="fl">Category</label>
+        <select class="fi" id="fsv-cat" style="width:100%;margin-top:4px">
+          <option value="group_class" ${s.category==='group_class'?'selected':''}>Group Class</option>
+          <option value="package" ${s.category==='package'?'selected':''}>Package</option>
+          <option value="drop_in" ${s.category==='drop_in'?'selected':''}>Drop-in</option>
+          <option value="personal" ${s.category==='personal'?'selected':''}>Personal Training</option>
+          <option value="other" ${s.category==='other'?'selected':''}>Other</option>
+        </select></div>
+      <div><label class="fl">Price (KES) *</label><input class="fi" id="fsv-price" type="number" min="0" step="0.01" inputmode="decimal" value="${s.price}" style="width:100%;margin-top:4px"></div>
+      <div style="display:flex;gap:8px">
+        <div style="flex:1"><label class="fl">Duration (min)</label><input class="fi" id="fsv-dur" type="number" min="1" inputmode="numeric" value="${s.duration_mins||''}" placeholder="e.g. 60" style="width:100%;margin-top:4px"></div>
+        <div style="flex:1"><label class="fl">Capacity</label><input class="fi" id="fsv-cap" type="number" min="1" inputmode="numeric" value="${s.capacity||''}" placeholder="Unlimited" style="width:100%;margin-top:4px"></div>
+      </div>
+      <div id="fsv-err" class="err-msg" style="display:none"></div>
+    </div>
+    <div class="modal-acts">
+      <button class="btn-g" onclick="closeAdminTool()">Cancel</button>
+      <button class="btn-p" id="fsv-save" onclick="saveFitService('${s.id}')">Update</button>
+    </div>
+    <button class="btn-del-full" onclick="deleteFitService('${s.id}')">Delete Service</button>`);
+}
+
+async function deleteFitService(id) {
+  if (!confirm('Delete this service?')) return;
+  await db.from('fit_services').update({active:false}).eq('id',id);
+  await loadFitServices(); closeAdminTool(); showToast('Deleted'); renderTab(S.tab);
+}
+
+// ── Fit Clients Tab ──
+async function renderFitClients(el) {
+  await loadFitClients();
+  const cards = _fitClients.length ? _fitClients.map(c=>`
+    <div class="card" style="margin-bottom:10px;cursor:pointer;display:flex;align-items:center;gap:12px" onclick="openEditFitClient(${JSON.stringify(c).replace(/"/g,'&quot;')})">
+      <div style="width:40px;height:40px;border-radius:50%;background:var(--acc);display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:16px;flex-shrink:0">${(c.name||'?')[0].toUpperCase()}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:14px">${c.name}</div>
+        <div style="font-size:11px;color:var(--txt2);margin-top:2px">${c.phone||''} ${c.membership_type?'· '+c.membership_type:''}</div>
+      </div>
+    </div>`).join('') : `<div style="text-align:center;color:var(--txt2);padding:32px 0;font-size:13px">No clients yet<br><span style="font-size:11px">Add your gym members below</span></div>`;
+
+  el.innerHTML = `
+    <div style="padding:16px;max-width:520px;margin:0 auto">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div style="font-weight:800;font-size:18px">👥 Clients</div>
+        <button class="btn-p" onclick="openNewFitClient()">+ Add</button>
+      </div>
+      ${cards}
+    </div>`;
+}
+
+function openNewFitClient() {
+  openAdminTool(`
+    <h2 style="margin:0 0 4px;font-size:17px">➕ New Client</h2>
+    <div style="margin-top:14px;display:flex;flex-direction:column;gap:11px">
+      <div><label class="fl">Name *</label><input class="fi" id="fc-name" placeholder="Full name" style="width:100%;margin-top:4px"></div>
+      <div><label class="fl">Phone</label><input class="fi" id="fc-phone" type="tel" placeholder="e.g. 0712 345 678" style="width:100%;margin-top:4px"></div>
+      <div><label class="fl">Membership Type</label><input class="fi" id="fc-mem" placeholder="e.g. Monthly, Drop-in" style="width:100%;margin-top:4px"></div>
+      <div><label class="fl">Notes</label><input class="fi" id="fc-notes" placeholder="Optional" style="width:100%;margin-top:4px"></div>
+      <div id="fc-err" class="err-msg" style="display:none"></div>
+    </div>
+    <div class="modal-acts">
+      <button class="btn-g" onclick="closeAdminTool()">Cancel</button>
+      <button class="btn-p" id="fc-save" onclick="saveFitClient()">Save</button>
+    </div>`);
+}
+
+async function saveFitClient(editId=null) {
+  const btn=document.getElementById('fc-save'), errEl=document.getElementById('fc-err');
+  const name  = document.getElementById('fc-name').value.trim();
+  const phone = document.getElementById('fc-phone').value.trim();
+  const mem   = document.getElementById('fc-mem').value.trim();
+  const notes = document.getElementById('fc-notes').value.trim();
+  errEl.style.display='none';
+  if (!name) { errEl.textContent='Name required'; errEl.style.display='block'; return; }
+  btn.disabled=true; btn.textContent='Saving…';
+  try {
+    const payload = {shop_id:S.shop.id,name,phone:phone||null,membership_type:mem||null,notes:notes||null};
+    const { error } = editId
+      ? await db.from('fit_clients').update(payload).eq('id',editId)
+      : await db.from('fit_clients').insert(payload);
+    if (error) throw error;
+    await loadFitClients(); closeAdminTool(); showToast('✅ Client saved!'); renderTab(S.tab);
+  } catch(e){ errEl.textContent=e.message||'Failed'; errEl.style.display='block'; }
+  finally { btn.disabled=false; btn.textContent='Save'; }
+}
+
+function openEditFitClient(c) {
+  openAdminTool(`
+    <h2 style="margin:0 0 4px;font-size:17px">✏️ ${esc(c.name)}</h2>
+    <div style="margin-top:14px;display:flex;flex-direction:column;gap:11px">
+      <div><label class="fl">Name *</label><input class="fi" id="fc-name" value="${esc(c.name)}" style="width:100%;margin-top:4px"></div>
+      <div><label class="fl">Phone</label><input class="fi" id="fc-phone" type="tel" value="${esc(c.phone||'')}" style="width:100%;margin-top:4px"></div>
+      <div><label class="fl">Membership Type</label><input class="fi" id="fc-mem" value="${esc(c.membership_type||'')}" placeholder="e.g. Monthly" style="width:100%;margin-top:4px"></div>
+      <div><label class="fl">Notes</label><input class="fi" id="fc-notes" value="${esc(c.notes||'')}" style="width:100%;margin-top:4px"></div>
+      <div id="fc-err" class="err-msg" style="display:none"></div>
+    </div>
+    <div class="modal-acts">
+      <button class="btn-g" onclick="closeAdminTool()">Cancel</button>
+      <button class="btn-p" id="fc-save" onclick="saveFitClient('${c.id}')">Update</button>
+    </div>
+    <button class="btn-del-full" onclick="archiveFitClient('${c.id}')">Remove Client</button>`);
+}
+
+async function archiveFitClient(id) {
+  if (!confirm('Remove this client?')) return;
+  await db.from('fit_clients').update({active:false}).eq('id',id);
+  await loadFitClients(); closeAdminTool(); showToast('Client removed'); renderTab(S.tab);
+}
+
+// ── Fit Workout Plans (in More tab) ──
+async function renderFitWorkoutPlans(el) {
+  const plans = await apiGet(`fit_workout_plans?shop_id=eq.${S.shop.id}&order=created_at.desc`).catch(()=>[]);
+  await loadFitClients();
+  const cards = (plans||[]).length ? plans.map(p=>`
+    <div class="card" style="margin-bottom:10px;cursor:pointer" onclick="openFitPlan(${JSON.stringify(p).replace(/"/g,'&quot;')})">
+      <div style="font-weight:700;font-size:14px">📋 ${p.title}</div>
+      <div style="font-size:12px;color:var(--txt2);margin-top:3px">${p.client_name||'General'} ${p.goals?'· '+p.goals:''}</div>
+      <div style="font-size:11px;color:var(--txt3);margin-top:3px">${(p.exercises||[]).length} exercises</div>
+    </div>`).join('') : `<div style="text-align:center;color:var(--txt2);padding:32px 0;font-size:13px">No workout plans yet</div>`;
+
+  el.innerHTML = `
+    <div style="padding:16px;max-width:520px;margin:0 auto">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div style="font-weight:800;font-size:18px">📋 Workout Plans</div>
+        <button class="btn-p" onclick="openNewFitPlan()">+ Create</button>
+      </div>
+      ${cards}
+    </div>`;
+}
+
+function openNewFitPlan() {
+  const clientOpts = _fitClients.map(c=>`<option value="${c.id}" data-name="${esc(c.name)}">${esc(c.name)}</option>`).join('');
+  openAdminTool(`
+    <h2 style="margin:0 0 4px;font-size:17px">📋 New Workout Plan</h2>
+    <div style="margin-top:14px;display:flex;flex-direction:column;gap:11px">
+      <div><label class="fl">Plan Title *</label><input class="fi" id="wp-title" placeholder="e.g. 8-Week Strength" style="width:100%;margin-top:4px"></div>
+      <div><label class="fl">Client</label>
+        <select class="fi" id="wp-client" style="width:100%;margin-top:4px">
+          <option value="">General / No specific client</option>
+          ${clientOpts}
+        </select></div>
+      <div><label class="fl">Goals</label><input class="fi" id="wp-goals" placeholder="e.g. Lose 5kg, build core" style="width:100%;margin-top:4px"></div>
+      <div>
+        <label class="fl">Exercises <span style="font-size:11px;color:var(--txt2)">(one per line)</span></label>
+        <textarea class="fi" id="wp-exs" rows="5" placeholder="e.g.&#10;3×10 Push-ups&#10;4×8 Squats&#10;2min Plank" style="width:100%;margin-top:4px;resize:vertical"></textarea>
+      </div>
+      <div id="wp-err" class="err-msg" style="display:none"></div>
+    </div>
+    <div class="modal-acts">
+      <button class="btn-g" onclick="closeAdminTool()">Cancel</button>
+      <button class="btn-p" id="wp-save" onclick="saveFitPlan()">Save Plan</button>
+    </div>`);
+}
+
+async function saveFitPlan(editId=null) {
+  const btn=document.getElementById('wp-save'), errEl=document.getElementById('wp-err');
+  const title   = document.getElementById('wp-title').value.trim();
+  const clientEl= document.getElementById('wp-client');
+  const clientId= clientEl?.value||null;
+  const clientName= clientId ? clientEl.options[clientEl.selectedIndex]?.dataset?.name||'' : '';
+  const goals   = document.getElementById('wp-goals').value.trim();
+  const exsRaw  = document.getElementById('wp-exs').value.trim();
+  const exercises = exsRaw ? exsRaw.split('\n').filter(Boolean).map((e,i)=>({id:i+1,text:e.trim(),done:false})) : [];
+  errEl.style.display='none';
+  if (!title) { errEl.textContent='Title required'; errEl.style.display='block'; return; }
+  btn.disabled=true; btn.textContent='Saving…';
+  try {
+    const payload = {shop_id:S.shop.id, title, client_id:clientId||null, client_name:clientName||null, goals:goals||null, exercises, created_by:S.member.name||null};
+    const { error } = editId
+      ? await db.from('fit_workout_plans').update({...payload,updated_at:new Date().toISOString()}).eq('id',editId)
+      : await db.from('fit_workout_plans').insert(payload);
+    if (error) throw error;
+    closeAdminTool(); showToast('📋 Plan saved!'); renderFitWorkoutPlans(document.getElementById('main-content'));
+  } catch(e){ errEl.textContent=e.message||'Failed'; errEl.style.display='block'; }
+  finally { btn.disabled=false; btn.textContent='Save Plan'; }
+}
+
+function openFitPlan(p) {
+  const exList = (p.exercises||[]).map(e=>`<div style="padding:8px 0;border-bottom:1px solid var(--bdr);font-size:13px">💪 ${e.text}</div>`).join('');
+  openAdminTool(`
+    <h2 style="margin:0 0 4px;font-size:17px">📋 ${esc(p.title)}</h2>
+    ${p.client_name?`<div style="font-size:12px;color:var(--txt2);margin-bottom:4px">👤 ${esc(p.client_name)}</div>`:''}
+    ${p.goals?`<div style="font-size:12px;color:var(--txt2);margin-bottom:12px">🎯 ${esc(p.goals)}</div>`:''}
+    <div style="margin-bottom:16px">${exList||'<div style="color:var(--txt2);font-size:13px">No exercises added</div>'}</div>
+    <div class="modal-acts">
+      <button class="btn-g" onclick="closeAdminTool()">Close</button>
+      <button class="btn-p" onclick="editFitPlan(${JSON.stringify(p).replace(/"/g,'&quot;')})">Edit</button>
+    </div>`);
+}
+
+function editFitPlan(p) {
+  closeAdminTool();
+  const clientOpts = _fitClients.map(c=>`<option value="${c.id}" data-name="${esc(c.name)}" ${c.id===p.client_id?'selected':''}>${esc(c.name)}</option>`).join('');
+  const exText = (p.exercises||[]).map(e=>e.text).join('\n');
+  openAdminTool(`
+    <h2 style="margin:0 0 4px;font-size:17px">✏️ Edit Plan</h2>
+    <div style="margin-top:14px;display:flex;flex-direction:column;gap:11px">
+      <div><label class="fl">Plan Title *</label><input class="fi" id="wp-title" value="${esc(p.title)}" style="width:100%;margin-top:4px"></div>
+      <div><label class="fl">Client</label>
+        <select class="fi" id="wp-client" style="width:100%;margin-top:4px">
+          <option value="">General</option>${clientOpts}
+        </select></div>
+      <div><label class="fl">Goals</label><input class="fi" id="wp-goals" value="${esc(p.goals||'')}" style="width:100%;margin-top:4px"></div>
+      <div><label class="fl">Exercises</label>
+        <textarea class="fi" id="wp-exs" rows="5" style="width:100%;margin-top:4px;resize:vertical">${exText}</textarea></div>
+      <div id="wp-err" class="err-msg" style="display:none"></div>
+    </div>
+    <div class="modal-acts">
+      <button class="btn-g" onclick="closeAdminTool()">Cancel</button>
+      <button class="btn-p" id="wp-save" onclick="saveFitPlan('${p.id}')">Update</button>
+    </div>`);
 }
 
 /* ═══════════════════════════════
@@ -2827,14 +3361,17 @@ function showTab(tab) {
 async function renderTab(tab) {
   const el = document.getElementById('main-content');
   el.innerHTML = '<div class="loader"><div class="spin"></div></div>';
-  if (tab === 'home')          await (S.isAirbnb && S.member.role === 'housekeeper' ? renderHousekeeperHome(el) : S.isAirbnb ? renderAirbnbHome(el) : renderHome(el));
-  else if (tab === 'sales')    await renderSales(el);
-  else if (tab === 'stock')    await renderStock(el);
-  else if (tab === 'debts')    await renderDebts(el);
-  else if (tab === 'bookings') await renderBookings(el);
-  else if (tab === 'units')    await renderUnits(el);
-  else if (tab === 'supplies') await renderSupplies(el);
-  else if (tab === 'more')     renderMore(el);
+  if (tab === 'home')               await (S.isFit ? renderFitHome(el) : S.isAirbnb && S.member.role === 'housekeeper' ? renderHousekeeperHome(el) : S.isAirbnb ? renderAirbnbHome(el) : renderHome(el));
+  else if (tab === 'fit-sessions')  await renderFitSessions(el);
+  else if (tab === 'fit-services')  await renderFitServices(el);
+  else if (tab === 'fit-clients')   await renderFitClients(el);
+  else if (tab === 'sales')         await renderSales(el);
+  else if (tab === 'stock')         await renderStock(el);
+  else if (tab === 'debts')         await renderDebts(el);
+  else if (tab === 'bookings')      await renderBookings(el);
+  else if (tab === 'units')         await renderUnits(el);
+  else if (tab === 'supplies')      await renderSupplies(el);
+  else if (tab === 'more')          renderMore(el);
 }
 
 /* ═══════════════════════════════
@@ -3764,7 +4301,7 @@ function renderMore(el) {
   el.innerHTML = `
     <div style="padding:14px max(16px,env(safe-area-inset-right,0px)) 0">
       <div style="background:var(--surf);border:1px solid var(--bdr);border-radius:16px;padding:20px;text-align:center;margin-bottom:14px">
-        <div style="font-size:36px;margin-bottom:8px">${S.isAirbnb?'🏠':'🏪'}</div>
+        <div style="font-size:36px;margin-bottom:8px">${S.isFit?'🏋️':S.isAirbnb?'🏠':'🏪'}</div>
         <div style="font-size:17px;font-weight:700">${S.shop.name}</div>
         <div style="font-size:12px;color:var(--txt2);margin-top:4px">${S.shop.location||''}</div>
         ${S.shop.mpesa_till?`<div style="font-size:11px;color:var(--txt3);margin-top:3px">M-Pesa Till: ${S.shop.mpesa_till}</div>`:''}
@@ -3774,7 +4311,24 @@ function renderMore(el) {
 
       ${canManage?`<div class="sec-ttl" style="margin-bottom:10px">Business Tools</div>
       <div class="clist">
-        ${S.isAirbnb?`
+        ${S.isFit?`
+        <div class="more-item" onclick="renderFitWorkoutPlans(document.getElementById('main-content'))">
+          <div class="more-ico" style="background:#7c3aed22">📋</div>
+          <div class="more-inf"><div class="more-nm">Workout Plans</div><div class="more-mt">Create plans for clients with goal tracking</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showTab('fit-sessions')">
+          <div class="more-ico" style="background:var(--acc-d)">📅</div>
+          <div class="more-inf"><div class="more-nm">Sessions Calendar</div><div class="more-mt">Schedule and track training sessions</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showTab('fit-services')">
+          <div class="more-ico" style="background:#0891b222">🏋️</div>
+          <div class="more-inf"><div class="more-nm">Services</div><div class="more-mt">Manage your classes and packages</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showTab('fit-clients')">
+          <div class="more-ico" style="background:#f59e0b22">👥</div>
+          <div class="more-inf"><div class="more-nm">Clients</div><div class="more-mt">Your gym members and clients</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+        ` : S.isAirbnb?`
         <div class="more-item" onclick="showAddUnitSheet()">
           <div class="more-ico" style="background:var(--acc-d)">🛏️</div>
           <div class="more-inf"><div class="more-nm">Add Unit</div><div class="more-mt">Add an apartment or room to rent</div></div>
@@ -3815,7 +4369,7 @@ function renderMore(el) {
         <div class="more-item" onclick="showBusinessHealth()">
           <div class="more-ico" style="background:#16a34a22">💰</div>
           <div class="more-inf"><div class="more-nm">Business Health</div><div class="more-mt">Revenue minus expenses</div></div>
-          <span style="color:var(--txt3)">›</span></div>` : ''}`:`
+          <span style="color:var(--txt3)">›</span></div>` : ''} `:`
         <div class="more-item" onclick="showAddProductSheet()">
           <div class="more-ico" style="background:var(--acc-d)">📦</div>
           <div class="more-inf"><div class="more-nm">Add Product</div><div class="more-mt">Add a new item to your inventory</div></div>
