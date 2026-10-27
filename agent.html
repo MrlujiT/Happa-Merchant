@@ -335,6 +335,11 @@ select.fi{appearance:auto;-webkit-appearance:auto}
           <div class="qa-label">Set Target</div>
           <div class="qa-desc">Assign a pitch drive to agents</div>
         </div>
+        <div class="qa" id="qa-admin-broadcast" style="display:none" onclick="openBroadcastSheet()">
+          <div class="qa-icon">📢</div>
+          <div class="qa-label">Broadcast</div>
+          <div class="qa-desc">Push a message to all users</div>
+        </div>
       </div>
     </div>
 
@@ -526,6 +531,11 @@ function renderStats() {
   // Update earnings quick-action sub-label
   const qaSub = document.getElementById('qa-earnings-sub');
   if (qaSub && _monthlyEarnings > 0) qaSub.textContent = `KES ${Number(_monthlyEarnings).toLocaleString()} this month`;
+  // Show/hide admin-only cards
+  ['qa-admin-target','qa-admin-broadcast'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = _isAdmin ? '' : 'none';
+  });
 }
 
 /* ════════════════════════════════
@@ -1165,10 +1175,6 @@ function renderTargetWidget() {
   if (!widget) return;
   if (_countdownTimer) { clearInterval(_countdownTimer); _countdownTimer = null; }
 
-  // Show admin button if admin
-  const adminQA = document.getElementById('qa-admin-target');
-  if (adminQA) adminQA.style.display = _isAdmin ? '' : 'none';
-
   if (!_targets.length) { widget.innerHTML = ''; return; }
 
   // Use the nearest deadline target
@@ -1392,6 +1398,73 @@ async function deleteTarget(targetId) {
     _targets = _targets.filter(x => x.id !== targetId);
     closeSheetDirect(); toast('🗑 Target removed'); renderTargetWidget();
   } catch(_) {}
+}
+
+/* ── Broadcast Sheet (admin) ── */
+function openBroadcastSheet() {
+  setSheetContent(`
+    <div class="sh-hdr">
+      <h2>📢 Broadcast Notification</h2>
+      <button class="sh-close" onclick="closeSheetDirect()">✕</button>
+    </div>
+    <div class="sh-body">
+      <div class="fg">
+        <label class="fl">Send To</label>
+        <select class="fi" id="bc-audience">
+          <option value="all">Everyone (merchants + agents)</option>
+          <option value="agent">Agents only</option>
+          <option value="merchant">Merchants only</option>
+        </select>
+      </div>
+      <div class="fg">
+        <label class="fl">Title *</label>
+        <input class="fi" id="bc-title" placeholder="e.g. New Feature Alert 🚀">
+      </div>
+      <div class="fg">
+        <label class="fl">Message *</label>
+        <textarea class="fi" id="bc-body" rows="3" placeholder="e.g. You can now request payouts directly from the app." style="resize:vertical"></textarea>
+      </div>
+      <div class="fg">
+        <label class="fl">Link (optional)</label>
+        <input class="fi" id="bc-url" placeholder="https://happa-merchant.netlify.app/agent.html">
+      </div>
+      <div class="err-box" id="bc-err"></div>
+      <div class="sh-actions">
+        <button class="btn-ghost" onclick="closeSheetDirect()">Cancel</button>
+        <button class="btn-acc" id="bc-send-btn" onclick="sendBroadcast()">Send Notification</button>
+      </div>
+    </div>
+  `);
+  openSheet();
+}
+
+async function sendBroadcast() {
+  const btn = document.getElementById('bc-send-btn');
+  const errEl = document.getElementById('bc-err');
+  const audience = document.getElementById('bc-audience').value;
+  const title  = document.getElementById('bc-title').value.trim();
+  const body   = document.getElementById('bc-body').value.trim();
+  const url    = document.getElementById('bc-url').value.trim();
+  errEl.style.display = 'none';
+  if (!title) { errEl.textContent='Title is required'; errEl.style.display='block'; return; }
+  if (!body)  { errEl.textContent='Message is required'; errEl.style.display='block'; return; }
+  btn.disabled = true; btn.textContent = 'Sending…';
+  const s = savedCreds();
+  try {
+    const res = await fetch(`${FN_BASE}/send-notification`, {
+      method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${ANON_KEY}`},
+      body: JSON.stringify({
+        action:'broadcast', agent_id:_agent.id, phone:s.phone, pin:s.pin,
+        user_type: audience === 'all' ? null : audience,
+        title, body, url: url || undefined
+      })
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) { errEl.textContent = data.error || 'Failed to send'; errEl.style.display='block'; return; }
+    closeSheetDirect();
+    toast(`📢 Sent to ${data.sent ?? '?'} subscribers!`);
+  } catch(e) { errEl.textContent = 'Network error'; errEl.style.display = 'block'; }
+  finally { btn.disabled = false; btn.textContent = 'Send Notification'; }
 }
 
 /* ════════════════════════════════
