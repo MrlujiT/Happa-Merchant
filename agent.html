@@ -14,6 +14,7 @@
   --grn:#22C55E;--grn-d:rgba(34,197,94,.13);
   --red:#EF4444;--red-d:rgba(239,68,68,.12);
   --yel:#F59E0B;--yel-d:rgba(245,158,11,.12);
+  --blu:#3B82F6;--blu-d:rgba(59,130,246,.12);
   --wa:#25D366;
   --txt:#EEF2FF;--txt2:#8B9EC0;--txt3:#4B5E7A;
   color-scheme:dark;
@@ -33,6 +34,7 @@ html,body{height:100%;font-family:'Plus Jakarta Sans',system-ui,sans-serif;backg
 .fi{width:100%;padding:10px 13px;background:var(--surf2);border:1px solid var(--bdr);border-radius:10px;color:var(--txt);font-family:inherit;font-size:14px;outline:none;transition:border-color .15s}
 .fi:focus{border-color:var(--acc)}
 .fi::placeholder{color:var(--txt3)}
+select.fi{appearance:auto;-webkit-appearance:auto}
 .btn-p{width:100%;padding:12px;background:var(--acc);color:#08122A;border:none;border-radius:11px;font-family:inherit;font-size:15px;font-weight:800;cursor:pointer;transition:opacity .15s;margin-top:4px}
 .btn-p:hover{opacity:.9}
 .btn-p:disabled{opacity:.5;cursor:default}
@@ -40,7 +42,6 @@ html,body{height:100%;font-family:'Plus Jakarta Sans',system-ui,sans-serif;backg
 
 /* ── PORTAL SHELL ── */
 #portal{display:none;flex-direction:column;height:100dvh;overflow:hidden}
-
 .hdr{background:var(--surf);border-bottom:1px solid var(--bdr);padding:14px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
 .hdr-brand{display:flex;align-items:center;gap:10px}
 .hdr-logo{width:34px;height:34px;border-radius:10px;overflow:hidden}
@@ -77,7 +78,7 @@ html,body{height:100%;font-family:'Plus Jakarta Sans',system-ui,sans-serif;backg
 .btn-wa-share{flex:2;padding:10px;background:var(--wa);border:none;border-radius:9px;font-family:inherit;font-size:13px;font-weight:700;color:#fff;cursor:pointer;text-decoration:none;display:flex;align-items:center;justify-content:center;gap:6px;transition:opacity .15s}
 .btn-wa-share:hover{opacity:.9}
 
-/* quick actions */
+/* ── QUICK ACTIONS ── */
 .qa-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:4px}
 .qa{background:var(--surf);border:1px solid var(--bdr);border-radius:12px;padding:16px;cursor:pointer;transition:border-color .15s}
 .qa:hover{border-color:var(--acc)}
@@ -85,15 +86,16 @@ html,body{height:100%;font-family:'Plus Jakarta Sans',system-ui,sans-serif;backg
 .qa-label{font-size:13px;font-weight:700}
 .qa-desc{font-size:11px;color:var(--txt2);margin-top:3px;line-height:1.4}
 
-/* ── CLIENTS ── */
+/* ── FILTER ROW ── */
 .filter-row{display:flex;gap:6px;margin-bottom:14px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
 .filter-row::-webkit-scrollbar{display:none}
 .pill{flex-shrink:0;padding:5px 13px;background:var(--surf2);border:1px solid var(--bdr);border-radius:99px;font-family:inherit;font-size:12px;font-weight:600;color:var(--txt3);cursor:pointer;transition:all .15s}
 .pill.on{background:var(--acc-d);border-color:var(--acc);color:var(--acc)}
+
+/* ── CLIENTS (converted shops) ── */
 .client-card{background:var(--surf);border:1px solid var(--bdr);border-radius:12px;padding:14px;margin-bottom:10px;border-left:3px solid var(--bdr)}
 .client-card.s-active{border-left-color:var(--grn)}
 .client-card.s-trial{border-left-color:var(--acc)}
-.client-card.s-lead{border-left-color:var(--txt3)}
 .client-card.s-due{border-left-color:var(--red);background:rgba(239,68,68,.03)}
 .cc-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px}
 .cc-name{font-size:14px;font-weight:700}
@@ -102,12 +104,56 @@ html,body{height:100%;font-family:'Plus Jakarta Sans',system-ui,sans-serif;backg
 .chip-a{background:var(--acc-d);color:var(--acc)}
 .chip-d{background:rgba(75,94,122,.18);color:var(--txt3)}
 .chip-r{background:var(--red-d);color:var(--red)}
+.chip-b{background:var(--blu-d);color:var(--blu)}
+.chip-y{background:var(--yel-d);color:var(--yel)}
 .cc-meta{font-size:12px;color:var(--txt2);display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
-.cc-acts{display:flex;gap:7px}
-.act-btn{flex:1;padding:7px 10px;border-radius:7px;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--bdr);background:var(--surf2);color:var(--txt2);transition:background .15s;text-align:center;text-decoration:none}
+.cc-acts{display:flex;gap:7px;flex-wrap:wrap}
+.act-btn{flex:1;min-width:0;padding:7px 8px;border-radius:7px;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--bdr);background:var(--surf2);color:var(--txt2);transition:background .15s;text-align:center;text-decoration:none;white-space:nowrap}
 .act-btn:hover{background:var(--bdr)}
 .act-btn.wa{border-color:rgba(37,211,102,.3);color:var(--wa)}
 .act-btn.wa:hover{background:rgba(37,211,102,.1)}
+.act-btn.del{border-color:rgba(239,68,68,.3);color:var(--red)}
+.act-btn.del:hover{background:var(--red-d)}
+.act-btn.acc{border-color:rgba(245,166,35,.3);color:var(--acc)}
+.act-btn.acc:hover{background:var(--acc-d)}
+
+/* ── PROSPECT CARDS ── */
+.pro-card{background:var(--surf);border:1px solid var(--bdr);border-radius:12px;padding:14px;margin-bottom:10px;border-left:3px solid var(--bdr);transition:border-color .15s}
+.pro-card.st-new{border-left-color:var(--txt3)}
+.pro-card.st-contacted{border-left-color:var(--blu)}
+.pro-card.st-interested{border-left-color:var(--acc)}
+.pro-card.st-follow_up{border-left-color:var(--yel)}
+.pro-card.st-not_interested{border-left-color:var(--red)}
+.pro-card.st-signed_up{border-left-color:var(--grn)}
+.pro-notes{font-size:12px;color:var(--txt2);line-height:1.5;margin-bottom:8px;background:var(--surf2);border-radius:7px;padding:7px 10px}
+.pro-followup{font-size:11px;font-weight:700;color:var(--yel);background:var(--yel-d);border-radius:5px;padding:2px 8px;display:inline-block;margin-bottom:8px}
+.pro-followup.overdue{color:var(--red);background:var(--red-d)}
+
+/* ── FAB ── */
+.fab{position:fixed;bottom:24px;right:20px;width:52px;height:52px;border-radius:50%;background:var(--acc);color:#08122A;border:none;font-size:26px;font-weight:700;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(245,166,35,.35);transition:transform .15s}
+.fab:hover{transform:scale(1.05)}
+.fab.show{display:flex}
+
+/* ── SHEET OVERLAY ── */
+.sh-ov{position:fixed;inset:0;background:rgba(8,13,26,.7);z-index:100;opacity:0;pointer-events:none;transition:opacity .2s;backdrop-filter:blur(2px)}
+.sh-ov.on{opacity:1;pointer-events:all}
+.sh{position:fixed;bottom:0;left:0;right:0;background:var(--surf);border-radius:20px 20px 0 0;padding:0;max-height:92dvh;overflow-y:auto;z-index:101;transform:translateY(100%);transition:transform .25s cubic-bezier(.32,.72,0,1)}
+.sh-ov.on .sh{transform:translateY(0)}
+.sh-hand{width:36px;height:4px;background:var(--bdr);border-radius:2px;margin:12px auto 0}
+.sh-hdr{padding:14px 20px 12px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:10px}
+.sh-hdr h2{font-size:17px;font-weight:800;margin:0;flex:1}
+.sh-close{background:none;border:none;color:var(--txt2);font-size:22px;cursor:pointer;padding:0 4px;line-height:1}
+.sh-body{padding:20px}
+.sh-actions{display:flex;gap:10px;margin-top:6px}
+.btn-ghost{flex:1;padding:11px;background:var(--surf2);border:1px solid var(--bdr);border-radius:10px;font-family:inherit;font-size:14px;font-weight:700;color:var(--txt2);cursor:pointer;transition:background .15s}
+.btn-ghost:hover{background:var(--bdr)}
+.btn-acc{flex:2;padding:11px;background:var(--acc);color:#08122A;border:none;border-radius:10px;font-family:inherit;font-size:14px;font-weight:800;cursor:pointer;transition:opacity .15s}
+.btn-acc:hover{opacity:.9}
+.btn-acc:disabled{opacity:.5;cursor:default}
+.btn-del-full{width:100%;padding:11px;background:var(--red-d);border:1px solid rgba(239,68,68,.3);border-radius:10px;font-family:inherit;font-size:14px;font-weight:700;color:var(--red);cursor:pointer;margin-top:10px;transition:background .15s}
+.btn-del-full:hover{background:rgba(239,68,68,.2)}
+.warn-box{background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:9px;padding:10px 13px;font-size:12px;color:var(--yel);line-height:1.5;margin-bottom:14px}
+.err-box{background:var(--red-d);border:1px solid rgba(239,68,68,.3);border-radius:9px;padding:10px 13px;font-size:12px;color:var(--red);line-height:1.5;margin-bottom:14px;display:none}
 
 /* ── REMINDERS ── */
 .rem-intro{font-size:13px;color:var(--txt2);margin-bottom:16px;line-height:1.5}
@@ -139,7 +185,9 @@ html,body{height:100%;font-family:'Plus Jakarta Sans',system-ui,sans-serif;backg
 .empty{text-align:center;padding:40px 20px;color:var(--txt3)}
 .empty-icon{font-size:32px;margin-bottom:10px}
 .empty-text{font-size:13px;line-height:1.6}
-.page-ttl{font-size:18px;font-weight:800;margin-bottom:16px}
+.page-ttl{font-size:18px;font-weight:800;margin-bottom:4px}
+.page-sub{font-size:12px;color:var(--txt2);margin-bottom:16px}
+.divider{height:1px;background:var(--bdr);margin:16px 0}
 
 #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--surf2);border:1px solid var(--bdr);color:var(--txt);padding:9px 18px;border-radius:10px;font-size:13px;font-weight:600;z-index:999;opacity:0;transition:opacity .2s;pointer-events:none;white-space:nowrap}
 #toast.show{opacity:1}
@@ -152,7 +200,7 @@ html,body{height:100%;font-family:'Plus Jakarta Sans',system-ui,sans-serif;backg
   <div class="auth-wrap">
     <div class="auth-logo"><img src="/happa-logo.jpg" alt="Happa"></div>
     <div class="auth-title">Agent Portal</div>
-    <div class="auth-sub">Sign in to manage your clients &amp; commissions</div>
+    <div class="auth-sub">Sign in to manage your prospects &amp; clients</div>
     <div class="auth-card">
       <div class="fg">
         <label class="fl" for="lp">Phone Number</label>
@@ -182,10 +230,11 @@ html,body{height:100%;font-family:'Plus Jakarta Sans',system-ui,sans-serif;backg
   </div>
 
   <div class="tabs-bar">
-    <button class="tab on" onclick="switchTab('home',this)">Home</button>
-    <button class="tab" onclick="switchTab('demo',this)">📱 Demo</button>
-    <button class="tab" onclick="switchTab('clients',this)">My Clients</button>
-    <button class="tab" id="tab-reminders" onclick="switchTab('reminders',this)">Reminders</button>
+    <button class="tab on"  onclick="switchTab('home',this)">Home</button>
+    <button class="tab"     onclick="switchTab('prospects',this)">🎯 Prospects</button>
+    <button class="tab"     onclick="switchTab('clients',this)">✅ Clients</button>
+    <button class="tab"     id="tab-reminders" onclick="switchTab('reminders',this)">Reminders</button>
+    <button class="tab"     onclick="switchTab('demo',this)">📱 Demo</button>
   </div>
 
   <div class="body">
@@ -193,70 +242,61 @@ html,body{height:100%;font-family:'Plus Jakarta Sans',system-ui,sans-serif;backg
     <!-- HOME -->
     <div class="page on" id="page-home">
       <div class="stat-row">
-        <div class="sc"><div class="sc-lbl">Leads</div><div class="sc-val" id="s-leads">—</div></div>
+        <div class="sc"><div class="sc-lbl">Prospects</div><div class="sc-val" id="s-prospects">—</div></div>
         <div class="sc"><div class="sc-lbl">Active</div><div class="sc-val" style="color:var(--grn)" id="s-active">—</div></div>
         <div class="sc"><div class="sc-lbl">Trial</div><div class="sc-val" style="color:var(--acc)" id="s-trial">—</div></div>
       </div>
 
       <div class="card">
         <div class="card-title">Your Referral Link</div>
-        <div class="ref-link" id="ref-link-text">Loading…</div>
+        <div class="ref-link" id="ref-link-text">—</div>
         <div class="btn-row">
           <button class="btn-copy" onclick="copyLink()">📋 Copy</button>
-          <a class="btn-wa-share" id="wa-share" href="#" target="_blank">💬 Share on WhatsApp</a>
+          <a class="btn-wa-share" id="wa-share" href="#" target="_blank">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+            Share on WhatsApp
+          </a>
         </div>
       </div>
 
-      <div class="card-title" style="margin-bottom:10px">Quick Actions</div>
       <div class="qa-grid">
-        <div class="qa" onclick="switchTab('demo', document.querySelectorAll('.tab')[1])">
+        <div class="qa" onclick="switchTab('prospects', document.querySelectorAll('.tab')[1]);setTimeout(openAddProspect,80)">
+          <div class="qa-icon">🎯</div>
+          <div class="qa-label">Add Prospect</div>
+          <div class="qa-desc">Log a new business you've spoken to</div>
+        </div>
+        <div class="qa" onclick="switchTab('demo', document.querySelectorAll('.tab')[4])">
           <div class="qa-icon">📱</div>
-          <div class="qa-label">Demo Mode</div>
-          <div class="qa-desc">Open sign-up form to show a merchant</div>
-        </div>
-        <div class="qa" onclick="switchTab('reminders', document.querySelectorAll('.tab')[3])">
-          <div class="qa-icon">🔔</div>
-          <div class="qa-label">Reminders</div>
-          <div class="qa-desc">Send WhatsApp renewals</div>
-        </div>
-        <div class="qa" onclick="switchTab('clients', document.querySelectorAll('.tab')[2])">
-          <div class="qa-icon">👥</div>
-          <div class="qa-label">My Clients</div>
-          <div class="qa-desc">Leads &amp; active merchants</div>
-        </div>
-        <div class="qa" onclick="document.getElementById('wa-share').click()">
-          <div class="qa-icon">🚀</div>
-          <div class="qa-label">Recruit</div>
-          <div class="qa-desc">Share your link to get new sign-ups</div>
+          <div class="qa-label">Show Demo</div>
+          <div class="qa-desc">Let a merchant try the app live</div>
         </div>
       </div>
     </div>
 
-    <!-- DEMO -->
-    <div class="page" id="page-demo">
-      <div class="page-ttl">Demo Mode</div>
-      <div class="demo-intro">Hand your phone to a merchant and let them fill in the sign-up form. Their details go straight into your leads automatically.</div>
-      <button class="demo-main-btn" onclick="openDemo()">📱 Open Sign-up Form</button>
-      <div class="demo-hint">Opens your referral link — merchant fills in their details</div>
-      <div class="card-title" style="margin-bottom:10px">What to tell them</div>
-      <div class="pitch-card">
-        <div class="pitch-hdr">Your pitch script</div>
-        <div class="pitch-pt"><div class="pitch-n">1</div><div class="pitch-t">"Happa helps you <strong>track every sale</strong> from your phone — no cash goes missing, no end-of-day guesswork."</div></div>
-        <div class="pitch-pt"><div class="pitch-n">2</div><div class="pitch-t">"You can <strong>send digital receipts</strong> to customers via WhatsApp — no paper, professional, and they remember you."</div></div>
-        <div class="pitch-pt"><div class="pitch-n">3</div><div class="pitch-t">"See your best-selling items and know when stock is low — <strong>never run out</strong> of what your customers want."</div></div>
-        <div class="pitch-pt"><div class="pitch-n">4</div><div class="pitch-t">"Start free — <strong>no setup cost</strong>. Fill in the form right now and we'll get you started today."</div></div>
-        <div class="pitch-pt"><div class="pitch-n">5</div><div class="pitch-t">"Works on <strong>any phone</strong> — no app download needed. Just open the link."</div></div>
+    <!-- PROSPECTS CRM -->
+    <div class="page" id="page-prospects">
+      <div class="page-ttl">My Prospects</div>
+      <div class="page-sub" id="pro-sub">Track every business you're working on</div>
+      <div class="filter-row" id="pro-filter-row">
+        <button class="pill on" onclick="setProFilter('all',this)">All</button>
+        <button class="pill" onclick="setProFilter('new',this)">🆕 New</button>
+        <button class="pill" onclick="setProFilter('contacted',this)">📞 Contacted</button>
+        <button class="pill" onclick="setProFilter('interested',this)">⭐ Interested</button>
+        <button class="pill" onclick="setProFilter('follow_up',this)">🔔 Follow Up</button>
+        <button class="pill" onclick="setProFilter('not_interested',this)">❌ Not Interested</button>
+        <button class="pill" onclick="setProFilter('signed_up',this)">✅ Signed Up</button>
       </div>
+      <div id="prospects-list"></div>
     </div>
 
-    <!-- CLIENTS -->
+    <!-- CLIENTS (converted) -->
     <div class="page" id="page-clients">
       <div class="page-ttl">My Clients</div>
+      <div class="page-sub">Businesses using Happa Merchant</div>
       <div class="filter-row" id="filter-row">
         <button class="pill on" onclick="setFilter('all',this)">All</button>
         <button class="pill" onclick="setFilter('active',this)">Active</button>
         <button class="pill" onclick="setFilter('trial',this)">Trial</button>
-        <button class="pill" onclick="setFilter('lead',this)">Leads</button>
         <button class="pill" onclick="setFilter('due',this)">Due Soon</button>
       </div>
       <div id="clients-list"></div>
@@ -269,8 +309,34 @@ html,body{height:100%;font-family:'Plus Jakarta Sans',system-ui,sans-serif;backg
       <div id="reminders-list"></div>
     </div>
 
+    <!-- DEMO -->
+    <div class="page" id="page-demo">
+      <div class="page-ttl" style="margin-bottom:8px">Product Demo</div>
+      <div class="demo-intro">Hand your phone to a merchant and let them try the app live. Their details go straight into your leads automatically.</div>
+      <button class="demo-main-btn" onclick="openDemo()">📱 Open Live Demo</button>
+      <div class="demo-hint">Opens the Happa Merchant app with your referral link</div>
+      <div class="pitch-card">
+        <div class="pitch-hdr">Your 60-second pitch</div>
+        <div class="pitch-pt"><div class="pitch-n">1</div><div class="pitch-t"><strong>Ask the pain:</strong> "How do you track your revenue right now?" Let them describe the mess.</div></div>
+        <div class="pitch-pt"><div class="pitch-n">2</div><div class="pitch-t"><strong>Show today's number:</strong> The big KES figure on the home screen. "This is what you'd see every morning."</div></div>
+        <div class="pitch-pt"><div class="pitch-n">3</div><div class="pitch-t"><strong>Show the calendar:</strong> "Every booking, every commission — one tap away."</div></div>
+        <div class="pitch-pt"><div class="pitch-n">4</div><div class="pitch-t"><strong>Close:</strong> "I can get you set up in under 5 minutes. Want to try it now?"</div></div>
+      </div>
+    </div>
+
   </div><!-- /body -->
 </div><!-- /portal -->
+
+<!-- ── FAB (Add Prospect) ── -->
+<button class="fab" id="fab-add" onclick="openAddProspect()" title="Add Prospect">+</button>
+
+<!-- ── SHEET OVERLAY ── -->
+<div class="sh-ov" id="sheet-ov" onclick="closeSheet(event)">
+  <div class="sh" id="sheet">
+    <div class="sh-hand"></div>
+    <div id="sheet-content"></div>
+  </div>
+</div>
 
 <div id="toast"></div>
 
@@ -280,9 +346,12 @@ const ANON_KEY     = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const FN_BASE      = `${SUPABASE_URL}/functions/v1`;
 const APP_URL      = 'https://happa-merchant.njautheinvestmentsconsultant.workers.dev';
 
-let _agent = null, _leads = [], _shops = [], _loaded = false, _filter = 'all';
+let _agent = null, _isAdmin = false, _leads = [], _shops = [], _loaded = false;
+let _filter = 'all', _proFilter = 'all';
 
-/* ── AUTH ── */
+/* ════════════════════════════════
+   AUTH
+════════════════════════════════ */
 async function doLogin() {
   const phone = document.getElementById('lp').value.trim();
   const pin   = document.getElementById('lpin').value.trim();
@@ -307,12 +376,15 @@ async function doLogin() {
 
 function doLogout() {
   try { localStorage.removeItem('happa_agent'); } catch(_){}
-  _agent = null; _leads = []; _shops = []; _loaded = false;
+  _agent = null; _leads = []; _shops = []; _loaded = false; _isAdmin = false;
   document.getElementById('portal').style.display = 'none';
   document.getElementById('login-screen').style.display = '';
+  document.getElementById('fab-add').classList.remove('show');
 }
 
-/* ── PORTAL ── */
+/* ════════════════════════════════
+   PORTAL INIT
+════════════════════════════════ */
 function showPortal() {
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('portal').style.display = 'flex';
@@ -321,11 +393,12 @@ function showPortal() {
   document.getElementById('ref-link-text').textContent = ref;
   const pitch = encodeURIComponent(`👋 Hi! I represent Happa Merchant — a simple app for small businesses to track sales, manage stock & send digital receipts.\n\nSign up here and I'll personally help you get started: ${ref}`);
   document.getElementById('wa-share').href = `https://wa.me/?text=${pitch}`;
+  document.getElementById('fab-add').classList.add('show');
   loadData();
 }
 
 async function loadData() {
-  const s = (() => { try { return JSON.parse(localStorage.getItem('happa_agent')||'{}'); } catch(_){return{};} })();
+  const s = savedCreds();
   if (!s.phone || !s.pin || !_agent) return;
   try {
     const res  = await fetch(`${FN_BASE}/agent-data`, {
@@ -334,34 +407,338 @@ async function loadData() {
     });
     const data = await res.json();
     if (!res.ok || data.error) return;
-    _leads = data.leads || []; _shops = data.shops || []; _loaded = true;
-    renderStats(); renderClients(); renderReminders();
+    _leads = data.leads || [];
+    _shops = data.shops || [];
+    _isAdmin = data.is_admin || false;
+    _loaded = true;
+    renderStats(); renderProspects(); renderClients(); renderReminders();
   } catch(_) {}
 }
 
-/* ── STATS ── */
+function savedCreds() {
+  try { return JSON.parse(localStorage.getItem('happa_agent')||'{}'); } catch(_){return {};}
+}
+
+/* ════════════════════════════════
+   STATS
+════════════════════════════════ */
 function renderStats() {
-  document.getElementById('s-leads').textContent  = _leads.length;
+  const prospects = _leads.filter(l => !l.shop_id);
+  document.getElementById('s-prospects').textContent = prospects.length;
   document.getElementById('s-active').textContent = _shops.filter(s => s.subscriptions?.[0]?.status === 'active').length;
   document.getElementById('s-trial').textContent  = _shops.filter(s => s.subscriptions?.[0]?.status === 'trial').length;
 }
 
-/* ── CLIENTS ── */
+/* ════════════════════════════════
+   PROSPECTS CRM
+════════════════════════════════ */
+const STATUS_META = {
+  new:           { label:'New',          cls:'chip-d', card:'st-new' },
+  contacted:     { label:'Contacted',    cls:'chip-b', card:'st-contacted' },
+  interested:    { label:'Interested',   cls:'chip-a', card:'st-interested' },
+  follow_up:     { label:'Follow Up',    cls:'chip-y', card:'st-follow_up' },
+  not_interested:{ label:'Not Interested',cls:'chip-r',card:'st-not_interested' },
+  signed_up:     { label:'Signed Up',   cls:'chip-g', card:'st-signed_up' },
+};
+
+function setProFilter(f, el) {
+  _proFilter = f;
+  document.querySelectorAll('#pro-filter-row .pill').forEach(p => p.classList.remove('on'));
+  el.classList.add('on');
+  renderProspects();
+}
+
+function renderProspects() {
+  const list = document.getElementById('prospects-list');
+  if (!_loaded) { list.innerHTML = '<div class="empty"><div class="empty-icon">⏳</div><div class="empty-text">Loading…</div></div>'; return; }
+
+  const today = new Date().toISOString().slice(0,10);
+  let prospects = _leads.filter(l => !l.shop_id);
+  if (_proFilter !== 'all') prospects = prospects.filter(l => l.status === _proFilter);
+
+  // Update sub-header count
+  document.getElementById('pro-sub').textContent = prospects.length
+    ? `${prospects.length} prospect${prospects.length===1?'':'s'}${_proFilter!=='all'?' · '+_proFilter.replace('_',' '):''}`
+    : 'Track every business you\'re working on';
+
+  if (!prospects.length) {
+    list.innerHTML = `<div class="empty"><div class="empty-icon">🎯</div><div class="empty-text">${_proFilter==='all'?'No prospects yet.<br>Tap + to log your first one.':'No prospects with this status.'}</div></div>`;
+    return;
+  }
+
+  list.innerHTML = prospects.map(l => {
+    const sm = STATUS_META[l.status] || STATUS_META.new;
+    const wa = l.phone?.replace(/[^0-9]/g,'');
+    const isOverdue = l.follow_up_date && l.follow_up_date < today;
+    const followupHtml = l.follow_up_date
+      ? `<div class="pro-followup${isOverdue?' overdue':''}">🔔 Follow up: ${fmtDate(l.follow_up_date)}${isOverdue?' (overdue)':''}</div>`
+      : '';
+    const notesHtml = l.notes
+      ? `<div class="pro-notes">${esc(l.notes)}</div>`
+      : '';
+    return `<div class="pro-card ${sm.card}">
+      <div class="cc-top">
+        <div>
+          <div class="cc-name">${esc(l.business_name)}</div>
+          ${l.name && l.name !== l.business_name ? `<div style="font-size:11px;color:var(--txt2);margin-top:2px">👤 ${esc(l.name)}</div>` : ''}
+        </div>
+        <span class="chip ${sm.cls}">${sm.label}</span>
+      </div>
+      <div class="cc-meta">
+        ${l.business_type?`<span>${esc(cap(l.business_type))}</span>`:''}
+        ${l.location?`<span>📍 ${esc(l.location)}</span>`:''}
+        ${l.phone?`<span>📞 ${esc(l.phone)}</span>`:''}
+        <span style="color:var(--txt3)">Added ${fmtDate(l.created_at)}</span>
+      </div>
+      ${followupHtml}
+      ${notesHtml}
+      <div class="cc-acts">
+        ${wa?`<a class="act-btn wa" href="https://wa.me/${wa}" target="_blank">💬 WhatsApp</a>`:''}
+        ${l.phone?`<a class="act-btn" href="tel:${l.phone}">📞 Call</a>`:''}
+        <button class="act-btn acc" onclick="openEditProspect(${JSON.stringify(l).replace(/"/g,'&quot;')})">✏️ Edit</button>
+        ${_isAdmin ? `<button class="act-btn del" onclick="confirmDeleteProspect('${l.id}','${esc(l.business_name)}')">🗑</button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ── ADD PROSPECT SHEET ── */
+function openAddProspect() {
+  setSheetContent(`
+    <div class="sh-hdr">
+      <h2>🎯 Add Prospect</h2>
+      <button class="sh-close" onclick="closeSheetDirect()">✕</button>
+    </div>
+    <div class="sh-body">
+      <div class="err-box" id="pro-err"></div>
+      <div class="fg">
+        <label class="fl">Business Name *</label>
+        <input class="fi" id="pro-biz" placeholder="e.g. Mama Ngina Boutique" autocomplete="off">
+      </div>
+      <div class="fg">
+        <label class="fl">Owner / Contact Name</label>
+        <input class="fi" id="pro-name" placeholder="e.g. Jane Wambui" autocomplete="off">
+      </div>
+      <div class="fg">
+        <label class="fl">Phone Number</label>
+        <input class="fi" id="pro-phone" type="tel" placeholder="e.g. 0712 345 678">
+      </div>
+      <div class="fg">
+        <label class="fl">Business Type</label>
+        <select class="fi" id="pro-type">
+          <option value="goods">Retail / Shop</option>
+          <option value="services">Services</option>
+          <option value="airbnb">Airbnb / Rentals</option>
+          <option value="food">Food & Beverage</option>
+          <option value="salon">Salon / Barbershop</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div class="fg">
+        <label class="fl">Location</label>
+        <input class="fi" id="pro-loc" placeholder="e.g. Westlands, Nairobi" autocomplete="off">
+      </div>
+      <div class="fg">
+        <label class="fl">Status</label>
+        <select class="fi" id="pro-status">
+          <option value="new">🆕 New — just logged</option>
+          <option value="contacted">📞 Contacted — reached out</option>
+          <option value="interested">⭐ Interested — expressed interest</option>
+          <option value="follow_up">🔔 Follow Up — needs another conversation</option>
+          <option value="not_interested">❌ Not Interested</option>
+        </select>
+      </div>
+      <div class="fg">
+        <label class="fl">Follow-up Date</label>
+        <input class="fi" id="pro-followup" type="date" min="${new Date().toISOString().slice(0,10)}">
+      </div>
+      <div class="fg">
+        <label class="fl">Notes</label>
+        <textarea class="fi" id="pro-notes" rows="3" placeholder="What did you discuss? Any objections? Anything to remember…" style="resize:vertical;line-height:1.5"></textarea>
+      </div>
+      <div class="sh-actions">
+        <button class="btn-ghost" onclick="closeSheetDirect()">Cancel</button>
+        <button class="btn-acc" id="pro-save-btn" onclick="saveProspect()">Save Prospect</button>
+      </div>
+    </div>
+  `);
+  openSheet();
+}
+
+async function saveProspect() {
+  const btn = document.getElementById('pro-save-btn');
+  const errEl = document.getElementById('pro-err');
+  const biz  = document.getElementById('pro-biz').value.trim();
+  const name = document.getElementById('pro-name').value.trim();
+  const phone= document.getElementById('pro-phone').value.trim();
+  const type = document.getElementById('pro-type').value;
+  const loc  = document.getElementById('pro-loc').value.trim();
+  const status= document.getElementById('pro-status').value;
+  const followup= document.getElementById('pro-followup').value;
+  const notes = document.getElementById('pro-notes').value.trim();
+
+  errEl.style.display='none';
+  if (!biz) { showProErr('Business name is required'); return; }
+
+  btn.disabled = true; btn.textContent = 'Saving…';
+  const s = savedCreds();
+  try {
+    const res = await fetch(`${FN_BASE}/agent-leads`, {
+      method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${ANON_KEY}`},
+      body: JSON.stringify({ action:'add', agent_id:_agent.id, phone:s.phone, pin:s.pin,
+        business_name:biz, owner_name:name||null, prospect_phone:phone||null,
+        business_type:type, location:loc||null, status, follow_up_date:followup||null, notes:notes||null })
+    });
+    const data = await res.json();
+
+    if (res.status === 409) {
+      if (data.error === 'duplicate_own') {
+        showProErr(`You've already added "${data.business_name}" to your prospects.`);
+      } else {
+        showProErr(`⚠️ This business is already in the system — recorded by another Happa agent. Two agents can't work the same lead.`);
+      }
+      return;
+    }
+    if (!res.ok || data.error) { showProErr(data.error || 'Failed to save'); return; }
+
+    closeSheetDirect();
+    toast('✅ Prospect added!');
+    await loadData();
+    switchTab('prospects', document.querySelectorAll('.tab')[1]);
+  } catch(e) { showProErr('Network error — please try again'); }
+  finally { btn.disabled=false; btn.textContent='Save Prospect'; }
+}
+
+function showProErr(msg) {
+  const el = document.getElementById('pro-err');
+  if (el) { el.textContent = msg; el.style.display = 'block'; }
+}
+
+/* ── EDIT PROSPECT SHEET ── */
+function openEditProspect(l) {
+  setSheetContent(`
+    <div class="sh-hdr">
+      <h2>✏️ Edit Prospect</h2>
+      <button class="sh-close" onclick="closeSheetDirect()">✕</button>
+    </div>
+    <div class="sh-body">
+      <div class="err-box" id="edit-err"></div>
+      <div class="fg">
+        <label class="fl">Business Name</label>
+        <input class="fi" id="edit-biz" value="${esc(l.business_name)}" autocomplete="off">
+      </div>
+      <div class="fg">
+        <label class="fl">Phone Number</label>
+        <input class="fi" id="edit-phone" type="tel" value="${esc(l.phone||'')}">
+      </div>
+      <div class="fg">
+        <label class="fl">Location</label>
+        <input class="fi" id="edit-loc" value="${esc(l.location||'')}" autocomplete="off">
+      </div>
+      <div class="fg">
+        <label class="fl">Status</label>
+        <select class="fi" id="edit-status">
+          <option value="new"${l.status==='new'?' selected':''}>🆕 New</option>
+          <option value="contacted"${l.status==='contacted'?' selected':''}>📞 Contacted</option>
+          <option value="interested"${l.status==='interested'?' selected':''}>⭐ Interested</option>
+          <option value="follow_up"${l.status==='follow_up'?' selected':''}>🔔 Follow Up</option>
+          <option value="not_interested"${l.status==='not_interested'?' selected':''}>❌ Not Interested</option>
+          <option value="signed_up"${l.status==='signed_up'?' selected':''}>✅ Signed Up</option>
+        </select>
+      </div>
+      <div class="fg">
+        <label class="fl">Follow-up Date</label>
+        <input class="fi" id="edit-followup" type="date" value="${esc(l.follow_up_date||'')}">
+      </div>
+      <div class="fg">
+        <label class="fl">Notes</label>
+        <textarea class="fi" id="edit-notes" rows="4" style="resize:vertical;line-height:1.5">${esc(l.notes||'')}</textarea>
+      </div>
+      <div class="sh-actions">
+        <button class="btn-ghost" onclick="closeSheetDirect()">Cancel</button>
+        <button class="btn-acc" id="edit-save-btn" onclick="updateProspect('${l.id}')">Save Changes</button>
+      </div>
+      ${_isAdmin ? `<button class="btn-del-full" onclick="confirmDeleteProspect('${l.id}','${esc(l.business_name)}')">🗑 Delete Prospect</button>` : ''}
+    </div>
+  `);
+  openSheet();
+}
+
+async function updateProspect(leadId) {
+  const btn = document.getElementById('edit-save-btn');
+  btn.disabled=true; btn.textContent='Saving…';
+  const s = savedCreds();
+  const updates = {
+    business_name: document.getElementById('edit-biz').value.trim(),
+    phone:         document.getElementById('edit-phone').value.trim() || null,
+    location:      document.getElementById('edit-loc').value.trim() || null,
+    status:        document.getElementById('edit-status').value,
+    follow_up_date:document.getElementById('edit-followup').value || null,
+    notes:         document.getElementById('edit-notes').value.trim() || null,
+  };
+  try {
+    const res = await fetch(`${FN_BASE}/agent-leads`, {
+      method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${ANON_KEY}`},
+      body: JSON.stringify({ action:'update', agent_id:_agent.id, phone:s.phone, pin:s.pin, lead_id:leadId, updates })
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) { document.getElementById('edit-err').textContent=data.error||'Failed'; document.getElementById('edit-err').style.display='block'; return; }
+    closeSheetDirect(); toast('✅ Prospect updated!'); await loadData();
+  } catch(e) { document.getElementById('edit-err').textContent='Network error'; document.getElementById('edit-err').style.display='block'; }
+  finally { btn.disabled=false; btn.textContent='Save Changes'; }
+}
+
+/* ── DELETE PROSPECT ── */
+function confirmDeleteProspect(leadId, bizName) {
+  setSheetContent(`
+    <div class="sh-hdr">
+      <h2>🗑 Delete Prospect</h2>
+      <button class="sh-close" onclick="closeSheetDirect()">✕</button>
+    </div>
+    <div class="sh-body">
+      <div class="warn-box">⚠️ This will permanently delete <strong>${esc(bizName)}</strong> from the system. This cannot be undone.</div>
+      <div class="sh-actions">
+        <button class="btn-ghost" onclick="closeSheetDirect()">Cancel</button>
+        <button class="btn-acc" style="background:var(--red);flex:1" id="del-confirm-btn" onclick="deleteProspect('${leadId}')">Yes, Delete</button>
+      </div>
+    </div>
+  `);
+  openSheet();
+}
+
+async function deleteProspect(leadId) {
+  const btn = document.getElementById('del-confirm-btn');
+  btn.disabled=true; btn.textContent='Deleting…';
+  const s = savedCreds();
+  try {
+    const res = await fetch(`${FN_BASE}/agent-leads`, {
+      method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${ANON_KEY}`},
+      body: JSON.stringify({ action:'delete', agent_id:_agent.id, phone:s.phone, pin:s.pin, lead_id:leadId })
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) { toast('❌ '+( data.error||'Delete failed')); closeSheetDirect(); return; }
+    closeSheetDirect(); toast('🗑 Prospect deleted'); await loadData();
+  } catch(e) { toast('❌ Network error'); closeSheetDirect(); }
+}
+
+/* ════════════════════════════════
+   CLIENTS (converted shops)
+════════════════════════════════ */
 function setFilter(f, el) {
   _filter = f;
-  document.querySelectorAll('.pill').forEach(p => p.classList.remove('on'));
+  document.querySelectorAll('#filter-row .pill').forEach(p => p.classList.remove('on'));
   el.classList.add('on');
   renderClients();
 }
 
 function renderClients() {
   const list = document.getElementById('clients-list');
-  const items = buildItems();
+  if (!_loaded) { list.innerHTML = '<div class="empty"><div class="empty-icon">⏳</div><div class="empty-text">Loading…</div></div>'; return; }
+  const items = buildClientItems();
   const vis = _filter === 'all' ? items : items.filter(i => i.status === _filter);
-  if (!_loaded) { list.innerHTML = '<div class="empty"><div class="empty-icon">⏳</div><div class="empty-text">Loading clients…</div></div>'; return; }
-  if (!vis.length) { list.innerHTML = '<div class="empty"><div class="empty-icon">👥</div><div class="empty-text">No clients in this category.</div></div>'; return; }
-  const lbl = { active:'Active', trial:'Trial', lead:'Lead', due:'Due Soon', expired:'Expired' };
-  const chipCls = { active:'chip-g', trial:'chip-a', lead:'chip-d', due:'chip-r', expired:'chip-r' };
+  if (!vis.length) { list.innerHTML = '<div class="empty"><div class="empty-icon">✅</div><div class="empty-text">No clients in this category.</div></div>'; return; }
+  const lbl = { active:'Active', trial:'Trial', due:'Due Soon', expired:'Expired' };
+  const chipCls = { active:'chip-g', trial:'chip-a', due:'chip-r', expired:'chip-r' };
   list.innerHTML = vis.map(i => {
     const billing = i.nextBilling ? `🗓 Renews ${fmtDate(i.nextBilling)}${i.days!=null?` · ${i.days}d`:''}` : '';
     const wa = i.phone?.replace(/[^0-9]/g,'');
@@ -374,29 +751,26 @@ function renderClients() {
       </div>
       <div class="cc-acts">
         ${wa?`<a class="act-btn wa" href="https://wa.me/${wa}" target="_blank">💬 WhatsApp</a>`:''}
-        ${i.phone?`<button class="act-btn" onclick="window.location.href='tel:${i.phone}'">📞 Call</button>`:''}
+        ${i.phone?`<a class="act-btn" href="tel:${i.phone}">📞 Call</a>`:''}
       </div>
     </div>`;
   }).join('');
 }
 
-function buildItems() {
-  const items = [];
-  _shops.forEach(s => {
+function buildClientItems() {
+  return _shops.map(s => {
     const sub = s.subscriptions?.[0];
-    const st = sub?.status || 'lead';
+    const st  = sub?.status || 'trial';
     const due = sub?.next_billing ? new Date(sub.next_billing) : null;
     const days = due ? Math.ceil((due - Date.now())/86400000) : null;
     const status = (days !== null && days <= 7 && st === 'active') ? 'due' : st;
-    items.push({ kind:'shop', name:s.name, meta:s.business_type, phone:s.phone, location:s.location, status, nextBilling:sub?.next_billing, days, created_at:s.created_at });
-  });
-  _leads.filter(l => !l.shop_id).forEach(l =>
-    items.push({ kind:'lead', name:l.business_name||l.name, meta:l.business_type, phone:l.phone, location:l.location, status:'lead', created_at:l.created_at })
-  );
-  return items.sort((a,b) => new Date(b.created_at)-new Date(a.created_at));
+    return { name:s.name, meta:s.business_type, phone:s.phone, location:s.location, status, nextBilling:sub?.next_billing, days, created_at:s.created_at };
+  }).sort((a,b) => new Date(b.created_at)-new Date(a.created_at));
 }
 
-/* ── REMINDERS ── */
+/* ════════════════════════════════
+   REMINDERS
+════════════════════════════════ */
 function renderReminders() {
   const list = document.getElementById('reminders-list');
   const tabBtn = document.getElementById('tab-reminders');
@@ -406,20 +780,19 @@ function renderReminders() {
     return Math.ceil((new Date(sub.next_billing)-Date.now())/86400000) <= 7;
   }).sort((a,b) => new Date(a.subscriptions[0].next_billing)-new Date(b.subscriptions[0].next_billing));
 
-  // badge on tab
   tabBtn.textContent = due.length ? `Reminders (${due.length})` : 'Reminders';
-  if (due.length) tabBtn.style.color = 'var(--red)';
+  tabBtn.style.color = due.length ? 'var(--red)' : '';
 
-  if (!_loaded) { list.innerHTML = '<div class="empty"><div class="empty-icon">⏳</div><div class="empty-text">Loading…</div></div>'; return; }
-  if (!due.length) { list.innerHTML = '<div class="empty"><div class="empty-icon">✅</div><div class="empty-text">No renewals due in the next 7 days.<br>All clients are up to date!</div></div>'; return; }
+  if (!_loaded) { list.innerHTML = '<div class="empty"><div class="empty-icon">⏳</div></div>'; return; }
+  if (!due.length) { list.innerHTML = '<div class="empty"><div class="empty-icon">✅</div><div class="empty-text">No renewals due in the next 7 days.</div></div>'; return; }
 
   list.innerHTML = due.map(s => {
-    const sub = s.subscriptions[0];
+    const sub  = s.subscriptions[0];
     const days = Math.ceil((new Date(sub.next_billing)-Date.now())/86400000);
     const dayStr = days <= 0 ? 'today' : days === 1 ? 'tomorrow' : `in ${days} days`;
     const rate = sub.monthly_rate ? `KES ${Number(sub.monthly_rate).toLocaleString()}` : '';
-    const wa = s.phone?.replace(/[^0-9]/g,'');
-    const msg = `Hi ${s.name}! 👋\n\nJust a reminder that your *Happa Merchant* subscription is due for renewal *${dayStr}* (${fmtDate(sub.next_billing)}).${rate?`\n\n💰 Amount: *${rate}*`:''}\n\nPlease ensure payment is ready so your account stays active. Let me know if you need anything! 🙏`;
+    const wa   = s.phone?.replace(/[^0-9]/g,'');
+    const msg  = `Hi ${s.name}! 👋\n\nJust a reminder that your *Happa Merchant* subscription is due for renewal *${dayStr}* (${fmtDate(sub.next_billing)}).${rate?`\n\n💰 Amount: *${rate}*`:''}\n\nPlease ensure payment is ready so your account stays active. Let me know if you need anything! 🙏`;
     const waLink = wa ? `https://wa.me/${wa}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`;
     return `<div class="rem-card">
       <div class="rem-top"><div class="rem-name">${esc(s.name)}</div><div class="due-chip ${days<=1?'urgent':''}">Due ${dayStr}</div></div>
@@ -437,41 +810,62 @@ function renderReminders() {
   }).join('');
 }
 
-/* ── DEMO ── */
+/* ════════════════════════════════
+   DEMO
+════════════════════════════════ */
 function openDemo() {
   const ref = `${APP_URL}/?ref=${encodeURIComponent(_agent.ref_code || _agent.id)}`;
   window.open(ref, '_blank');
 }
 
-/* ── NAV ── */
+/* ════════════════════════════════
+   SHEET
+════════════════════════════════ */
+function setSheetContent(html) { document.getElementById('sheet-content').innerHTML = html; }
+function openSheet()  { document.getElementById('sheet-ov').classList.add('on'); }
+function closeSheetDirect() { document.getElementById('sheet-ov').classList.remove('on'); }
+function closeSheet(e) { if (e.target === document.getElementById('sheet-ov')) closeSheetDirect(); }
+
+/* ════════════════════════════════
+   NAV
+════════════════════════════════ */
 function switchTab(name, el) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('on'));
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
   document.getElementById(`page-${name}`)?.classList.add('on');
   if (el) el.classList.add('on');
+  // Show FAB only on prospects tab
+  document.getElementById('fab-add').style.display = name === 'prospects' ? 'flex' : 'none';
+  if (name === 'prospects') document.getElementById('fab-add').classList.add('show');
 }
 
-/* ── HELPERS ── */
+/* ════════════════════════════════
+   HELPERS
+════════════════════════════════ */
 function copyLink() {
   const link = document.getElementById('ref-link-text').textContent;
   navigator.clipboard.writeText(link).then(() => toast('✓ Link copied!')).catch(() => toast('Select the link and copy'));
 }
 function fmtDate(d) { return new Date(d).toLocaleDateString('en-KE', { day:'numeric', month:'short', year:'numeric' }); }
-function cap(s) { return s ? s.charAt(0).toUpperCase()+s.slice(1) : ''; }
-function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function cap(s)  { return s ? s.charAt(0).toUpperCase()+s.slice(1) : ''; }
+function esc(s)  { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function toast(msg) {
   const t = document.getElementById('toast');
   t.textContent = msg; t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2200);
+  setTimeout(() => t.classList.remove('show'), 2500);
 }
 
-/* ── BOOT ── */
+/* ════════════════════════════════
+   BOOT
+════════════════════════════════ */
 document.addEventListener('DOMContentLoaded', () => {
   ['lp','lpin'].forEach(id => document.getElementById(id)?.addEventListener('keydown', e => { if (e.key==='Enter') doLogin(); }));
   try {
     const s = JSON.parse(localStorage.getItem('happa_agent')||'{}');
     if (s.agent && s.phone && s.pin) { _agent = s.agent; showPortal(); }
   } catch(_) {}
+  // Initially FAB is hidden until we know which tab we're on
+  document.getElementById('fab-add').style.display = 'none';
 });
 </script>
 </body>
