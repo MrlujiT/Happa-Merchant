@@ -1,19 +1,16 @@
-name: Deploy to Cloudflare Workers
+name: Deploy Happa Merchant
 
 on:
   push:
     branches: [main]
 
 jobs:
-  deploy:
+  deploy-cloudflare:
+    name: Deploy to Cloudflare Workers
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Deploy via Wrangler
+        uses: cloudflare/wrangler-action@v3
         with:
-          node-version: '20'
-      - name: Deploy
-        run: npx wrangler@3 deploy 2>&1
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: "9a626e9f532467918c229f392fbc67a2"
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
