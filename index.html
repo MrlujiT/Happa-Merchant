@@ -1383,7 +1383,7 @@ async function saveWalkinSession() {
     const today = new Date().toLocaleDateString('en-CA',{timeZone:'Africa/Nairobi'});
     const { error } = await db.from('fit_sessions').insert({
       shop_id:S.shop.id, service_id:svcId||null, service_name:svcName,
-      trainer_id:S.user.id, trainer_name:S.member.name||'',
+      trainer_id:S.member?.id||null, trainer_name:S.member?.name||'',
       scheduled_date:today, status:'completed', revenue:amt,
       client_count:1, payment_method:pay, mpesa_code:code||null,
     });
@@ -1903,7 +1903,9 @@ async function saveFitPlan(editId=null) {
       ? await db.from('fit_workout_plans').update({...payload,updated_at:new Date().toISOString()}).eq('id',editId)
       : await db.from('fit_workout_plans').insert(payload);
     if (error) throw error;
-    closeAdminTool(); showToast('📋 Plan saved!'); renderFitWorkoutPlans(document.getElementById('main-content'));
+    closeAdminTool(); showToast('📋 Plan saved!');
+    const mc = document.getElementById('main-content');
+    if (mc) renderFitWorkoutPlans(mc);
   } catch(e){ errEl.textContent=e.message||'Failed'; errEl.style.display='block'; }
   finally { btn.disabled=false; btn.textContent='Save Plan'; }
 }
@@ -3715,6 +3717,7 @@ async function renderStock(el) {
   } else {
     h += `<div class="empty"><div class="empty-ico">📦</div><p>No products yet.<br>Add products from the More tab.</p></div>`;
   }
+  h += `<button class="fab" onclick="showAddProductSheet()" style="margin:0 16px 16px">＋ Add Product</button>`;
   h += '<div style="height:8px"></div>';
   el.innerHTML = h;
 }
