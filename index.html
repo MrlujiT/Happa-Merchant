@@ -236,6 +236,8 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 .cart-ctl button{width:28px;height:28px;border-radius:8px;border:1px solid var(--bdr);background:var(--surf2);color:var(--txt);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit;transition:background .15s}
 .cart-ctl button:hover{background:var(--bdr)}
 .cart-ctl span{width:24px;text-align:center;font-size:14px;font-weight:700;font-variant-numeric:tabular-nums}
+.cart-qty-inp{width:48px;text-align:center;font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;border:1px solid var(--bdr);border-radius:8px;background:var(--surf2);color:var(--txt);padding:3px 4px;-moz-appearance:textfield}
+.cart-qty-inp::-webkit-inner-spin-button,.cart-qty-inp::-webkit-outer-spin-button{-webkit-appearance:none}
 /* ── BAR CHART ── */
 .bar-wrap{display:flex;align-items:flex-end;gap:5px;height:96px;margin-top:4px}
 .bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px}
@@ -3967,11 +3969,25 @@ function removeFromCart(pid) {
   renderSaleSheet();
 }
 
+function setCartQty(pid, val) {
+  const item = S.cart.find(x=>x.product.id===pid);
+  if (!item) return;
+  const p = item.product;
+  const newQty = Math.round(parseFloat(val) * 1000) / 1000;
+  if (!newQty || newQty <= 0) { removeFromCart(pid); return; }
+  if (p.stock != null && newQty > p.stock) {
+    showToast(`Only ${p.stock} ${p.unit||'units'} in stock`, true);
+    item.qty = item.qty; renderSaleSheet(); return;
+  }
+  item.qty = newQty;
+  renderSaleSheet();
+}
+
 function cartQty(pid, delta) {
   const item = S.cart.find(x=>x.product.id===pid);
   if (!item) return;
   const p = item.product;
-  const newQty = Math.max(1, item.qty + delta);
+  const newQty = Math.round((Math.max(0.001, item.qty + delta)) * 1000) / 1000;
   if (delta > 0 && p.stock != null && newQty > p.stock) {
     showToast(`Only ${p.stock} ${p.unit||'units'} in stock`, true); return;
   }
@@ -4011,7 +4027,8 @@ function renderSaleSheet() {
         </div>
         <div class="cart-ctl">
           <button onclick="cartQty('${p.id}',-1)">−</button>
-          <span>${item.qty}</span>
+          <input type="number" class="cart-qty-inp" value="${item.qty}" min="0.001" step="0.001" inputmode="decimal"
+            onchange="setCartQty('${p.id}',this.value)" onclick="this.select()">
           <button onclick="cartQty('${p.id}',1)">+</button>
           <button onclick="removeFromCart('${p.id}')" style="color:var(--red);margin-left:2px">✕</button>
         </div>
