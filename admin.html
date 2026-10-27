@@ -652,6 +652,12 @@ async function renderAgents() {
       </div>
     </div>
 
+    <!-- Admin Toolbar -->
+    <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+      <button class="btn-acc" style="flex:1;min-width:130px" onclick="openAdminSetTargetSheet()">🎯 Set Target</button>
+      <button class="btn-acc" style="flex:1;min-width:130px;background:var(--surf2);color:var(--txt);border:1px solid var(--bdr)" onclick="openAdminBroadcastSheet()">📢 Broadcast</button>
+    </div>
+
     ${agents?.length ? agentCards : `<div class="empty"><div class="empty-ico">🤝</div><p>No agents yet.<br>Add your first marketing agent below.</p></div>`}
 
     <button class="btn-acc" onclick="showAddAgentModal()" style="width:100%;margin-top:8px">+ Add Agent</button>`;
@@ -1369,6 +1375,128 @@ function showToast(msg, isErr) {
 document.querySelectorAll('.overlay').forEach(o => {
   o.addEventListener('click', e => { if (e.target === o) closeModal(); });
 });
+
+// ── AGENT TARGETS (admin) ──
+let _adminAgents = [];
+
+async function openAdminSetTargetSheet() {
+  // Load agents for the dropdown
+  if (!_adminAgents.length) {
+    const ag = await apiGet('agents?select=id,name&active=eq.true&order=name').catch(() => []);
+    _adminAgents = ag || [];
+  }
+  const opts = ['<option value="">🌐 All Agents (Global)</option>',
+    ..._adminAgents.map(a => `<option value="${a.id}">${(a.name||'').replace(/"/g,'&quot;')}</option>`)
+  ].join('');
+  const today = new Date().toISOString().slice(0,10);
+
+  const ov = document.getElementById('add-agent-overlay');
+  document.getElementById('add-agent-overlay').innerHTML = `
+    <div class="modal" style="max-width:420px;width:100%">
+      <h2 style="margin:0 0 4px;font-size:17px">🎯 Set Agent Target</h2>
+      <div class="modal-sub">Set a pitch drive deadline and count for agents</div>
+      <div style="margin-top:16px;display:flex;flex-direction:column;gap:12px">
+        <div><label class="fl">Assign To</label><select class="fi" id="at-agent" style="width:100%;margin-top:4px">${opts}</select></div>
+        <div><label class="fl">Title *</label><input class="fi" id="at-title" value="Pitch Drive" style="width:100%;margin-top:4px"></div>
+        <div><label class="fl">Description</label><input class="fi" id="at-desc" placeholder="e.g. Focus on Westlands SMEs" style="width:100%;margin-top:4px"></div>
+        <div><label class="fl">Target (# of pitches) *</label><input class="fi" id="at-count" type="number" min="1" value="20" style="width:100%;margin-top:4px" inputmode="numeric"></div>
+        <div><label class="fl">Deadline *</label><input class="fi" id="at-deadline" type="date" min="${today}" style="width:100%;margin-top:4px"></div>
+        <div id="at-err" class="err-msg" style="display:none"></div>
+      </div>
+      <div class="modal-acts">
+        <button class="btn-g" onclick="closeModal()">Cancel</button>
+        <button class="btn-p" id="at-save-btn" onclick="saveAdminTarget()">Set Target</button>
+      </div>
+    </div>`;
+  ov.classList.add('on');
+}
+
+async function saveAdminTarget() {
+  const btn = document.getElementById('at-save-btn');
+  const errEl = document.getElementById('at-err');
+  const targetAgentId = document.getElementById('at-agent').value;
+  const title    = document.getElementById('at-title').value.trim();
+  const desc     = document.getElementById('at-desc').value.trim();
+  const count    = parseInt(document.getElementById('at-count').value, 10);
+  const deadline = document.getElementById('at-deadline').value;
+  errEl.style.display = 'none';
+  if (!title)    { errEl.textContent='Title required'; errEl.style.display='block'; return; }
+  if (!count||count<1){ errEl.textContent='Enter a valid number'; errEl.style.display='block'; return; }
+  if (!deadline) { errEl.textContent='Set a deadline'; errEl.style.display='block'; return; }
+  btn.disabled=true; btn.textContent='Saving…';
+  try {
+    const { data, error } = await db.from('agent_targets').insert({
+      agent_id: targetAgentId || null,
+      title, description: desc||null, target_count:count, deadline
+    }).select().single();
+    if (error) throw error;
+    closeModal();
+    showToast('🎯 Target set!');
+  } catch(e) { errEl.textContent = e.message||'Failed'; errEl.style.display='block'; }
+  finally { btn.disabled=false; btn.textContent='Set Target'; }
+}
+
+// ── BROADCAST PUSH (admin) ──
+function openAdminBroadcastSheet() {
+  const ov = document.getElementById('add-agent-overlay');
+  ov.innerHTML = `
+    <div class="modal" style="max-width:420px;width:100%">
+      <h2 style="margin:0 0 4px;font-size:17px">📢 Broadcast Notification</h2>
+      <div class="modal-sub">Push a message to all Happa app users</div>
+      <div style="margin-top:16px;display:flex;flex-direction:column;gap:12px">
+        <div>
+          <label class="fl">Send To</label>
+          <select class="fi" id="bc-audience" style="width:100%;margin-top:4px">
+            <option value="all">Everyone (merchants + agents)</option>
+            <option value="agent">Agents only</option>
+            <option value="merchant">Merchants only</option>
+          </select>
+        </div>
+        <div><label class="fl">Title *</label><input class="fi" id="bc-title" placeholder="e.g. New Feature Alert 🚀" style="width:100%;margin-top:4px"></div>
+        <div>
+          <label class="fl">Message *</label>
+          <textarea class="fi" id="bc-body" rows="3" placeholder="What do you want to say?" style="width:100%;margin-top:4px;resize:vertical"></textarea>
+        </div>
+        <div><label class="fl">Link (optional)</label><input class="fi" id="bc-url" placeholder="https://…" style="width:100%;margin-top:4px"></div>
+        <div id="bc-err" class="err-msg" style="display:none"></div>
+      </div>
+      <div class="modal-acts">
+        <button class="btn-g" onclick="closeModal()">Cancel</button>
+        <button class="btn-p" id="bc-send-btn" onclick="sendAdminBroadcast()">Send</button>
+      </div>
+    </div>`;
+  ov.classList.add('on');
+}
+
+async function sendAdminBroadcast() {
+  const btn = document.getElementById('bc-send-btn');
+  const errEl = document.getElementById('bc-err');
+  const audience = document.getElementById('bc-audience').value;
+  const title  = document.getElementById('bc-title').value.trim();
+  const body   = document.getElementById('bc-body').value.trim();
+  const url    = document.getElementById('bc-url').value.trim();
+  errEl.style.display = 'none';
+  if (!title) { errEl.textContent='Title required'; errEl.style.display='block'; return; }
+  if (!body)  { errEl.textContent='Message required'; errEl.style.display='block'; return; }
+  btn.disabled=true; btn.textContent='Sending…';
+  try {
+    const res = await fetch(`${EDGE_URL}/send-notification`, {
+      method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${SUPABASE_KEY}`},
+      body: JSON.stringify({
+        action:'broadcast',
+        user_type: audience === 'all' ? null : audience,
+        title, body, url: url||undefined,
+        // Admin bypass — no agent PIN needed; edge fn checks Authorization header service role or passes through
+        _admin_bypass: true
+      })
+    });
+    const data = await res.json().catch(()=>({}));
+    if (!res.ok || data.error) throw new Error(data.error||`HTTP ${res.status}`);
+    closeModal();
+    showToast(`📢 Sent to ${data.sent ?? '?'} subscribers!`);
+  } catch(e) { errEl.textContent = e.message||'Failed'; errEl.style.display='block'; }
+  finally { btn.disabled=false; btn.textContent='Send'; }
+}
 
 // ── ADMIN PWA INSTALL PROMPT ──
 let _adminInstallPrompt = null;
