@@ -5049,6 +5049,13 @@ function showInviteSheet() {
           <option value="housekeeper">🧹 Housekeeper — log jobs, utilities &amp; alerts</option>
           <option value="co-host">🤝 Co-host — bookings &amp; units access</option>
           <option value="manager">🏷️ Manager — full access except billing</option>
+          ` : S.isFit ? `
+          <option value="trainer">🏋️ Trainer — sessions &amp; clients</option>
+          <option value="boxing-coach">🥊 Boxing Coach — sessions &amp; clients</option>
+          <option value="yoga-meditation">🧘 Yoga &amp; Meditation — sessions &amp; clients</option>
+          <option value="masseuse">💆 Masseuse — sessions &amp; clients</option>
+          <option value="cashier">🧾 Cashier — record sales only</option>
+          <option value="manager">🏷️ Manager — full access except billing</option>
           ` : `
           <option value="cashier">🧾 Cashier — record sales only</option>
           <option value="manager">🏷️ Manager — full access except billing</option>
@@ -5153,10 +5160,10 @@ async function showManageStaff() {
     el.innerHTML = `<div style="text-align:center;padding:24px;color:var(--txt2);font-size:14px">No staff yet.<br>Tap Add Staff Member to invite someone.</div>`;
     return;
   }
-  const roleLabel = r => ({ owner:'👑 Owner', manager:'🏷️ Manager', cashier:'🧾 Cashier', housekeeper:'🧹 Housekeeper', 'co-host':'🤝 Co-host' }[r] || '🧾 Staff');
+  const roleLabel = r => ({ owner:'👑 Owner', manager:'🏷️ Manager', cashier:'🧾 Cashier', housekeeper:'🧹 Housekeeper', 'co-host':'🤝 Co-host', trainer:'🏋️ Trainer', 'boxing-coach':'🥊 Boxing Coach', 'yoga-meditation':'🧘 Yoga & Meditation', masseuse:'💆 Masseuse' }[r] || '🧾 Staff');
   const renderStaffList = (members) => `<div class="clist">${members.map(m=>`
     <div class="more-item" style="padding:12px 14px">
-      <div class="more-ico" style="background:var(--surf2);font-size:18px">${{owner:'👑',manager:'🏷️',cashier:'🧾',housekeeper:'🧹','co-host':'🤝'}[m.role]||'🧾'}</div>
+      <div class="more-ico" style="background:var(--surf2);font-size:18px">${{owner:'👑',manager:'🏷️',cashier:'🧾',housekeeper:'🧹','co-host':'🤝',trainer:'🏋️','boxing-coach':'🥊','yoga-meditation':'🧘',masseuse:'💆'}[m.role]||'🧾'}</div>
       <div class="more-inf" style="flex:1">
         <div class="more-nm">${esc(m.name||'Unnamed')}</div>
         <div class="more-mt">${roleLabel(m.role)} · Joined ${m.joined_at ? new Date(m.joined_at).toLocaleDateString('en-KE',{day:'numeric',month:'short',year:'numeric'}) : 'Pending'}</div>
@@ -5182,10 +5189,10 @@ async function removeStaff(memberId, name) {
         el.innerHTML = `<div style="text-align:center;padding:24px;color:var(--txt2);font-size:14px">No staff yet.</div>`;
         return;
       }
-      const roleLabel = r => ({ owner:'👑 Owner', manager:'🏷️ Manager', cashier:'🧾 Cashier', housekeeper:'🧹 Housekeeper', 'co-host':'🤝 Co-host' }[r] || '🧾 Staff');
+      const roleLabel = r => ({ owner:'👑 Owner', manager:'🏷️ Manager', cashier:'🧾 Cashier', housekeeper:'🧹 Housekeeper', 'co-host':'🤝 Co-host', trainer:'🏋️ Trainer', 'boxing-coach':'🥊 Boxing Coach', 'yoga-meditation':'🧘 Yoga & Meditation', masseuse:'💆 Masseuse' }[r] || '🧾 Staff');
       el.innerHTML = `<div class="clist">${members.map(m=>`
         <div class="more-item" style="padding:12px 14px">
-          <div class="more-ico" style="background:var(--surf2);font-size:18px">${{owner:'👑',manager:'🏷️',cashier:'🧾',housekeeper:'🧹','co-host':'🤝'}[m.role]||'🧾'}</div>
+          <div class="more-ico" style="background:var(--surf2);font-size:18px">${{owner:'👑',manager:'🏷️',cashier:'🧾',housekeeper:'🧹','co-host':'🤝',trainer:'🏋️','boxing-coach':'🥊','yoga-meditation':'🧘',masseuse:'💆'}[m.role]||'🧾'}</div>
           <div class="more-inf" style="flex:1">
             <div class="more-nm">${esc(m.name||'Unnamed')}</div>
             <div class="more-mt">${roleLabel(m.role)} · Joined ${m.joined_at ? new Date(m.joined_at).toLocaleDateString('en-KE',{day:'numeric',month:'short',year:'numeric'}) : 'Pending'}</div>
@@ -5229,7 +5236,7 @@ async function showStaffPerformance() {
 
   const rows = Object.values(byUser).sort((a,b) => b.total - a.total);
   const totalSales = rows.reduce((a,r)=>a+r.total,0);
-  const roleLabel = r => ({ owner:'👑 Owner', manager:'🏷️ Manager', cashier:'🧾 Cashier', housekeeper:'🧹 Housekeeper', 'co-host':'🤝 Co-host' }[r] || '🧾 Staff');
+  const roleLabel = r => ({ owner:'👑 Owner', manager:'🏷️ Manager', cashier:'🧾 Cashier', housekeeper:'🧹 Housekeeper', 'co-host':'🤝 Co-host', trainer:'🏋️ Trainer', 'boxing-coach':'🥊 Boxing Coach', 'yoga-meditation':'🧘 Yoga & Meditation', masseuse:'💆 Masseuse' }[r] || '🧾 Staff');
 
   el.innerHTML = rows.map(r => {
     const pct = totalSales > 0 ? Math.round(r.total / totalSales * 100) : 0;
