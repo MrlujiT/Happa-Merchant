@@ -806,6 +806,7 @@ async function loadUserContext() {
       <button class="ni" data-tab="fit-sessions"><span class="ni-ico">📅</span><span class="ni-lbl">Sessions</span></button>
       <button class="ni" data-tab="fit-services"><span class="ni-ico">🏋️</span><span class="ni-lbl">Services</span></button>
       <button class="ni" data-tab="fit-clients"><span class="ni-ico">👥</span><span class="ni-lbl">Clients</span></button>
+      <button class="ni" data-tab="stock"><span class="ni-ico">📦</span><span class="ni-lbl">Stock</span></button>
       <button class="ni" data-tab="more"><span class="ni-ico">☰</span><span class="ni-lbl">More</span></button>`;
   } else if (isHousekeeper) {
     document.getElementById('bottom-nav').innerHTML = `
@@ -835,7 +836,7 @@ async function loadUserContext() {
   if (S.isAirbnb) {
     await Promise.all([loadUnits(), loadHosts(), loadLoyalty()]);
   } else if (S.isFit) {
-    await Promise.all([loadFitServices(), loadFitClients()]);
+    await Promise.all([loadFitServices(), loadFitClients(), loadFitMemberships()]);
   } else {
     await Promise.all([loadProducts(), loadCustomers(), loadSuppliers(), loadLoyalty()]);
   }
@@ -1207,7 +1208,7 @@ async function saveAlert() {
 /* ═══════════════════════════════════════════════════════
    HAPPA FIT
 ═══════════════════════════════════════════════════════ */
-let _fitServices = [], _fitClients = [], _fitSessions = [];
+let _fitServices = [], _fitClients = [], _fitSessions = [], _fitMemberships = [];
 
 async function loadFitServices() {
   const d = await apiGet(`fit_services?shop_id=eq.${S.shop.id}&active=eq.true&order=name`).catch(()=>[]);
@@ -1216,6 +1217,22 @@ async function loadFitServices() {
 async function loadFitClients() {
   const d = await apiGet(`fit_clients?shop_id=eq.${S.shop.id}&active=eq.true&order=name`).catch(()=>[]);
   _fitClients = d || [];
+}
+async function loadFitMemberships() {
+  const d = await apiGet(`fit_memberships?shop_id=eq.${S.shop.id}&order=end_date`).catch(()=>[]);
+  _fitMemberships = d || [];
+  // auto-update status based on today's date
+  const today = new Date().toISOString().slice(0,10);
+  for (const m of _fitMemberships) {
+    const computedStatus = m.end_date < today ? 'lapsed' : m.end_date <= addDays(today,3) ? 'expiring' : 'active';
+    if (m.status !== computedStatus) {
+      db.from('fit_memberships').update({status:computedStatus}).eq('id',m.id).then(()=>{});
+      m.status = computedStatus;
+    }
+  }
+}
+function addDays(dateStr, n) {
+  const d = new Date(dateStr); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10);
 }
 
 // ── Admin Tool Sheet (shared by all Fit modals) ──
@@ -1229,12 +1246,36 @@ function closeAdminTool() {
 
 // ── Fit Home Dashboard ──
 async function renderFitHome(el) {
-  const today = new Date().toLocaleDateString('en-KE',{timeZone:'Africa/Nairobi'}).split('/').reverse().join('-').replace(/(\d+)-(\d+)-(\d+)/,(_,y,m,d)=>`${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`);
-  const todaySessions = await apiGet(`fit_sessions?shop_id=eq.${S.shop.id}&scheduled_date=eq.${today}&order=start_time`).catch(()=>[]);
+  const today = new Date().toLocaleDateString('en-CA',{timeZone:'Africa/Nairobi'}); // YYYY-MM-DD
+  const [todaySessions] = await Promise.all([
+    apiGet(`fit_sessions?shop_id=eq.${S.shop.id}&scheduled_date=eq.${today}&order=start_time`).catch(()=>[]),
+    loadFitMemberships(),
+  ]);
   _fitSessions = todaySessions || [];
-  const totalRev  = _fitSessions.filter(s=>s.status==='completed').reduce((a,s)=>a+parseFloat(s.revenue||0),0);
-  const done      = _fitSessions.filter(s=>s.status==='completed').length;
-  const upcoming  = _fitSessions.filter(s=>s.status==='scheduled').length;
+
+  // Session stats
+  const sessionRev = _fitSessions.filter(s=>s.status==='completed').reduce((a,s)=>a+parseFloat(s.revenue||0),0);
+  const done       = _fitSessions.filter(s=>s.status==='completed').length;
+  const upcoming   = _fitSessions.filter(s=>s.status==='scheduled').length;
+
+  // Membership stats
+  const activeMems   = _fitMemberships.filter(m=>m.status==='active'||m.status==='expiring');
+  const expiringMems = _fitMemberships.filter(m=>m.status==='expiring');
+  const lapsedCount  = _fitMemberships.filter(m=>m.status==='lapsed').length;
+  const memValue     = activeMems.reduce((a,m)=>a+parseFloat(m.amount||0),0);
+
+  // Expiry alert banner
+  const expiryAlert = expiringMems.length ? `
+    <div style="background:#f59e0b18;border:1px solid #f59e0b44;border-radius:12px;padding:12px 14px;margin-bottom:16px;cursor:pointer" onclick="showTab('fit-clients')">
+      <div style="font-weight:700;font-size:13px;color:#d97706">⚠️ ${expiringMems.length} membership${expiringMems.length>1?'s':''} expiring soon</div>
+      <div style="font-size:11px;color:var(--txt2);margin-top:3px">${expiringMems.map(m=>m.client_name||'Member').join(', ')} — tap to review</div>
+    </div>` : '';
+
+  const lapsedAlert = lapsedCount ? `
+    <div style="background:#ef444418;border:1px solid #ef444444;border-radius:12px;padding:10px 14px;margin-bottom:16px;cursor:pointer" onclick="showTab('fit-clients')">
+      <div style="font-weight:700;font-size:13px;color:#dc2626">🔴 ${lapsedCount} lapsed membership${lapsedCount>1?'s':''}</div>
+      <div style="font-size:11px;color:var(--txt2);margin-top:2px">Tap to follow up</div>
+    </div>` : '';
 
   const sessionCards = _fitSessions.length ? _fitSessions.map(s => {
     const statusColor = s.status==='completed' ? 'var(--grn,#22c55e)' : s.status==='cancelled' ? 'var(--red,#ef4444)' : 'var(--acc)';
@@ -1254,26 +1295,103 @@ async function renderFitHome(el) {
   el.innerHTML = `
     <div style="padding:16px;max-width:520px;margin:0 auto">
       <div style="font-size:20px;font-weight:800;margin-bottom:16px">💪 ${S.shop.name}</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:20px">
-        <div class="card" style="text-align:center;padding:14px 8px">
-          <div style="font-size:22px;font-weight:800;color:var(--acc)">${upcoming}</div>
-          <div style="font-size:11px;color:var(--txt2);margin-top:2px">Upcoming</div>
+
+      ${expiryAlert}${lapsedAlert}
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div class="card" style="text-align:center;padding:14px 8px;cursor:pointer" onclick="showTab('fit-clients')">
+          <div style="font-size:24px;font-weight:800;color:var(--acc)">${activeMems.length}</div>
+          <div style="font-size:11px;color:var(--txt2);margin-top:2px">Active Members</div>
         </div>
-        <div class="card" style="text-align:center;padding:14px 8px">
-          <div style="font-size:22px;font-weight:800;color:var(--grn,#22c55e)">${done}</div>
-          <div style="font-size:11px;color:var(--txt2);margin-top:2px">Done Today</div>
-        </div>
-        <div class="card" style="text-align:center;padding:14px 8px">
-          <div style="font-size:18px;font-weight:800;color:var(--acc)">${kes(totalRev)}</div>
-          <div style="font-size:11px;color:var(--txt2);margin-top:2px">Revenue</div>
+        <div class="card" style="text-align:center;padding:14px 8px;cursor:pointer" onclick="showTab('fit-clients')">
+          <div style="font-size:18px;font-weight:800;color:var(--acc)">${kes(memValue)}</div>
+          <div style="font-size:11px;color:var(--txt2);margin-top:2px">Membership Value</div>
         </div>
       </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:20px">
+        <div class="card" style="text-align:center;padding:12px 6px">
+          <div style="font-size:20px;font-weight:800;color:var(--acc)">${upcoming}</div>
+          <div style="font-size:11px;color:var(--txt2);margin-top:2px">Upcoming</div>
+        </div>
+        <div class="card" style="text-align:center;padding:12px 6px">
+          <div style="font-size:20px;font-weight:800;color:var(--grn,#22c55e)">${done}</div>
+          <div style="font-size:11px;color:var(--txt2);margin-top:2px">Done Today</div>
+        </div>
+        <div class="card" style="text-align:center;padding:12px 6px">
+          <div style="font-size:16px;font-weight:800;color:var(--acc)">${kes(sessionRev)}</div>
+          <div style="font-size:11px;color:var(--txt2);margin-top:2px">Session Rev</div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px;margin-bottom:20px">
+        <button class="btn-p" style="flex:1;padding:10px" onclick="openRecordWalkinSession()">💰 Record Walk-in</button>
+        <button class="btn-g" style="flex:1;padding:10px" onclick="openNewFitSessionSheet()">📅 Schedule</button>
+      </div>
+
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <div style="font-weight:700;font-size:14px">Today's Sessions</div>
-        <button class="btn-p" style="padding:7px 14px;font-size:12px" onclick="openNewFitSessionSheet()">+ Schedule</button>
       </div>
       ${sessionCards}
     </div>`;
+}
+
+// ── Record Walk-in Session ──
+function openRecordWalkinSession() {
+  const svcOpts = _fitServices.map(s=>`<option value="${s.id}" data-price="${s.price}" data-name="${esc(s.name)}">${s.emoji} ${esc(s.name)} — ${kes(s.price)}</option>`).join('');
+  const clientOpts = _fitClients.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  openAdminTool(`
+    <h2 style="margin:0 0 4px;font-size:17px">💰 Record Walk-in</h2>
+    <div style="margin-top:14px;display:flex;flex-direction:column;gap:11px">
+      <div><label class="fl">Service *</label>
+        <select class="fi" id="wi-svc" style="width:100%;margin-top:4px" onchange="document.getElementById('wi-amt').value=this.options[this.selectedIndex].dataset.price||''">
+          <option value="">— Select service —</option>${svcOpts}
+        </select></div>
+      <div><label class="fl">Client <span style="font-size:11px;color:var(--txt2)">(optional — leave blank for anonymous)</span></label>
+        <select class="fi" id="wi-client" style="width:100%;margin-top:4px">
+          <option value="">Anonymous / Walk-in</option>${clientOpts}
+        </select></div>
+      <div><label class="fl">Amount (KES) *</label><input class="fi" id="wi-amt" type="number" min="0" inputmode="decimal" placeholder="e.g. 500" style="width:100%;margin-top:4px"></div>
+      <div><label class="fl">Payment Method</label>
+        <select class="fi" id="wi-pay" style="width:100%;margin-top:4px" onchange="document.getElementById('wi-mpesa-row').style.display=this.value==='mpesa'?'block':'none'">
+          <option value="cash">💵 Cash</option>
+          <option value="mpesa">📱 M-Pesa</option>
+        </select></div>
+      <div id="wi-mpesa-row" style="display:none"><label class="fl">M-Pesa Code *</label><input class="fi" id="wi-code" placeholder="e.g. QGH3KL2XYZ" style="width:100%;margin-top:4px;text-transform:uppercase"></div>
+      <div id="wi-err" class="err-msg" style="display:none"></div>
+    </div>
+    <div class="modal-acts">
+      <button class="btn-g" onclick="closeAdminTool()">Cancel</button>
+      <button class="btn-p" id="wi-save" onclick="saveWalkinSession()">Record</button>
+    </div>`);
+}
+
+async function saveWalkinSession() {
+  const btn=document.getElementById('wi-save'), errEl=document.getElementById('wi-err');
+  const svcEl    = document.getElementById('wi-svc');
+  const svcId    = svcEl.value;
+  const svcName  = svcId ? svcEl.options[svcEl.selectedIndex]?.dataset?.name||'' : '';
+  const clientId = document.getElementById('wi-client').value||null;
+  const amt      = parseFloat(document.getElementById('wi-amt').value);
+  const pay      = document.getElementById('wi-pay').value;
+  const code     = document.getElementById('wi-code')?.value?.trim().toUpperCase()||null;
+  errEl.style.display='none';
+  if (!svcId)       { errEl.textContent='Select a service'; errEl.style.display='block'; return; }
+  if (isNaN(amt))   { errEl.textContent='Enter amount'; errEl.style.display='block'; return; }
+  if (pay==='mpesa'&&!code) { errEl.textContent='M-Pesa code required'; errEl.style.display='block'; return; }
+  btn.disabled=true; btn.textContent='Saving…';
+  try {
+    const today = new Date().toLocaleDateString('en-CA',{timeZone:'Africa/Nairobi'});
+    const { error } = await db.from('fit_sessions').insert({
+      shop_id:S.shop.id, service_id:svcId||null, service_name:svcName,
+      trainer_id:S.user.id, trainer_name:S.member.name||'',
+      scheduled_date:today, status:'completed', revenue:amt,
+      client_count:1, payment_method:pay, mpesa_code:code||null,
+    });
+    if (error) throw error;
+    closeAdminTool(); showToast('✅ Walk-in recorded!');
+    renderFitHome(document.getElementById('main-content'));
+  } catch(e){ errEl.textContent=e.message||'Failed'; errEl.style.display='block'; }
+  finally { btn.disabled=false; btn.textContent='Record'; }
 }
 
 // ── Fit Sessions Tab (calendar + list) ──
@@ -1550,12 +1668,26 @@ async function deleteFitService(id) {
 
 // ── Fit Clients Tab ──
 async function renderFitClients(el) {
-  await loadFitClients();
+  await Promise.all([loadFitClients(), loadFitMemberships()]);
+  // Build a quick lookup: latest membership per client
+  const memByClient = {};
+  for (const m of _fitMemberships) {
+    if (!memByClient[m.client_id] || m.end_date > memByClient[m.client_id].end_date)
+      memByClient[m.client_id] = m;
+  }
+  function memBadge(clientId) {
+    const m = memByClient[clientId];
+    if (!m) return '';
+    const colors = {active:'#16a34a',expiring:'#d97706',lapsed:'#dc2626'};
+    const labels = {active:'● Active',expiring:'⚠ Expiring',lapsed:'✗ Lapsed'};
+    const col = colors[m.status]||'#6b7280';
+    return `<span style="font-size:10px;font-weight:700;color:${col};background:${col}18;padding:2px 6px;border-radius:10px;margin-left:6px">${labels[m.status]||m.status}</span>`;
+  }
   const cards = _fitClients.length ? _fitClients.map(c=>`
     <div class="card" style="margin-bottom:10px;cursor:pointer;display:flex;align-items:center;gap:12px" onclick="openEditFitClient(${JSON.stringify(c).replace(/"/g,'&quot;')})">
       <div style="width:40px;height:40px;border-radius:50%;background:var(--acc);display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:16px;flex-shrink:0">${(c.name||'?')[0].toUpperCase()}</div>
       <div style="flex:1;min-width:0">
-        <div style="font-weight:700;font-size:14px">${c.name}</div>
+        <div style="font-weight:700;font-size:14px;display:flex;align-items:center;flex-wrap:wrap;gap:2px">${c.name}${memBadge(c.id)}</div>
         <div style="font-size:11px;color:var(--txt2);margin-top:2px">${c.phone||''} ${c.membership_type?'· '+c.membership_type:''}</div>
       </div>
     </div>`).join('') : `<div style="text-align:center;color:var(--txt2);padding:32px 0;font-size:13px">No clients yet<br><span style="font-size:11px">Add your gym members below</span></div>`;
@@ -1571,13 +1703,31 @@ async function renderFitClients(el) {
 }
 
 function openNewFitClient() {
+  const today = new Date().toLocaleDateString('en-CA',{timeZone:'Africa/Nairobi'});
+  const in30  = addDays(today,30);
   openAdminTool(`
     <h2 style="margin:0 0 4px;font-size:17px">➕ New Client</h2>
     <div style="margin-top:14px;display:flex;flex-direction:column;gap:11px">
       <div><label class="fl">Name *</label><input class="fi" id="fc-name" placeholder="Full name" style="width:100%;margin-top:4px"></div>
       <div><label class="fl">Phone</label><input class="fi" id="fc-phone" type="tel" placeholder="e.g. 0712 345 678" style="width:100%;margin-top:4px"></div>
-      <div><label class="fl">Membership Type</label><input class="fi" id="fc-mem" placeholder="e.g. Monthly, Drop-in" style="width:100%;margin-top:4px"></div>
       <div><label class="fl">Notes</label><input class="fi" id="fc-notes" placeholder="Optional" style="width:100%;margin-top:4px"></div>
+      <div style="border-top:1px solid var(--bdr);padding-top:10px;margin-top:4px">
+        <div style="font-size:12px;font-weight:700;color:var(--txt2);margin-bottom:8px">MEMBERSHIP (optional)</div>
+        <div style="display:flex;flex-direction:column;gap:9px">
+          <div><label class="fl">Package</label><input class="fi" id="fc-pkg" placeholder="e.g. Monthly, Quarterly" style="width:100%;margin-top:4px"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div><label class="fl">Start Date</label><input class="fi" id="fc-mstart" type="date" value="${today}" style="width:100%;margin-top:4px"></div>
+            <div><label class="fl">End Date</label><input class="fi" id="fc-mend" type="date" value="${in30}" style="width:100%;margin-top:4px"></div>
+          </div>
+          <div><label class="fl">Amount (KES)</label><input class="fi" id="fc-mamt" type="number" min="0" inputmode="decimal" placeholder="e.g. 3000" style="width:100%;margin-top:4px"></div>
+          <div><label class="fl">Payment Method</label>
+            <select class="fi" id="fc-mpay" style="width:100%;margin-top:4px" onchange="document.getElementById('fc-mcode-row').style.display=this.value==='mpesa'?'block':'none'">
+              <option value="cash">💵 Cash</option>
+              <option value="mpesa">📱 M-Pesa</option>
+            </select></div>
+          <div id="fc-mcode-row" style="display:none"><label class="fl">M-Pesa Code</label><input class="fi" id="fc-mcode" placeholder="e.g. QGH3KL2XYZ" style="width:100%;margin-top:4px;text-transform:uppercase"></div>
+        </div>
+      </div>
       <div id="fc-err" class="err-msg" style="display:none"></div>
     </div>
     <div class="modal-acts">
@@ -1590,30 +1740,91 @@ async function saveFitClient(editId=null) {
   const btn=document.getElementById('fc-save'), errEl=document.getElementById('fc-err');
   const name  = document.getElementById('fc-name').value.trim();
   const phone = document.getElementById('fc-phone').value.trim();
-  const mem   = document.getElementById('fc-mem').value.trim();
   const notes = document.getElementById('fc-notes').value.trim();
+  // membership fields (may not exist on edit form)
+  const pkg   = document.getElementById('fc-pkg')?.value?.trim()||'';
+  const mstart= document.getElementById('fc-mstart')?.value||'';
+  const mend  = document.getElementById('fc-mend')?.value||'';
+  const mamt  = parseFloat(document.getElementById('fc-mamt')?.value||'');
+  const mpay  = document.getElementById('fc-mpay')?.value||'cash';
+  const mcode = document.getElementById('fc-mcode')?.value?.trim().toUpperCase()||null;
   errEl.style.display='none';
   if (!name) { errEl.textContent='Name required'; errEl.style.display='block'; return; }
+  if (pkg && (!mstart||!mend)) { errEl.textContent='Membership start & end dates required'; errEl.style.display='block'; return; }
+  if (pkg && mpay==='mpesa' && !mcode) { errEl.textContent='M-Pesa code required for membership'; errEl.style.display='block'; return; }
   btn.disabled=true; btn.textContent='Saving…';
   try {
-    const payload = {shop_id:S.shop.id,name,phone:phone||null,membership_type:mem||null,notes:notes||null};
-    const { error } = editId
-      ? await db.from('fit_clients').update(payload).eq('id',editId)
-      : await db.from('fit_clients').insert(payload);
-    if (error) throw error;
-    await loadFitClients(); closeAdminTool(); showToast('✅ Client saved!'); renderTab(S.tab);
+    const payload = {shop_id:S.shop.id,name,phone:phone||null,membership_type:pkg||null,notes:notes||null};
+    let clientId = editId;
+    if (editId) {
+      const { error } = await db.from('fit_clients').update(payload).eq('id',editId);
+      if (error) throw error;
+    } else {
+      const { data, error } = await db.from('fit_clients').insert(payload).select('id').single();
+      if (error) throw error;
+      clientId = data.id;
+    }
+    // Save membership if package provided
+    if (pkg && clientId) {
+      const today = new Date().toLocaleDateString('en-CA',{timeZone:'Africa/Nairobi'});
+      const computedStatus = mend < today ? 'lapsed' : mend <= addDays(today,3) ? 'expiring' : 'active';
+      const { error: me } = await db.from('fit_memberships').insert({
+        shop_id:S.shop.id, client_id:clientId,
+        package:pkg, start_date:mstart, end_date:mend,
+        amount:isNaN(mamt)?0:mamt, payment_method:mpay,
+        mpesa_code:mcode||null, status:computedStatus,
+      });
+      if (me) throw me;
+    }
+    await loadFitClients(); await loadFitMemberships(); closeAdminTool(); showToast('✅ Client saved!'); renderTab(S.tab);
   } catch(e){ errEl.textContent=e.message||'Failed'; errEl.style.display='block'; }
   finally { btn.disabled=false; btn.textContent='Save'; }
 }
 
 function openEditFitClient(c) {
+  const today = new Date().toLocaleDateString('en-CA',{timeZone:'Africa/Nairobi'});
+  const in30  = addDays(today,30);
+  // Find latest membership for this client
+  const mems = _fitMemberships.filter(m=>m.client_id===c.id).sort((a,b)=>b.end_date.localeCompare(a.end_date));
+  const latest = mems[0];
+  const statusColors = {active:'#16a34a',expiring:'#d97706',lapsed:'#dc2626'};
+  const statusLabels = {active:'Active',expiring:'Expiring soon',lapsed:'Lapsed'};
+  const memSummary = latest ? `
+    <div style="background:${statusColors[latest.status]||'#6b7280'}18;border-radius:10px;padding:10px 12px;margin-bottom:0">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="font-weight:700;font-size:13px">${esc(latest.package)}</div>
+        <span style="font-size:10px;font-weight:700;color:${statusColors[latest.status]||'#6b7280'}">${statusLabels[latest.status]||latest.status}</span>
+      </div>
+      <div style="font-size:11px;color:var(--txt2);margin-top:3px">${latest.start_date} → ${latest.end_date} · ${kes(latest.amount)}</div>
+    </div>` : `<div style="font-size:12px;color:var(--txt2)">No active membership</div>`;
+
   openAdminTool(`
     <h2 style="margin:0 0 4px;font-size:17px">✏️ ${esc(c.name)}</h2>
     <div style="margin-top:14px;display:flex;flex-direction:column;gap:11px">
       <div><label class="fl">Name *</label><input class="fi" id="fc-name" value="${esc(c.name)}" style="width:100%;margin-top:4px"></div>
       <div><label class="fl">Phone</label><input class="fi" id="fc-phone" type="tel" value="${esc(c.phone||'')}" style="width:100%;margin-top:4px"></div>
-      <div><label class="fl">Membership Type</label><input class="fi" id="fc-mem" value="${esc(c.membership_type||'')}" placeholder="e.g. Monthly" style="width:100%;margin-top:4px"></div>
       <div><label class="fl">Notes</label><input class="fi" id="fc-notes" value="${esc(c.notes||'')}" style="width:100%;margin-top:4px"></div>
+      <div style="border-top:1px solid var(--bdr);padding-top:10px">
+        <div style="font-size:12px;font-weight:700;color:var(--txt2);margin-bottom:8px">MEMBERSHIP</div>
+        ${memSummary}
+        <div style="margin-top:8px">
+          <button class="btn-sm" onclick="document.getElementById('fc-renew-section').style.display='block';this.style.display='none'">➕ ${latest?'Renew / Add':'Add'} Membership</button>
+        </div>
+        <div id="fc-renew-section" style="display:none;margin-top:10px;display:flex;flex-direction:column;gap:9px">
+          <div><label class="fl">Package *</label><input class="fi" id="fc-pkg" placeholder="e.g. Monthly, Quarterly" style="width:100%;margin-top:4px"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div><label class="fl">Start Date</label><input class="fi" id="fc-mstart" type="date" value="${today}" style="width:100%;margin-top:4px"></div>
+            <div><label class="fl">End Date</label><input class="fi" id="fc-mend" type="date" value="${in30}" style="width:100%;margin-top:4px"></div>
+          </div>
+          <div><label class="fl">Amount (KES)</label><input class="fi" id="fc-mamt" type="number" min="0" inputmode="decimal" placeholder="e.g. 3000" style="width:100%;margin-top:4px"></div>
+          <div><label class="fl">Payment Method</label>
+            <select class="fi" id="fc-mpay" style="width:100%;margin-top:4px" onchange="document.getElementById('fc-mcode-row').style.display=this.value==='mpesa'?'block':'none'">
+              <option value="cash">💵 Cash</option>
+              <option value="mpesa">📱 M-Pesa</option>
+            </select></div>
+          <div id="fc-mcode-row" style="display:none"><label class="fl">M-Pesa Code</label><input class="fi" id="fc-mcode" placeholder="e.g. QGH3KL2XYZ" style="width:100%;margin-top:4px;text-transform:uppercase"></div>
+        </div>
+      </div>
       <div id="fc-err" class="err-msg" style="display:none"></div>
     </div>
     <div class="modal-acts">
@@ -4336,6 +4547,26 @@ function renderMore(el) {
         <div class="more-item" onclick="showTab('fit-clients')">
           <div class="more-ico" style="background:#f59e0b22">👥</div>
           <div class="more-inf"><div class="more-nm">Clients</div><div class="more-mt">Your gym members and clients</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showTab('stock')">
+          <div class="more-ico" style="background:#0891b222">📦</div>
+          <div class="more-inf"><div class="more-nm">Merchandise Stock</div><div class="more-mt">Shoes, supplements, accessories & more</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showExpenses()">
+          <div class="more-ico" style="background:#7c3aed22">💸</div>
+          <div class="more-inf"><div class="more-nm">Expenses</div><div class="more-mt">Track rent, utilities, salaries & costs</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showSuppliers()">
+          <div class="more-ico" style="background:#0f766e22">🚚</div>
+          <div class="more-inf"><div class="more-nm">Suppliers</div><div class="more-mt">Manage your equipment & product suppliers</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showPurchasesDashboard()">
+          <div class="more-ico" style="background:#16a34a22">📥</div>
+          <div class="more-inf"><div class="more-nm">Purchases</div><div class="more-mt">Orders, supplier debt & spend history</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showBusinessHealth()">
+          <div class="more-ico" style="background:#16a34a22">💰</div>
+          <div class="more-inf"><div class="more-nm">Business Health</div><div class="more-mt">Revenue minus expenses — profitability view</div></div>
           <span style="color:var(--txt3)">›</span></div>
         ` : S.isAirbnb?`
         <div class="more-item" onclick="showAddUnitSheet()">
