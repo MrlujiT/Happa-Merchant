@@ -1,0 +1,9 @@
+.git
+.github
+node_modules
+*.toml
+*.yml
+*.yaml
+worker.js
+package.json
+package-lock.json
