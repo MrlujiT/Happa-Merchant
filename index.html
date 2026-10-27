@@ -1853,7 +1853,7 @@ function showAddSupplySheet(unitId, unitName) {
       <div class="fg-s"><label class="fl">Emoji</label>
         <input id="sup-emoji" class="fi" value="🧻" placeholder="🧻" style="width:60px"></div>
       <div class="fg-s"><label class="fl">Quantity on Hand *</label>
-        <input id="sup-qty" class="fi" type="number" min="0" placeholder="e.g. 10"></div>
+        <input id="sup-qty" class="fi" type="number" min="0" step="0.001" inputmode="decimal" placeholder="e.g. 1.5"></div>
       <div class="fg-s"><label class="fl">Unit of Measure</label>
         <input id="sup-uom" class="fi" value="pcs" placeholder="pcs, rolls, kg, litres…"></div>
       <div class="fg-s"><label class="fl">Alert When Below</label>
@@ -1866,7 +1866,7 @@ function showAddSupplySheet(unitId, unitName) {
 async function saveSupply(unitId) {
   const name  = document.getElementById('sup-name')?.value?.trim();
   const emoji = document.getElementById('sup-emoji')?.value?.trim()||'🧻';
-  const qty   = parseInt(document.getElementById('sup-qty')?.value)||0;
+  const qty   = parseFloat(document.getElementById('sup-qty')?.value)||0;
   const uom   = document.getElementById('sup-uom')?.value?.trim()||'pcs';
   const alert = parseInt(document.getElementById('sup-alert')?.value)||2;
   if (!name) { showToast('Item name required', true); return; }
@@ -1892,9 +1892,9 @@ function showAdjustSupplySheet(supplyId, name, currentQty, uom) {
         <button class="btn-p" style="flex:1;font-size:22px" onclick="adjustQty('${supplyId}',1,${currentQty});popSheet()">+</button>
       </div>
       <div class="fg-s"><label class="fl">Or set exact quantity</label>
-        <input id="adj-qty" class="fi" type="number" min="0" value="${currentQty}"></div>
+        <input id="adj-qty" class="fi" type="number" min="0" step="0.001" inputmode="decimal" value="${currentQty}"></div>
       <button class="btn-p" onclick="(async()=>{
-        const v=parseInt(document.getElementById('adj-qty')?.value);
+        const v=parseFloat(document.getElementById('adj-qty')?.value);
         if(isNaN(v)||v<0){showToast('Enter a valid number',true);return;}
         await fetch(SUPABASE_URL+'/rest/v1/house_supplies?id=eq.${supplyId}',{method:'PATCH',headers:{...apiHeaders(),'Content-Type':'application/json'},body:JSON.stringify({quantity:v})});
         showToast('✓ Updated');popSheet();showTab('supplies');
@@ -4416,9 +4416,9 @@ function showAddProductSheet() {
         <div><label class="fl">Sell Price (KES) *</label>
           <input type="number" id="np-sell" class="fi" placeholder="e.g. 160"></div>
         <div><label class="fl">Current Stock *</label>
-          <input type="number" id="np-stock" class="fi" placeholder="e.g. 20"></div>
+          <input type="number" id="np-stock" class="fi" step="0.001" inputmode="decimal" placeholder="e.g. 20"></div>
         <div><label class="fl">Low Stock Alert</label>
-          <input type="number" id="np-low" class="fi" placeholder="e.g. 5"></div>
+          <input type="number" id="np-low" class="fi" step="0.001" inputmode="decimal" placeholder="e.g. 5"></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
         <div><label class="fl">Unit</label>
@@ -4802,7 +4802,7 @@ function openRestockSheet(pid) {
       <div style="text-align:center;font-size:40px;margin-bottom:4px">${p.emoji||'📦'}</div>
       <div style="text-align:center;color:var(--txt2);margin-bottom:16px">Current stock: <b>${p.stock} ${p.unit}</b></div>
       <div class="fg-s"><label class="fl">Quantity to Add *</label>
-        <input type="number" id="rst-qty" class="fi" placeholder="e.g. 50" min="1">
+        <input type="number" id="rst-qty" class="fi" step="0.001" inputmode="decimal" placeholder="e.g. 1.5" min="0.001">
       </div>
       <div class="fg-s"><label class="fl">Cost per Unit (KES)</label>
         <input type="number" id="rst-cost" class="fi" placeholder="Optional — updates buy price">
@@ -5368,7 +5368,7 @@ function openOrderItemPicker() {
         <select id="oi-prod" class="fi"><option value="">Select product…</option>${prodOpts}</select>
       </div>
       <div class="fg-s"><label class="fl">Quantity *</label>
-        <input type="number" id="oi-qty" class="fi" placeholder="e.g. 24" min="1">
+        <input type="number" id="oi-qty" class="fi" step="0.001" inputmode="decimal" placeholder="e.g. 1.5" min="0.001">
       </div>
       <div class="fg-s"><label class="fl">Cost per Unit (KES) *</label>
         <input type="number" id="oi-cost" class="fi" placeholder="e.g. 45">
