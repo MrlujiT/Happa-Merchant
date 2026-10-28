@@ -290,6 +290,7 @@ select.fi{appearance:auto;-webkit-appearance:auto}
     <button class="tab"     id="tab-earnings" onclick="switchTab('earnings',this)">💰 Earnings</button>
     <button class="tab"     onclick="switchTab('demo',this)">📱 Demo</button>
     <button class="tab"     onclick="switchTab('leaderboard',this)">🏆 Leaderboard</button>
+    <button class="tab"     id="tab-closed-targets" onclick="switchTab('closed-targets',this)">📋 Past Targets</button>
     <button class="tab"     id="tab-trash" onclick="switchTab('trash',this)">🗑 Trash</button>
   </div>
 
@@ -402,6 +403,13 @@ select.fi{appearance:auto;-webkit-appearance:auto}
         </div>
         <div id="payout-history-list"><div class="empty"><div class="empty-icon" style="font-size:22px">📋</div><div class="empty-text">No payout requests yet</div></div></div>
       </div>
+    </div>
+
+    <!-- CLOSED TARGETS -->
+    <div class="page" id="page-closed-targets">
+      <div class="page-ttl">📋 Past Targets</div>
+      <div class="page-sub">Completed and expired targets</div>
+      <div id="closed-targets-list"><div class="empty"><div class="empty-icon">📋</div><div class="empty-text">No closed targets yet</div></div></div>
     </div>
 
     <!-- LEADERBOARD -->
@@ -1432,10 +1440,13 @@ function renderTargetWidget() {
       </div>
       <div class="prog-bar"><div class="prog-fill${isDone?' done':''}" style="width:${pct}%"></div></div>
     </div>
-  </div>${closedCards}`;
+  </div>`;
 
   renderCountdown();
   if (!isExpired && !isDone) _countdownTimer = setInterval(renderCountdown, 1000);
+  // Badge on Past Targets tab
+  const ptTab = document.getElementById('tab-closed-targets');
+  if (ptTab) ptTab.textContent = expiredTargets.length ? `📋 Past Targets (${expiredTargets.length})` : '📋 Past Targets';
 }
 
 /* ── SET TARGET SHEET (admin) ── */
@@ -1803,6 +1814,46 @@ async function hardDeleteProspect(leadId) {
 }
 
 /* ════════════════════════════════
+   CLOSED TARGETS
+════════════════════════════════ */
+function renderClosedTargets() {
+  const list = document.getElementById('closed-targets-list');
+  if (!list) return;
+  const today = new Date().toISOString().slice(0,10);
+  const expired = _targets.filter(t => t.deadline < today);
+  const tab = document.getElementById('tab-closed-targets');
+  if (!expired.length) {
+    list.innerHTML = '<div class="empty"><div class="empty-icon">📋</div><div class="empty-text">No closed targets yet</div></div>';
+    if (tab) tab.textContent = '📋 Past Targets';
+    return;
+  }
+  if (tab) tab.textContent = `📋 Past Targets (${expired.length})`;
+  list.innerHTML = expired.map(t => {
+    const start = t.start_date || t.created_at?.slice(0,10) || '2000-01-01';
+    const end = t.deadline + 'T23:59:59';
+    const reached = _leads.filter(l => !l.trashed_at && l.created_at >= start && l.created_at <= end).length;
+    const pctC = t.target_count > 0 ? Math.round(reached / t.target_count * 100) : 0;
+    return `<div class="target-card">
+      <div class="target-title">🎯 ${esc(t.title)}</div>
+      ${t.description?`<div class="target-desc">${esc(t.description)}</div>`:''}
+      <div style="font-size:11px;color:var(--txt3);margin:4px 0 8px">📅 ${esc(t.start_date||t.created_at?.slice(0,10)||'')} → ${esc(t.deadline)}</div>
+      <div style="padding:10px 12px;background:var(--surf2);border-radius:8px;font-size:13px;line-height:1.7">
+        <strong>${esc(t.title)}</strong> has closed.<br>
+        You managed <strong>${reached}/${t.target_count}</strong> — a <strong style="color:${pctC>=80?'var(--grn,#22c55e)':pctC>=50?'var(--acc)':'var(--red)'}">${pctC}% success rate</strong>.
+      </div>
+      <div class="target-progress" style="margin-top:8px">
+        <div class="prog-header">
+          <span>${reached} of ${t.target_count} pitches</span>
+          <span style="font-weight:700;color:${pctC>=80?'var(--grn,#22c55e)':pctC>=50?'var(--acc)':'var(--red)'}">${pctC}%</span>
+        </div>
+        <div class="prog-bar"><div class="prog-fill${pctC>=100?' done':''}" style="width:${Math.min(pctC,100)}%"></div></div>
+      </div>
+      ${_isAdmin?`<button class="btn-del-full" style="margin-top:8px;font-size:12px" onclick="deleteTarget('${t.id}')">🗑 Remove</button>`:''}
+    </div>`;
+  }).join('');
+}
+
+/* ════════════════════════════════
    LEADERBOARD
 ════════════════════════════════ */
 async function loadLeaderboard() {
@@ -1883,6 +1934,7 @@ function switchTab(name, el) {
   document.getElementById('fab-add').style.display = name === 'prospects' ? 'flex' : 'none';
   if (name === 'prospects') document.getElementById('fab-add').classList.add('show');
   if (name === 'trash') renderTrash();
+  if (name === 'closed-targets') renderClosedTargets();
   if (name === 'leaderboard') loadLeaderboard();
 }
 
