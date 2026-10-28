@@ -289,6 +289,8 @@ select.fi{appearance:auto;-webkit-appearance:auto}
     <button class="tab"     id="tab-reminders" onclick="switchTab('reminders',this)">Reminders</button>
     <button class="tab"     id="tab-earnings" onclick="switchTab('earnings',this)">💰 Earnings</button>
     <button class="tab"     onclick="switchTab('demo',this)">📱 Demo</button>
+    <button class="tab"     onclick="switchTab('leaderboard',this)">🏆 Leaderboard</button>
+    <button class="tab"     id="tab-trash" onclick="switchTab('trash',this)">🗑 Trash</button>
   </div>
 
   <div class="body">
@@ -402,6 +404,20 @@ select.fi{appearance:auto;-webkit-appearance:auto}
       </div>
     </div>
 
+    <!-- LEADERBOARD -->
+    <div class="page" id="page-leaderboard">
+      <div class="page-ttl">🏆 Leaderboard</div>
+      <div class="page-sub">See how the team is performing</div>
+      <div id="leaderboard-list"><div class="empty"><div class="empty-icon">🏆</div><div class="empty-text">Loading…</div></div></div>
+    </div>
+
+    <!-- TRASH -->
+    <div class="page" id="page-trash">
+      <div class="page-ttl">🗑 Trash</div>
+      <div class="page-sub">Removed leads — restore or permanently delete</div>
+      <div id="trash-list"><div class="empty"><div class="empty-icon">🗑</div><div class="empty-text">Trash is empty</div></div></div>
+    </div>
+
     <!-- DEMO -->
     <div class="page" id="page-demo">
       <div class="page-ttl" style="margin-bottom:8px">Product Demo</div>
@@ -442,6 +458,8 @@ const APP_URL      = 'https://happa-merchant.njautheinvestmentsconsultant.worker
 let _agent = null, _isAdmin = false, _leads = [], _shops = [], _loaded = false;
 let _filter = 'all', _proFilter = 'all';
 let _commissions = [], _payouts = [], _monthlyEarnings = 0;
+let _targets = [], _countdownTimer = null;
+let _leaderboard = [], _leaderboardLoaded = false;
 
 /* ════════════════════════════════
    AUTH
@@ -512,7 +530,7 @@ async function loadData() {
     _monthlyEarnings = data.monthly_earnings || 0;
     _loaded = true;
     renderStats(); renderProspects(); renderClients(); renderReminders(); renderEarnings();
-    renderTargetWidget();
+    renderTargetWidget(); renderTrash();
   } catch(_) {}
 }
 
@@ -524,7 +542,7 @@ function savedCreds() {
    STATS
 ════════════════════════════════ */
 function renderStats() {
-  const prospects = _leads.filter(l => !l.shop_id);
+  const prospects = _leads.filter(l => !l.shop_id && !l.trashed_at);
   document.getElementById('s-prospects').textContent = prospects.length;
   document.getElementById('s-active').textContent = _shops.filter(s => s.subscriptions?.[0]?.status === 'active').length;
   document.getElementById('s-trial').textContent  = _shops.filter(s => s.subscriptions?.[0]?.status === 'trial').length;
@@ -562,7 +580,7 @@ function renderProspects() {
   if (!_loaded) { list.innerHTML = '<div class="empty"><div class="empty-icon">⏳</div><div class="empty-text">Loading…</div></div>'; return; }
 
   const today = new Date().toISOString().slice(0,10);
-  let prospects = _leads.filter(l => !l.shop_id);
+  let prospects = _leads.filter(l => !l.shop_id && !l.trashed_at);
   if (_proFilter !== 'all') prospects = prospects.filter(l => l.status === _proFilter);
 
   // Update sub-header count
@@ -606,7 +624,7 @@ function renderProspects() {
         ${l.phone?`<a class="act-btn" href="tel:${l.phone}">📞 Call</a>`:''}
         <button class="act-btn acc" onclick="openEditProspect(${JSON.stringify(l).replace(/"/g,'&quot;')})">✏️ Edit</button>
         <button class="act-btn" style="background:var(--grn,#22c55e);color:#fff" onclick="openConvertLead(${JSON.stringify(l).replace(/"/g,'&quot;')})">✅ Convert</button>
-        ${_isAdmin ? `<button class="act-btn del" onclick="confirmDeleteProspect('${l.id}','${esc(l.business_name)}')">🗑</button>` : ''}
+        <button class="act-btn del" onclick="confirmTrashProspect('${l.id}','${esc(l.business_name)}')">🗑</button>
       </div>
     </div>`;
   }).join('');
@@ -768,7 +786,7 @@ function openEditProspect(l) {
         <button class="btn-ghost" onclick="closeSheetDirect()">Cancel</button>
         <button class="btn-acc" id="edit-save-btn" onclick="updateProspect('${l.id}')">Save Changes</button>
       </div>
-      ${_isAdmin ? `<button class="btn-del-full" onclick="confirmDeleteProspect('${l.id}','${esc(l.business_name)}')">🗑 Delete Prospect</button>` : ''}
+      <button class="btn-del-full" onclick="confirmTrashProspect('${l.id}','${esc(l.business_name)}')">🗑 Move to Trash</button>
     </div>
   `);
   openSheet();
@@ -798,37 +816,70 @@ async function updateProspect(leadId) {
   finally { btn.disabled=false; btn.textContent='Save Changes'; }
 }
 
-/* ── DELETE PROSPECT ── */
-function confirmDeleteProspect(leadId, bizName) {
+/* ── TRASH PROSPECT (soft delete with reason) ── */
+function confirmTrashProspect(leadId, bizName) {
   setSheetContent(`
     <div class="sh-hdr">
-      <h2>🗑 Delete Prospect</h2>
+      <h2>🗑 Move to Trash</h2>
       <button class="sh-close" onclick="closeSheetDirect()">✕</button>
     </div>
     <div class="sh-body">
-      <div class="warn-box">⚠️ This will permanently delete <strong>${esc(bizName)}</strong> from the system. This cannot be undone.</div>
+      <div class="warn-box" style="background:var(--acc-d,rgba(245,166,35,.12));border-color:rgba(245,166,35,.3)">
+        Moving <strong>${esc(bizName)}</strong> to trash. You can restore it later.
+      </div>
+      <div class="fg" style="margin-top:14px">
+        <label class="fl">Reason for removing *</label>
+        <select class="fi" id="trash-reason-select" onchange="trashReasonChanged()">
+          <option value="">— Select a reason —</option>
+          <option value="Test lead">Test lead</option>
+          <option value="Wrong number">Wrong number</option>
+          <option value="Duplicate entry">Duplicate entry</option>
+          <option value="Not interested">Definitively not interested</option>
+          <option value="Business closed">Business closed / doesn't exist</option>
+          <option value="Other">Other (specify below)</option>
+        </select>
+      </div>
+      <div class="fg" id="trash-other-fg" style="display:none">
+        <label class="fl">Specify reason</label>
+        <input class="fi" id="trash-reason-other" placeholder="Describe why you're removing this lead…">
+      </div>
+      <div class="err-box" id="trash-err"></div>
       <div class="sh-actions">
         <button class="btn-ghost" onclick="closeSheetDirect()">Cancel</button>
-        <button class="btn-acc" style="background:var(--red);flex:1" id="del-confirm-btn" onclick="deleteProspect('${leadId}')">Yes, Delete</button>
+        <button class="btn-acc" style="background:var(--red);flex:1" id="trash-confirm-btn" onclick="trashProspect('${leadId}')">Move to Trash</button>
       </div>
     </div>
   `);
   openSheet();
 }
 
-async function deleteProspect(leadId) {
-  const btn = document.getElementById('del-confirm-btn');
-  btn.disabled=true; btn.textContent='Deleting…';
+function trashReasonChanged() {
+  const sel = document.getElementById('trash-reason-select');
+  const otherFg = document.getElementById('trash-other-fg');
+  if (sel) otherFg.style.display = sel.value === 'Other' ? '' : 'none';
+}
+
+async function trashProspect(leadId) {
+  const btn = document.getElementById('trash-confirm-btn');
+  const errEl = document.getElementById('trash-err');
+  const sel = document.getElementById('trash-reason-select');
+  let reason = sel ? sel.value : '';
+  if (reason === 'Other') {
+    reason = (document.getElementById('trash-reason-other')?.value || '').trim();
+  }
+  if (!reason) { errEl.textContent = 'Please select a reason'; errEl.style.display='block'; return; }
+  errEl.style.display='none';
+  btn.disabled=true; btn.textContent='Moving…';
   const s = savedCreds();
   try {
     const res = await fetch(`${FN_BASE}/agent-leads`, {
       method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${ANON_KEY}`},
-      body: JSON.stringify({ action:'delete', agent_id:_agent.id, phone:s.phone, pin:s.pin, lead_id:leadId })
+      body: JSON.stringify({ action:'trash', agent_id:_agent.id, phone:s.phone, pin:s.pin, lead_id:leadId, reason })
     });
     const data = await res.json();
-    if (!res.ok || data.error) { toast('❌ '+( data.error||'Delete failed')); closeSheetDirect(); return; }
-    closeSheetDirect(); toast('🗑 Prospect deleted'); await loadData();
-  } catch(e) { toast('❌ Network error'); closeSheetDirect(); }
+    if (!res.ok || data.error) { errEl.textContent = data.error||'Failed'; errEl.style.display='block'; btn.disabled=false; btn.textContent='Move to Trash'; return; }
+    closeSheetDirect(); toast('🗑 Moved to trash'); await loadData();
+  } catch(e) { errEl.textContent='Network error'; errEl.style.display='block'; btn.disabled=false; btn.textContent='Move to Trash'; }
 }
 
 /* ════════════════════════════════
@@ -1251,9 +1302,6 @@ function openDemo() {
 /* ════════════════════════════════
    TARGETS + COUNTDOWN
 ════════════════════════════════ */
-let _targets = [];
-let _countdownTimer = null;
-
 async function loadTargets() {
   const s = savedCreds();
   if (!s.phone || !s.pin || !_agent) return;
@@ -1274,10 +1322,58 @@ function renderTargetWidget() {
 
   if (!_targets.length) { widget.innerHTML = ''; return; }
 
-  // Use the nearest deadline target
-  const target = _targets[0];
+  const today = new Date().toISOString().slice(0,10);
+
+  // Separate active vs expired targets
+  const activeTargets = _targets.filter(t => t.deadline >= today);
+  const expiredTargets = _targets.filter(t => t.deadline < today);
+
+  // Render closed summaries for expired targets
+  const closedCards = expiredTargets.map(t => {
+    const start = t.start_date || t.created_at?.slice(0,10) || '2000-01-01';
+    const end = t.deadline + 'T23:59:59';
+    const reached = _leads.filter(l =>
+      !l.trashed_at &&
+      l.created_at >= start &&
+      l.created_at <= end
+    ).length;
+    const pctC = t.target_count > 0 ? Math.round(reached / t.target_count * 100) : 0;
+    return `<div class="target-card" style="opacity:.75;border-style:dashed">
+      <div style="font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">📋 Closed Target</div>
+      <div class="target-title" style="margin-bottom:4px">🎯 ${esc(t.title)}</div>
+      ${t.description?`<div class="target-desc">${esc(t.description)}</div>`:''}
+      <div style="margin-top:10px;padding:10px 12px;background:var(--surf2);border-radius:8px;font-size:13px;line-height:1.6">
+        <strong>${esc(t.title)}</strong> has closed.<br>
+        You managed <strong>${reached}/${t.target_count}</strong> representing a <strong style="color:${pctC>=80?'var(--grn,#22c55e)':pctC>=50?'var(--acc)':'var(--red)'}">${pctC}% success rate</strong>.
+      </div>
+      <div class="target-progress" style="margin-top:8px">
+        <div class="prog-header">
+          <span>${reached} of ${t.target_count} pitches</span>
+          <span style="font-weight:700;color:${pctC>=80?'var(--grn,#22c55e)':pctC>=50?'var(--acc)':'var(--red)'}">${pctC}%</span>
+        </div>
+        <div class="prog-bar"><div class="prog-fill${pctC>=100?' done':''}" style="width:${Math.min(pctC,100)}%"></div></div>
+      </div>
+      ${_isAdmin?`<button class="btn-del-full" style="margin-top:8px;font-size:12px" onclick="deleteTarget('${t.id}')">🗑 Remove</button>`:''}
+    </div>`;
+  }).join('');
+
+  if (!activeTargets.length) {
+    widget.innerHTML = closedCards || '';
+    return;
+  }
+
+  // Use the nearest active target
+  const target = activeTargets[0];
   const deadline = new Date(target.deadline + 'T23:59:59');
-  const totalProspects = _leads.filter(l => !l.shop_id).length;
+
+  // Count only leads created within this target's date range
+  const startDate = target.start_date || target.created_at?.slice(0,10) || '2000-01-01';
+  const endDate   = target.deadline + 'T23:59:59';
+  const totalProspects = _leads.filter(l =>
+    !l.trashed_at &&
+    l.created_at >= startDate &&
+    l.created_at <= endDate
+  ).length;
   const progress = Math.min(totalProspects, target.target_count);
   const pct = target.target_count > 0 ? Math.round(progress / target.target_count * 100) : 0;
   const isDone = progress >= target.target_count;
@@ -1319,6 +1415,7 @@ function renderTargetWidget() {
       <div>
         <div class="target-title">🎯 ${esc(target.title)} ${targetAgentLabel}</div>
         ${target.description ? `<div class="target-desc">${esc(target.description)}</div>` : ''}
+        ${target.start_date ? `<div style="font-size:11px;color:var(--txt3);margin-top:2px">📅 ${target.start_date} → ${target.deadline}</div>` : ''}
       </div>
       ${_isAdmin ? `<button class="btn-copy" style="font-size:11px;padding:4px 10px;flex-shrink:0" onclick="openEditTargetSheet('${target.id}')">✏️ Edit</button>` : ''}
     </div>
@@ -1335,7 +1432,7 @@ function renderTargetWidget() {
       </div>
       <div class="prog-bar"><div class="prog-fill${isDone?' done':''}" style="width:${pct}%"></div></div>
     </div>
-  </div>`;
+  </div>${closedCards}`;
 
   renderCountdown();
   if (!isExpired && !isDone) _countdownTimer = setInterval(renderCountdown, 1000);
@@ -1381,6 +1478,11 @@ async function openSetTargetSheet() {
         <input class="fi" id="tgt-count" type="number" min="1" placeholder="e.g. 20" inputmode="numeric" value="20">
       </div>
       <div class="fg">
+        <label class="fl">Start Date</label>
+        <input class="fi" id="tgt-startdate" type="date" value="${today}">
+        <div style="font-size:11px;color:var(--txt3);margin-top:3px">Leads before this date won't count toward this target</div>
+      </div>
+      <div class="fg">
         <label class="fl">Deadline *</label>
         <input class="fi" id="tgt-deadline" type="date" min="${today}">
       </div>
@@ -1400,8 +1502,9 @@ async function saveTarget() {
   const targetAgentId = document.getElementById('tgt-agent').value;
   const title   = document.getElementById('tgt-title').value.trim();
   const desc    = document.getElementById('tgt-desc').value.trim();
-  const count   = parseInt(document.getElementById('tgt-count').value, 10);
-  const deadline= document.getElementById('tgt-deadline').value;
+  const count      = parseInt(document.getElementById('tgt-count').value, 10);
+  const startDate  = document.getElementById('tgt-startdate')?.value || null;
+  const deadline   = document.getElementById('tgt-deadline').value;
   errEl.style.display='none';
   if (!title) { errEl.textContent='Title is required'; errEl.style.display='block'; return; }
   if (!count || count < 1) { errEl.textContent='Enter a valid target number'; errEl.style.display='block'; return; }
@@ -1412,7 +1515,7 @@ async function saveTarget() {
     const res = await fetch(`${FN_BASE}/agent-targets`, {
       method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${ANON_KEY}`},
       body: JSON.stringify({ action:'set_target', agent_id:_agent.id, phone:s.phone, pin:s.pin,
-        target_agent_id: targetAgentId || null, title, description:desc||null, target_count:count, deadline })
+        target_agent_id: targetAgentId || null, title, description:desc||null, target_count:count, start_date:startDate||null, deadline })
     });
     const data = await res.json();
     if (!res.ok || data.error) { errEl.textContent=data.error||'Failed'; errEl.style.display='block'; return; }
@@ -1446,6 +1549,10 @@ function openEditTargetSheet(targetId) {
         <input class="fi" id="etgt-count" type="number" min="1" value="${t.target_count}" inputmode="numeric">
       </div>
       <div class="fg">
+        <label class="fl">Start Date</label>
+        <input class="fi" id="etgt-startdate" type="date" value="${esc(t.start_date||'')}">
+      </div>
+      <div class="fg">
         <label class="fl">Deadline</label>
         <input class="fi" id="etgt-deadline" type="date" value="${esc(t.deadline)}">
       </div>
@@ -1473,6 +1580,7 @@ async function updateTarget(targetId) {
         title: document.getElementById('etgt-title').value.trim(),
         description: document.getElementById('etgt-desc').value.trim() || null,
         target_count: parseInt(document.getElementById('etgt-count').value, 10),
+        start_date: document.getElementById('etgt-startdate')?.value || null,
         deadline: document.getElementById('etgt-deadline').value,
       })
     });
@@ -1612,6 +1720,150 @@ async function subscribeToPush() {
 }
 
 /* ════════════════════════════════
+   TRASH
+════════════════════════════════ */
+function renderTrash() {
+  const list = document.getElementById('trash-list');
+  if (!list) return;
+  const trashed = _leads.filter(l => !!l.trashed_at);
+  if (!trashed.length) {
+    list.innerHTML = '<div class="empty"><div class="empty-icon">🗑</div><div class="empty-text">Trash is empty</div></div>';
+    // Update tab badge
+    const tab = document.getElementById('tab-trash');
+    if (tab) tab.textContent = '🗑 Trash';
+    return;
+  }
+  const tab = document.getElementById('tab-trash');
+  if (tab) tab.textContent = `🗑 Trash (${trashed.length})`;
+
+  list.innerHTML = trashed.map(l => `
+    <div class="lead-card" style="opacity:.8;border-color:var(--red-d,rgba(239,68,68,.2))">
+      <div class="lc-top">
+        <div>
+          <div class="lc-name">${esc(l.business_name)}</div>
+          ${l.name&&l.name!==l.business_name?`<div class="lc-owner">👤 ${esc(l.name)}</div>`:''}
+          ${l.phone?`<div class="lc-owner">📞 ${esc(l.phone)}</div>`:''}
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--red);margin:6px 0 4px;padding:6px 8px;background:var(--red-d,rgba(239,68,68,.08));border-radius:6px">
+        🗑 Reason: ${esc(l.trash_reason||'No reason given')}
+        <span style="color:var(--txt3);margin-left:8px">${l.trashed_at?fmtDate(l.trashed_at):''}</span>
+      </div>
+      <div class="lc-actions" style="margin-top:8px;display:flex;gap:6px">
+        <button class="act-btn acc" style="flex:1" onclick="restoreProspect('${l.id}','${esc(l.business_name)}')">↩ Restore</button>
+        ${_isAdmin?`<button class="act-btn del" onclick="confirmHardDelete('${l.id}','${esc(l.business_name)}')">💀 Delete Forever</button>`:''}
+      </div>
+    </div>
+  `).join('');
+}
+
+async function restoreProspect(leadId, bizName) {
+  const s = savedCreds();
+  try {
+    const res = await fetch(`${FN_BASE}/agent-leads`, {
+      method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${ANON_KEY}`},
+      body: JSON.stringify({ action:'restore', agent_id:_agent.id, phone:s.phone, pin:s.pin, lead_id:leadId })
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) { toast('❌ '+(data.error||'Restore failed')); return; }
+    toast(`↩ ${bizName} restored!`); await loadData(); renderTrash();
+  } catch(e) { toast('❌ Network error'); }
+}
+
+function confirmHardDelete(leadId, bizName) {
+  setSheetContent(`
+    <div class="sh-hdr">
+      <h2>💀 Delete Forever</h2>
+      <button class="sh-close" onclick="closeSheetDirect()">✕</button>
+    </div>
+    <div class="sh-body">
+      <div class="warn-box">⚠️ This will <strong>permanently delete</strong> <strong>${esc(bizName)}</strong>. This cannot be undone.</div>
+      <div class="sh-actions">
+        <button class="btn-ghost" onclick="closeSheetDirect()">Cancel</button>
+        <button class="btn-acc" style="background:var(--red);flex:1" id="hd-confirm-btn" onclick="hardDeleteProspect('${leadId}')">Yes, Delete Forever</button>
+      </div>
+    </div>
+  `);
+  openSheet();
+}
+
+async function hardDeleteProspect(leadId) {
+  const btn = document.getElementById('hd-confirm-btn');
+  btn.disabled=true; btn.textContent='Deleting…';
+  const s = savedCreds();
+  try {
+    const res = await fetch(`${FN_BASE}/agent-leads`, {
+      method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${ANON_KEY}`},
+      body: JSON.stringify({ action:'delete', agent_id:_agent.id, phone:s.phone, pin:s.pin, lead_id:leadId })
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) { toast('❌ '+(data.error||'Delete failed')); closeSheetDirect(); return; }
+    closeSheetDirect(); toast('💀 Permanently deleted'); await loadData(); renderTrash();
+  } catch(e) { toast('❌ Network error'); closeSheetDirect(); }
+}
+
+/* ════════════════════════════════
+   LEADERBOARD
+════════════════════════════════ */
+async function loadLeaderboard() {
+  const list = document.getElementById('leaderboard-list');
+  if (!list) return;
+  if (_leaderboardLoaded) { renderLeaderboard(); return; }
+  list.innerHTML = '<div class="empty"><div class="empty-icon">⏳</div><div class="empty-text">Loading…</div></div>';
+  const s = savedCreds();
+  try {
+    const res = await fetch(`${FN_BASE}/agent-targets`, {
+      method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${ANON_KEY}`},
+      body: JSON.stringify({ action:'get_leaderboard', agent_id:_agent.id, phone:s.phone, pin:s.pin })
+    });
+    const data = await res.json();
+    if (data.leaderboard) { _leaderboard = data.leaderboard; _leaderboardLoaded = true; renderLeaderboard(); }
+    else list.innerHTML = '<div class="empty"><div class="empty-text">Could not load leaderboard</div></div>';
+  } catch(_) { list.innerHTML = '<div class="empty"><div class="empty-text">Network error</div></div>'; }
+}
+
+function renderLeaderboard() {
+  const list = document.getElementById('leaderboard-list');
+  if (!list || !_leaderboard.length) return;
+  const medals = ['🥇','🥈','🥉'];
+  list.innerHTML = `
+    <div style="margin-bottom:12px;font-size:12px;color:var(--txt3);text-align:center">Updated each time you open this tab</div>
+    ${_leaderboard.map((a, i) => {
+      const isMe = _agent && a.id === _agent.id;
+      const medal = medals[i] || `#${i+1}`;
+      const convRate = a.total_leads > 0 ? Math.round(a.converted / a.total_leads * 100) : 0;
+      return `
+        <div class="lead-card" style="${isMe?'border-color:var(--acc);box-shadow:0 0 0 2px var(--acc-d,rgba(245,166,35,.15))':''}">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="font-size:24px;width:36px;text-align:center;flex-shrink:0">${medal}</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:700;font-size:14px;color:var(--txt)">${esc(a.name)}${isMe?' <span style="font-size:10px;background:var(--acc-d);color:var(--acc);border-radius:4px;padding:1px 6px;font-weight:700">YOU</span>':''}</div>
+              <div style="font-size:11px;color:var(--txt3)">${esc(a.ref_code)}</div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:10px;text-align:center">
+            <div style="background:var(--surf2);border-radius:8px;padding:8px 4px">
+              <div style="font-size:18px;font-weight:800;color:var(--blu)">${a.prospects}</div>
+              <div style="font-size:10px;color:var(--txt3)">Prospects</div>
+            </div>
+            <div style="background:var(--surf2);border-radius:8px;padding:8px 4px">
+              <div style="font-size:18px;font-weight:800;color:var(--acc)">${a.converted}</div>
+              <div style="font-size:10px;color:var(--txt3)">Converted</div>
+            </div>
+            <div style="background:var(--surf2);border-radius:8px;padding:8px 4px">
+              <div style="font-size:18px;font-weight:800;color:var(--grn,#22c55e)">${a.active_clients}</div>
+              <div style="font-size:10px;color:var(--txt3)">Active</div>
+            </div>
+          </div>
+          ${a.total_leads>0?`<div style="margin-top:8px;font-size:11px;color:var(--txt3);text-align:right">Conversion rate: <strong style="color:${convRate>=50?'var(--grn,#22c55e)':convRate>=25?'var(--acc)':'var(--txt2)'}">${convRate}%</strong></div>`:''}
+        </div>
+      `;
+    }).join('')}
+    <button class="btn-ghost" style="width:100%;margin-top:8px" onclick="_leaderboardLoaded=false;loadLeaderboard()">↻ Refresh</button>
+  `;
+}
+
+/* ════════════════════════════════
    SHEET
 ════════════════════════════════ */
 function setSheetContent(html) { document.getElementById('sheet-content').innerHTML = html; }
@@ -1630,6 +1882,8 @@ function switchTab(name, el) {
   // Show FAB only on prospects tab
   document.getElementById('fab-add').style.display = name === 'prospects' ? 'flex' : 'none';
   if (name === 'prospects') document.getElementById('fab-add').classList.add('show');
+  if (name === 'trash') renderTrash();
+  if (name === 'leaderboard') loadLeaderboard();
 }
 
 /* ════════════════════════════════
