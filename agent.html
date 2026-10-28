@@ -605,6 +605,7 @@ function renderProspects() {
         ${wa?`<a class="act-btn wa" href="https://wa.me/${wa}" target="_blank">💬 WhatsApp</a>`:''}
         ${l.phone?`<a class="act-btn" href="tel:${l.phone}">📞 Call</a>`:''}
         <button class="act-btn acc" onclick="openEditProspect(${JSON.stringify(l).replace(/"/g,'&quot;')})">✏️ Edit</button>
+        <button class="act-btn" style="background:var(--grn,#22c55e);color:#fff" onclick="openConvertLead(${JSON.stringify(l).replace(/"/g,'&quot;')})">✅ Convert</button>
         ${_isAdmin ? `<button class="act-btn del" onclick="confirmDeleteProspect('${l.id}','${esc(l.business_name)}')">🗑</button>` : ''}
       </div>
     </div>`;
@@ -828,6 +829,102 @@ async function deleteProspect(leadId) {
     if (!res.ok || data.error) { toast('❌ '+( data.error||'Delete failed')); closeSheetDirect(); return; }
     closeSheetDirect(); toast('🗑 Prospect deleted'); await loadData();
   } catch(e) { toast('❌ Network error'); closeSheetDirect(); }
+}
+
+/* ════════════════════════════════
+   CONVERT LEAD → CLIENT
+════════════════════════════════ */
+function openConvertLead(lead) {
+  setSheetContent(`
+    <div class="sh-hdr">
+      <h2>✅ Convert to Client</h2>
+      <button class="sh-close" onclick="closeSheetDirect()">✕</button>
+    </div>
+    <div class="sh-body">
+      <div class="err-box" id="conv-err"></div>
+      <div style="background:var(--surf2);border-radius:10px;padding:10px 12px;margin-bottom:14px;font-size:13px;color:var(--txt2)">
+        <strong style="color:var(--txt)">${esc(lead.business_name)}</strong>${lead.name&&lead.name!==lead.business_name?`<br>👤 ${esc(lead.name)}`:''}${lead.phone?`<br>📞 ${esc(lead.phone)}`:''}
+      </div>
+      <div class="fg">
+        <label class="fl">Email Address *</label>
+        <input class="fi" id="conv-email" type="email" placeholder="owner@example.com" value="${esc(lead.email||'')}" autocomplete="off">
+        <div style="font-size:11px;color:var(--txt2);margin-top:4px">Used to create their Happa login</div>
+      </div>
+      <div class="fg">
+        <label class="fl">Shop Name</label>
+        <input class="fi" id="conv-shopname" value="${esc(lead.business_name||'')}" autocomplete="off">
+      </div>
+      <div class="fg">
+        <label class="fl">Monthly Rate (KES)</label>
+        <select class="fi" id="conv-rate">
+          <option value="">90-day free trial (set rate later)</option>
+          <option value="1500">KES 1,500 / month</option>
+          <option value="2000">KES 2,000 / month</option>
+          <option value="2500">KES 2,500 / month</option>
+          <option value="3000">KES 3,000 / month</option>
+          <option value="4000">KES 4,000 / month</option>
+          <option value="5000">KES 5,000 / month</option>
+        </select>
+      </div>
+      <button class="btn-p" id="conv-btn" onclick="submitConvertLead('${lead.id}')" style="width:100%;margin-top:8px">Create Account & Share Credentials 🚀</button>
+    </div>
+  `);
+  openSheet();
+  setTimeout(() => document.getElementById('conv-email')?.focus(), 300);
+}
+
+async function submitConvertLead(leadId) {
+  const email    = document.getElementById('conv-email').value.trim();
+  const shopName = document.getElementById('conv-shopname').value.trim();
+  const rate     = document.getElementById('conv-rate').value;
+  const err      = document.getElementById('conv-err');
+  const btn      = document.getElementById('conv-btn');
+  const s        = savedCreds();
+
+  if (!email)    { err.textContent = 'Email address is required'; return; }
+  if (!shopName) { err.textContent = 'Shop name is required'; return; }
+
+  btn.disabled = true; btn.textContent = 'Creating account…';
+  err.textContent = '';
+
+  try {
+    const res = await fetch(`${FN_BASE}/agent-convert-lead`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ANON_KEY}` },
+      body: JSON.stringify({
+        agent_id: _agent.id, phone: s.phone, pin: s.pin,
+        lead_id: leadId, email, shopName, monthlyRate: rate || null,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) { err.textContent = data.error || 'Something went wrong'; btn.disabled=false; btn.textContent='Create Account & Share Credentials 🚀'; return; }
+
+    closeSheetDirect();
+    await loadData();
+
+    // Show share sheet with credentials
+    const loginUrl = data.loginUrl || 'https://happa-merchant.njautheinvestmentsconsultant.workers.dev';
+    const msg = `🎉 *${esc(shopName)} is on Happa!*\n\n📧 Email: ${data.email}\n🔑 Password: ${data.tempPassword}\n🔗 Login: ${loginUrl}\n\nAsk them to change their password after first login.`;
+    setSheetContent(`
+      <div class="sh-hdr">
+        <h2>🎉 Account Created!</h2>
+        <button class="sh-close" onclick="closeSheetDirect()">✕</button>
+      </div>
+      <div class="sh-body">
+        <div style="background:var(--surf2);border-radius:10px;padding:12px;margin-bottom:14px;font-size:13px;line-height:1.7">
+          <div><span style="color:var(--txt2)">Email</span><br><strong>${data.email}</strong></div>
+          <div style="margin-top:8px"><span style="color:var(--txt2)">Password</span><br><strong style="font-size:16px;letter-spacing:.05em">${data.tempPassword}</strong></div>
+          <div style="margin-top:8px"><span style="color:var(--txt2)">Login link</span><br><span style="font-size:11px;word-break:break-all">${loginUrl}</span></div>
+        </div>
+        <a class="btn-p" href="https://wa.me/?text=${encodeURIComponent(msg)}" target="_blank" style="display:block;text-align:center;text-decoration:none;padding:12px;border-radius:10px;background:#25D366;color:#fff;font-weight:700;font-size:14px;margin-bottom:10px">📱 Share via WhatsApp</a>
+        <button class="btn-g" onclick="closeSheetDirect()" style="width:100%">Done</button>
+      </div>
+    `);
+    openSheet();
+  } catch(e) {
+    err.textContent = 'Network error — try again';
+    btn.disabled = false; btn.textContent = 'Create Account & Share Credentials 🚀';
+  }
 }
 
 /* ════════════════════════════════
