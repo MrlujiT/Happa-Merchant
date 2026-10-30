@@ -259,7 +259,7 @@
     <button class="nav-item" id="nav-mine" onclick="switchTab('mine')">
       <span class="nav-icon">❤️</span>Mine
     </button>
-    <button class="nav-item" id="nav-orders" onclick="switchTab('orders')">
+    <button class="nav-item" id="nav-orders" onclick="switchTab('orders');loadOrders()">
       <span class="nav-icon">🛒</span>Orders
     </button>
     <button class="nav-item" id="nav-family" onclick="switchTab('family');loadFamily()">
@@ -805,7 +805,7 @@ async function cancelOrder(orderId) {
 }
 
 // ── FAMILY ──────────────────────────────────────────────────────────────────
-const FAMILY_URL = `${SUPABASE_URL}/functions/v1/happa-family`;
+const FAMILY_URL = `${SUPA_URL}/functions/v1/happa-family`;
 
 async function familyApi(payload) {
   const res = await fetch(FAMILY_URL, {
