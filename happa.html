@@ -21,6 +21,11 @@
     --fg3: #AAAAA5;
     --radius: 16px;
     --radius-sm: 10px;
+    /* Aliases used in Family/Goals inline styles */
+    --card: #F5F7F2;
+    --txt: #1A1A1A;
+    --txt2: #6B6E65;
+    --green: #8DC41A;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   html, body { height: 100%; background: var(--bg); color: var(--fg); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 15px; line-height: 1.4; overflow: hidden; }
@@ -165,6 +170,21 @@
   .qty-btn { width: 30px; height: 30px; border-radius: 50%; background: var(--bg3); border: 1.5px solid var(--border); color: var(--fg); font-size: 18px; display: flex; align-items: center; justify-content: center; cursor: pointer; line-height: 1; }
   @keyframes spin { to { transform: rotate(360deg); } }
   .loading-row { display: flex; justify-content: center; padding: 40px; }
+
+  /* ── ADS BANNER ── */
+  .ads-section { padding: 14px 0 0; }
+  .ads-section-label { padding: 0 16px 8px; font-size: 11px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase; color: var(--fg3); }
+  .ads-scroll { display: flex; gap: 12px; overflow-x: auto; padding: 0 16px 14px; scrollbar-width: none; -ms-overflow-style: none; scroll-snap-type: x mandatory; }
+  .ads-scroll::-webkit-scrollbar { display: none; }
+  .ad-card { flex-shrink: 0; width: 200px; height: 116px; border-radius: 16px; position: relative; overflow: hidden; cursor: pointer; scroll-snap-align: start; background: var(--bg3); box-shadow: 0 2px 12px rgba(0,0,0,.08); transition: transform .1s; }
+  .ad-card:active { transform: scale(.97); }
+  .ad-card-img { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 52px; }
+  .ad-card-img img { width: 100%; height: 100%; object-fit: cover; }
+  .ad-card-overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,.72) 0%, rgba(0,0,0,.1) 60%, transparent 100%); }
+  .ad-card-body { position: absolute; bottom: 0; left: 0; right: 0; padding: 10px 12px; }
+  .ad-card-name { font-size: 13px; font-weight: 800; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ad-card-tag { font-size: 10px; font-weight: 700; color: rgba(255,255,255,.8); margin-top: 1px; }
+  .ad-card-badge { position: absolute; top: 8px; right: 8px; background: var(--lime); color: #fff; font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 20px; }
 </style>
 </head>
 <body>
@@ -223,6 +243,11 @@
   <div class="content">
     <!-- Nearby -->
     <div class="page active" id="page-nearby">
+      <!-- Ads / Featured banner -->
+      <div class="ads-section" id="ads-section" style="display:none">
+        <div class="ads-section-label">Featured merchants</div>
+        <div class="ads-scroll" id="ads-scroll"></div>
+      </div>
       <div class="section-header">Businesses near you</div>
       <div id="nearby-list"><div class="loading-row"><div class="spinner"></div></div></div>
     </div>
@@ -509,6 +534,34 @@ function switchTab(name) {
   document.getElementById('nav-'+name).classList.add('active');
 }
 
+// ── ADS BANNER ──
+function renderAds(shops) {
+  // Feature shops that have ordering enabled — show up to 8
+  const featured = shops.filter(s => s.ordering_enabled).slice(0, 8);
+  const section = document.getElementById('ads-section');
+  const scroll  = document.getElementById('ads-scroll');
+  if (!featured.length) { section.style.display = 'none'; return; }
+  section.style.display = '';
+  scroll.innerHTML = featured.map(s => {
+    const emoji = typeEmoji(s.business_type);
+    const img = s.logo_url
+      ? `<img src="${s.logo_url}" alt="" loading="lazy">`
+      : `<span>${emoji}</span>`;
+    const distTag = s.dist_km != null
+      ? (s.dist_km < 1 ? Math.round(s.dist_km * 1000) + 'm' : s.dist_km + 'km')
+      : '';
+    return `<div class="ad-card" onclick="openCatalog('${s.id}')">
+      <div class="ad-card-img">${img}</div>
+      <div class="ad-card-overlay"></div>
+      <div class="ad-card-body">
+        <div class="ad-card-name">${esc(s.name)}</div>
+        ${distTag ? `<div class="ad-card-tag">📍 ${distTag} away</div>` : ''}
+      </div>
+      <div class="ad-card-badge">Order</div>
+    </div>`;
+  }).join('');
+}
+
 // ── NEARBY ──
 async function loadNearby() {
   try {
@@ -516,6 +569,7 @@ async function loadNearby() {
     if (_gpsLat !== null) { payload.lat = _gpsLat; payload.lng = _gpsLng; }
     const { shops } = await api('happa-browse', payload);
     _shops = shops || [];
+    renderAds(_shops);
     renderShopList('nearby-list', _shops, null);
   } catch(e) {
     document.getElementById('nearby-list').innerHTML = `<div class="empty-state"><div class="es-icon">⚠️</div><h3>Couldn't load</h3><p>${e.message}</p></div>`;
