@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Happa</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#0d0d0d">
+<style>
+  :root {
+    --lime: #CAFF47;
+    --red: #FF3621;
+    --bg: #0d0d0d;
+    --bg2: #181818;
+    --bg3: #242424;
+    --border: #2e2e2e;
+    --fg: #f0f0f0;
+    --fg2: #909090;
+    --fg3: #555;
+    --radius: 16px;
+    --radius-sm: 10px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; background: var(--bg); color: var(--fg); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 15px; line-height: 1.4; overflow: hidden; }
+
+  /* ── AUTH SCREENS ── */
+  #auth-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 24px; }
+  .happa-logo { width: 80px; height: 80px; border-radius: 50%; background: var(--lime); display: flex; align-items: center; justify-content: center; font-size: 44px; margin-bottom: 16px; box-shadow: 0 0 40px rgba(202,255,71,.25); }
+  .happa-wordmark { font-size: 32px; font-weight: 900; letter-spacing: -1px; color: var(--lime); margin-bottom: 6px; }
+  .happa-tagline { color: var(--fg2); font-size: 13px; margin-bottom: 40px; }
+  .auth-card { width: 100%; max-width: 380px; background: var(--bg2); border-radius: var(--radius); padding: 24px; }
+  .auth-card h2 { font-size: 18px; font-weight: 700; margin-bottom: 20px; }
+  .fi { width: 100%; background: var(--bg3); border: 1.5px solid var(--border); border-radius: var(--radius-sm); padding: 13px 14px; color: var(--fg); font-size: 15px; outline: none; margin-bottom: 12px; }
+  .fi:focus { border-color: var(--lime); }
+  .fi::placeholder { color: var(--fg3); }
+  .btn { width: 100%; padding: 14px; border-radius: var(--radius-sm); font-size: 15px; font-weight: 700; cursor: pointer; border: none; transition: opacity .15s; }
+  .btn:active { opacity: .8; }
+  .btn-primary { background: var(--lime); color: #111; }
+  .btn-ghost { background: transparent; color: var(--fg2); margin-top: 8px; font-size: 14px; }
+  .auth-switch { text-align: center; margin-top: 16px; color: var(--fg2); font-size: 13px; }
+  .auth-switch span { color: var(--lime); cursor: pointer; font-weight: 600; }
+  .err-msg { color: var(--red); font-size: 13px; margin-bottom: 12px; display: none; }
+  .ref-note { background: rgba(202,255,71,.08); border: 1px solid rgba(202,255,71,.2); border-radius: 8px; padding: 10px 12px; font-size: 13px; color: var(--lime); margin-bottom: 16px; display: none; }
+
+  /* ── MAIN APP ── */
+  #app { display: none; flex-direction: column; height: 100vh; }
+  .top-bar { background: var(--bg); border-bottom: 1px solid var(--border); padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+  .top-bar-left { display: flex; align-items: center; gap: 10px; }
+  .top-logo { width: 32px; height: 32px; border-radius: 50%; background: var(--lime); display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+  .top-title { font-weight: 800; font-size: 17px; color: var(--lime); }
+  .avatar-btn { width: 36px; height: 36px; border-radius: 50%; background: var(--bg3); border: 1.5px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 18px; cursor: pointer; }
+  .content { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+
+  /* ── BOTTOM NAV ── */
+  .bottom-nav { background: var(--bg2); border-top: 1px solid var(--border); display: flex; flex-shrink: 0; }
+  .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 10px 0 14px; gap: 3px; cursor: pointer; transition: color .15s; border: none; background: transparent; color: var(--fg3); font-size: 10px; font-weight: 600; letter-spacing: .3px; text-transform: uppercase; }
+  .nav-item .nav-icon { font-size: 22px; }
+  .nav-item.active { color: var(--lime); }
+  .nav-badge { background: var(--red); color: #fff; font-size: 10px; font-weight: 700; border-radius: 10px; padding: 1px 5px; position: absolute; margin-top: -4px; margin-left: 12px; }
+
+  /* ── PAGES ── */
+  .page { display: none; height: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .page.active { display: block; }
+  .section-header { padding: 20px 16px 10px; font-size: 12px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase; color: var(--fg3); }
+  .empty-state { text-align: center; padding: 60px 24px; color: var(--fg2); }
+  .empty-state .es-icon { font-size: 48px; margin-bottom: 16px; }
+  .empty-state h3 { font-size: 17px; font-weight: 700; color: var(--fg); margin-bottom: 8px; }
+  .empty-state p { font-size: 14px; color: var(--fg2); line-height: 1.6; }
+
+  /* ── SHOP CARD ── */
+  .shop-card { background: var(--bg2); border-radius: var(--radius); margin: 0 16px 12px; overflow: hidden; cursor: pointer; transition: transform .1s; active:transform scale(.99); }
+  .shop-card:active { transform: scale(.98); }
+  .shop-card-body { padding: 16px; display: flex; align-items: center; gap: 14px; }
+  .shop-avatar { width: 52px; height: 52px; border-radius: 14px; background: var(--bg3); flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 26px; overflow: hidden; }
+  .shop-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .shop-info { flex: 1; min-width: 0; }
+  .shop-name { font-weight: 700; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .shop-meta { font-size: 12px; color: var(--fg2); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .shop-badge { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 20px; background: rgba(202,255,71,.12); color: var(--lime); margin-top: 4px; display: inline-block; }
+  .shop-badge.home { background: rgba(202,255,71,.2); }
+  .shop-badge.no-orders { background: var(--bg3); color: var(--fg3); }
+  .shop-order-btn { background: var(--lime); color: #111; border: none; border-radius: 10px; padding: 8px 16px; font-size: 13px; font-weight: 700; cursor: pointer; flex-shrink: 0; }
+  .shop-order-btn:disabled { background: var(--bg3); color: var(--fg3); cursor: default; }
+
+  /* ── CATALOG SHEET ── */
+  .sheet-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 100; display: none; }
+  .sheet { position: fixed; left: 0; right: 0; bottom: 0; background: var(--bg); border-radius: 24px 24px 0 0; z-index: 101; max-height: 92vh; display: flex; flex-direction: column; transform: translateY(100%); transition: transform .3s cubic-bezier(.32,.72,0,1); }
+  .sheet.open { transform: translateY(0); }
+  .sheet-handle { width: 36px; height: 4px; background: var(--bg3); border-radius: 2px; margin: 12px auto 0; flex-shrink: 0; }
+  .sheet-head { padding: 16px 20px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .sheet-head h3 { font-size: 17px; font-weight: 800; }
+  .sheet-head p { font-size: 13px; color: var(--fg2); margin-top: 2px; }
+  .sheet-body { overflow-y: auto; flex: 1; padding-bottom: 100px; }
+  .sheet-footer { position: absolute; bottom: 0; left: 0; right: 0; padding: 12px 16px 28px; background: var(--bg); border-top: 1px solid var(--border); }
+  .cart-bar { background: var(--lime); border-radius: 14px; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
+  .cart-bar-left { font-size: 14px; font-weight: 700; color: #111; }
+  .cart-bar-right { font-size: 15px; font-weight: 900; color: #111; }
+
+  /* ── PRODUCT ROW ── */
+  .product-row { display: flex; align-items: center; gap: 14px; padding: 14px 20px; border-bottom: 1px solid var(--border); }
+  .product-emoji { font-size: 28px; flex-shrink: 0; }
+  .product-info { flex: 1; min-width: 0; }
+  .product-name { font-weight: 600; font-size: 14px; }
+  .product-price { color: var(--lime); font-size: 14px; font-weight: 700; margin-top: 2px; }
+  .product-stock { font-size: 12px; color: var(--fg2); }
+  .qty-ctrl { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .qty-btn { width: 30px; height: 30px; border-radius: 50%; background: var(--bg3); border: 1.5px solid var(--border); color: var(--fg); font-size: 18px; display: flex; align-items: center; justify-content: center; cursor: pointer; line-height: 1; }
+  .qty-btn:active { background: var(--border); }
+  .qty-num { font-weight: 700; font-size: 15px; min-width: 20px; text-align: center; }
+
+  /* ── CHECKOUT SHEET ── */
+  .checkout-row { padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); }
+  .checkout-row label { font-size: 14px; color: var(--fg2); }
+  .checkout-row select, .checkout-row .co-val { background: var(--bg3); border: 1.5px solid var(--border); border-radius: 8px; padding: 8px 12px; color: var(--fg); font-size: 14px; outline: none; }
+  .checkout-row select:focus { border-color: var(--lime); }
+  .checkout-total { padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; }
+  .checkout-total span { font-size: 13px; color: var(--fg2); }
+  .checkout-total strong { font-size: 20px; font-weight: 900; color: var(--lime); }
+  .notes-row { padding: 12px 20px 16px; }
+  .notes-row textarea { width: 100%; background: var(--bg3); border: 1.5px solid var(--border); border-radius: 10px; padding: 10px 12px; color: var(--fg); font-size: 14px; outline: none; resize: none; font-family: inherit; }
+  .notes-row textarea:focus { border-color: var(--lime); }
+
+  /* ── ORDERS PAGE ── */
+  .order-card { margin: 0 16px 12px; background: var(--bg2); border-radius: var(--radius); overflow: hidden; }
+  .order-card-head { padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); }
+  .order-shop-name { font-weight: 700; font-size: 14px; }
+  .order-date { font-size: 12px; color: var(--fg2); margin-top: 2px; }
+  .order-status { font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 20px; }
+  .order-status.pending { background: rgba(255,220,0,.15); color: #FFD700; }
+  .order-status.approved { background: rgba(0,180,255,.15); color: #00B4FF; }
+  .order-status.ready { background: rgba(202,255,71,.15); color: var(--lime); }
+  .order-status.collected { background: rgba(0,220,130,.15); color: #00DC82; }
+  .order-status.cancelled { background: rgba(255,54,33,.15); color: var(--red); }
+  .order-items { padding: 12px 16px; }
+  .order-item-row { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 0; color: var(--fg2); }
+  .order-item-row strong { color: var(--fg); }
+  .order-foot { padding: 10px 16px 14px; display: flex; align-items: center; justify-content: space-between; }
+  .order-total { font-size: 15px; font-weight: 800; }
+  .order-cancel-btn { background: transparent; border: 1.5px solid var(--border); border-radius: 8px; color: var(--fg2); font-size: 13px; padding: 6px 14px; cursor: pointer; }
+
+  /* ── PROFILE SHEET ── */
+  .profile-item { padding: 16px 20px; display: flex; align-items: center; gap: 14px; border-bottom: 1px solid var(--border); }
+  .profile-item-icon { font-size: 22px; width: 40px; text-align: center; }
+  .profile-item-info h4 { font-size: 14px; font-weight: 600; }
+  .profile-item-info p { font-size: 13px; color: var(--fg2); margin-top: 2px; }
+  .signout-btn { margin: 20px 20px 40px; display: block; width: calc(100% - 40px); }
+
+  /* ── TOAST ── */
+  #toast { position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%); background: var(--bg2); color: var(--fg); border: 1px solid var(--border); border-radius: 12px; padding: 12px 20px; font-size: 14px; font-weight: 600; white-space: nowrap; z-index: 999; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  #toast.show { opacity: 1; }
+
+  /* ── LOADING ── */
+  .spinner { width: 28px; height: 28px; border: 3px solid var(--border); border-top-color: var(--lime); border-radius: 50%; animation: spin .7s linear infinite; margin: 40px auto; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-row { display: flex; justify-content: center; padding: 40px; }
+</style>
+</head>
+<body>
+
+<!-- ── TOAST ── -->
+<div id="toast"></div>
+
+<!-- ── AUTH SCREENS ── -->
+<div id="auth-wrap">
+  <div class="happa-logo">😄</div>
+  <div class="happa-wordmark">happa</div>
+  <div class="happa-tagline">powering communities</div>
+
+  <!-- Welcome -->
+  <div id="screen-welcome" class="auth-card" style="text-align:center">
+    <h2 style="font-size:22px;margin-bottom:8px">Welcome to Happa</h2>
+    <p style="color:var(--fg2);font-size:14px;margin-bottom:28px">Find the businesses in your community, order what you need, and play every day.</p>
+    <button class="btn btn-primary" onclick="showScreen('signup')" style="margin-bottom:10px">Join Happa</button>
+    <button class="btn btn-ghost" onclick="showScreen('signin')">I already have an account →</button>
+  </div>
+
+  <!-- Sign Up -->
+  <div id="screen-signup" class="auth-card" style="display:none">
+    <h2>Create your account</h2>
+    <div id="signup-ref-note" class="ref-note"></div>
+    <div id="signup-err" class="err-msg"></div>
+    <input class="fi" id="su-name" type="text" placeholder="Your name" autocomplete="name">
+    <input class="fi" id="su-phone" type="tel" placeholder="Phone (07XX XXX XXX)" autocomplete="tel">
+    <input class="fi" id="su-pin" type="password" placeholder="Create a 4-digit PIN" maxlength="4" inputmode="numeric">
+    <input class="fi" id="su-pin2" type="password" placeholder="Confirm PIN" maxlength="4" inputmode="numeric">
+    <button class="btn btn-primary" onclick="doSignup()">Join →</button>
+    <div class="auth-switch">Already have an account? <span onclick="showScreen('signin')">Sign in</span></div>
+  </div>
+
+  <!-- Sign In -->
+  <div id="screen-signin" class="auth-card" style="display:none">
+    <h2>Welcome back</h2>
+    <div id="signin-err" class="err-msg"></div>
+    <input class="fi" id="si-phone" type="tel" placeholder="Phone" autocomplete="tel">
+    <input class="fi" id="si-pin" type="password" placeholder="PIN" maxlength="4" inputmode="numeric">
+    <button class="btn btn-primary" onclick="doSignin()">Sign in →</button>
+    <div class="auth-switch">New to Happa? <span onclick="showScreen('signup')">Join now</span></div>
+  </div>
+</div>
+
+<!-- ── MAIN APP ── -->
+<div id="app">
+  <div class="top-bar">
+    <div class="top-bar-left">
+      <div class="top-logo">😄</div>
+      <span class="top-title">happa</span>
+    </div>
+    <div class="avatar-btn" onclick="openProfile()">👤</div>
+  </div>
+
+  <div class="content">
+    <!-- Nearby -->
+    <div class="page active" id="page-nearby">
+      <div class="section-header">Businesses near you</div>
+      <div id="nearby-list"><div class="loading-row"><div class="spinner"></div></div></div>
+    </div>
+
+    <!-- My Merchants -->
+    <div class="page" id="page-mine">
+      <div class="section-header">Your merchants</div>
+      <div id="mine-list"><div class="loading-row"><div class="spinner"></div></div></div>
+    </div>
+
+    <!-- Orders -->
+    <div class="page" id="page-orders">
+      <div class="section-header">Your orders</div>
+      <div id="orders-list"><div class="loading-row"><div class="spinner"></div></div></div>
+    </div>
+  </div>
+
+  <nav class="bottom-nav">
+    <button class="nav-item active" id="nav-nearby" onclick="switchTab('nearby')">
+      <span class="nav-icon">🏪</span>Nearby
+    </button>
+    <button class="nav-item" id="nav-mine" onclick="switchTab('mine')">
+      <span class="nav-icon">❤️</span>My Merchants
+    </button>
+    <button class="nav-item" id="nav-orders" onclick="switchTab('orders')">
+      <span class="nav-icon">🛒</span>Orders
+    </button>
+  </nav>
+</div>
+
+<!-- ── CATALOG SHEET ── -->
+<div class="sheet-overlay" id="catalog-overlay" onclick="closeCatalog()"></div>
+<div class="sheet" id="catalog-sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head">
+    <h3 id="cat-shop-name">Shop</h3>
+    <p id="cat-shop-meta"></p>
+  </div>
+  <div class="sheet-body" id="cat-products"></div>
+  <div class="sheet-footer" id="cat-footer" style="display:none">
+    <div class="cart-bar" onclick="openCheckout()">
+      <div class="cart-bar-left" id="cart-summary">0 items</div>
+      <div class="cart-bar-right" id="cart-total">KES 0</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── CHECKOUT SHEET ── -->
+<div class="sheet-overlay" id="co-overlay" onclick="closeCheckout()"></div>
+<div class="sheet" id="co-sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head">
+    <h3>Review your order</h3>
+    <p id="co-shop-name"></p>
+  </div>
+  <div class="sheet-body">
+    <div id="co-items"></div>
+    <div class="checkout-total">
+      <span>Total</span>
+      <strong id="co-total">KES 0</strong>
+    </div>
+    <div class="checkout-row">
+      <label>Order type</label>
+      <select id="co-type">
+        <option value="pickup">Pickup</option>
+        <option value="collection">Collection (I'll send someone)</option>
+      </select>
+    </div>
+    <div class="checkout-row">
+      <label>Pay with</label>
+      <select id="co-pay">
+        <option value="cash">Cash</option>
+        <option value="mpesa">M-Pesa</option>
+      </select>
+    </div>
+    <div class="notes-row">
+      <textarea id="co-notes" rows="2" placeholder="Any notes for the merchant? (optional)"></textarea>
+    </div>
+  </div>
+  <div class="sheet-footer">
+    <button class="btn btn-primary" onclick="placeOrder()">Place Order</button>
+  </div>
+</div>
+
+<!-- ── PROFILE SHEET ── -->
+<div class="sheet-overlay" id="profile-overlay" onclick="closeProfile()"></div>
+<div class="sheet" id="profile-sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head">
+    <h3 id="profile-name">Profile</h3>
+    <p id="profile-phone" style="color:var(--fg2);font-size:13px;margin-top:4px"></p>
+  </div>
+  <div class="sheet-body">
+    <div class="profile-item">
+      <div class="profile-item-icon">🏠</div>
+      <div class="profile-item-info">
+        <h4>Home community</h4>
+        <p id="profile-home">—</p>
+      </div>
+    </div>
+    <div class="profile-item">
+      <div class="profile-item-icon">📨</div>
+      <div class="profile-item-info">
+        <h4>Your invite code</h4>
+        <p id="profile-invite-code" style="color:var(--lime);font-weight:700;letter-spacing:1px;cursor:pointer" onclick="copyInvite()">—</p>
+      </div>
+    </div>
+    <div class="profile-item" style="border:none">
+      <div class="profile-item-icon">ℹ️</div>
+      <div class="profile-item-info">
+        <h4>About Happa</h4>
+        <p>Powering communities, one business at a time.</p>
+      </div>
+    </div>
+    <button class="btn btn-ghost signout-btn" onclick="signOut()">Sign out</button>
+  </div>
+</div>
+
+<script>
+// ── CONFIG ──
+const SUPA_URL = 'https://zxucpsdfcokkjtcgygna.supabase.co';
+const FN = (name) => `${SUPA_URL}/functions/v1/${name}`;
+
+// ── STATE ──
+let _user = null;
+let _shops = [];
+let _cart = {}; // product_id → { product, qty }
+let _currentShop = null;
+let _orders = [];
+let _tab = 'nearby';
+
+// ── STORAGE ──
+function save(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch {} }
+function load(key) { try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } }
+
+// ── API ──
+async function api(fn, body) {
+  const r = await fetch(FN(fn), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const d = await r.json();
+  if (!r.ok) throw new Error(d.error || 'Request failed');
+  return d;
+}
+
+// ── TOAST ──
+let _toastTimer;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+// ── AUTH SCREENS ──
+const _ref = new URLSearchParams(location.search).get('ref') || '';
+
+function showScreen(name) {
+  ['welcome','signup','signin'].forEach(s => document.getElementById('screen-'+s).style.display = 'none');
+  document.getElementById('screen-'+name).style.display = '';
+  if (name === 'signup' && _ref) {
+    const note = document.getElementById('signup-ref-note');
+    note.style.display = '';
+    note.textContent = `You were invited${_ref.includes('-') ? ' by an agent' : ''}. You'll join their community automatically.`;
+  }
+}
+
+async function doSignup() {
+  const name = document.getElementById('su-name').value.trim();
+  const phone = document.getElementById('su-phone').value.trim();
+  const pin = document.getElementById('su-pin').value;
+  const pin2 = document.getElementById('su-pin2').value;
+  const err = document.getElementById('signup-err');
+  err.style.display = 'none';
+
+  if (!name || !phone || !pin) { err.textContent = 'All fields are required.'; err.style.display = ''; return; }
+  if (!/^\d{4}$/.test(pin)) { err.textContent = 'PIN must be exactly 4 digits.'; err.style.display = ''; return; }
+  if (pin !== pin2) { err.textContent = 'PINs do not match.'; err.style.display = ''; return; }
+
+  try {
+    const { user } = await api('happa-auth', { action: 'signup', name, phone, pin, ref: _ref });
+    await afterAuth(user, phone, pin);
+  } catch(e) { err.textContent = e.message; err.style.display = ''; }
+}
+
+async function doSignin() {
+  const phone = document.getElementById('si-phone').value.trim();
+  const pin = document.getElementById('si-pin').value;
+  const err = document.getElementById('signin-err');
+  err.style.display = 'none';
+
+  if (!phone || !pin) { err.textContent = 'Phone and PIN required.'; err.style.display = ''; return; }
+  try {
+    const { user } = await api('happa-auth', { action: 'signin', phone, pin });
+    await afterAuth(user, phone, pin);
+  } catch(e) { err.textContent = e.message; err.style.display = ''; }
+}
+
+async function afterAuth(user, phone, pin) {
+  _user = { ...user, phone, pin };
+  save('happa_user', _user);
+  launchApp();
+}
+
+function signOut() {
+  save('happa_user', null);
+  location.reload();
+}
+
+// ── BOOT ──
+window.addEventListener('load', async () => {
+  const saved = load('happa_user');
+  if (saved?.phone && saved?.pin) {
+    try {
+      const { user } = await api('happa-auth', { action: 'signin', phone: saved.phone, pin: saved.pin });
+      _user = { ...user, phone: saved.phone, pin: saved.pin };
+      save('happa_user', _user);
+      launchApp();
+      return;
+    } catch {}
+  }
+  // Not logged in
+  document.getElementById('auth-wrap').style.display = 'flex';
+  if (_ref) showScreen('signup'); else showScreen('welcome');
+});
+
+function launchApp() {
+  document.getElementById('auth-wrap').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  loadNearby();
+  loadMine();
+  loadOrders();
+  populateProfile();
+}
+
+// ── TABS ──
+function switchTab(name) {
+  _tab = name;
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('nav-'+name).classList.add('active');
+}
+
+// ── NEARBY ──
+async function loadNearby() {
+  try {
+    const { shops } = await api('happa-browse', { action: 'nearby', phone: _user.phone, pin: _user.pin });
+    _shops = shops || [];
+    renderShopList('nearby-list', _shops, null);
+  } catch(e) {
+    document.getElementById('nearby-list').innerHTML = `<div class="empty-state"><div class="es-icon">⚠️</div><h3>Couldn't load</h3><p>${e.message}</p></div>`;
+  }
+}
+
+// ── MY MERCHANTS ──
+async function loadMine() {
+  try {
+    const { shops, home_shop_id } = await api('happa-browse', { action: 'my_merchants', phone: _user.phone, pin: _user.pin });
+    renderShopList('mine-list', shops || [], home_shop_id);
+  } catch(e) {
+    document.getElementById('mine-list').innerHTML = `<div class="empty-state"><div class="es-icon">⚠️</div><h3>Couldn't load</h3><p>${e.message}</p></div>`;
+  }
+}
+
+function renderShopList(containerId, shops, homeShopId) {
+  const el = document.getElementById(containerId);
+  if (!shops.length) {
+    el.innerHTML = `<div class="empty-state"><div class="es-icon">🏪</div><h3>No merchants yet</h3><p>Ask an agent or business to invite you to Happa.</p></div>`;
+    return;
+  }
+  el.innerHTML = shops.map(s => {
+    const isHome = s.id === homeShopId;
+    const emoji = typeEmoji(s.business_type);
+    const img = s.logo_url ? `<img src="${s.logo_url}" alt="">` : emoji;
+    const badge = isHome ? `<div class="shop-badge home">🏠 Your home merchant</div>` :
+                  s.ordering_enabled ? `<div class="shop-badge">✅ Orders open</div>` :
+                  `<div class="shop-badge no-orders">Orders closed</div>`;
+    return `<div class="shop-card" onclick="openCatalog('${s.id}')">
+      <div class="shop-card-body">
+        <div class="shop-avatar">${img}</div>
+        <div class="shop-info">
+          <div class="shop-name">${esc(s.name)}</div>
+          <div class="shop-meta">${esc(s.location || s.business_type || '')}</div>
+          ${badge}
+        </div>
+        <button class="shop-order-btn" ${s.ordering_enabled ? '' : 'disabled'} onclick="event.stopPropagation();openCatalog('${s.id}')">
+          ${s.ordering_enabled ? 'Order' : '—'}
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function typeEmoji(type) {
+  const map = { goods: '🛒', services: '✂️', mixed: '🏪', gym: '💪', host: '🏠', airbnb: '🏠', restaurant: '🍽️', fit: '💪' };
+  return map[type] || '🏪';
+}
+
+// ── CATALOG SHEET ──
+let _catShopId = null;
+let _catProducts = [];
+
+async function openCatalog(shopId) {
+  _catShopId = shopId;
+  _cart = {};
+  document.getElementById('cat-products').innerHTML = '<div class="loading-row"><div class="spinner"></div></div>';
+  document.getElementById('cat-footer').style.display = 'none';
+  openSheet('catalog');
+  try {
+    const { shop, products } = await api('happa-browse', { action: 'catalog', phone: _user.phone, pin: _user.pin, shop_id: shopId });
+    _currentShop = shop;
+    _catProducts = products || [];
+    document.getElementById('cat-shop-name').textContent = shop?.name || 'Shop';
+    document.getElementById('cat-shop-meta').textContent = shop?.location || '';
+    renderCatalog();
+  } catch(e) {
+    document.getElementById('cat-products').innerHTML = `<div class="empty-state"><div class="es-icon">⚠️</div><p>${e.message}</p></div>`;
+  }
+}
+
+function renderCatalog() {
+  if (!_catProducts.length) {
+    document.getElementById('cat-products').innerHTML = `<div class="empty-state"><div class="es-icon">📦</div><h3>No products listed</h3><p>This merchant hasn't added their catalogue yet.</p></div>`;
+    return;
+  }
+  document.getElementById('cat-products').innerHTML = _catProducts.map(p => {
+    const qty = (_cart[p.id]?.qty) || 0;
+    const inStock = p.is_service || p.stock > 0;
+    return `<div class="product-row" id="prod-row-${p.id}">
+      <div class="product-emoji">${p.emoji || '📦'}</div>
+      <div class="product-info">
+        <div class="product-name">${esc(p.name)}</div>
+        <div class="product-price">KES ${fmt(p.sell_price)}</div>
+        ${!p.is_service ? `<div class="product-stock">${p.stock > 0 ? `${p.stock} ${p.unit} in stock` : 'Out of stock'}</div>` : ''}
+      </div>
+      <div class="qty-ctrl">
+        ${qty > 0 ? `<div class="qty-btn" onclick="adjustQty('${p.id}',-1)">−</div>
+        <div class="qty-num" id="qty-${p.id}">${qty}</div>` : ''}
+        <div class="qty-btn" onclick="adjustQty('${p.id}',1)" ${!inStock ? 'style="opacity:.3;pointer-events:none"' : ''}>+</div>
+      </div>
+    </div>`;
+  }).join('');
+  updateCartBar();
+}
+
+function adjustQty(productId, delta) {
+  const p = _catProducts.find(x => x.id === productId);
+  if (!p) return;
+  const current = (_cart[productId]?.qty) || 0;
+  const next = Math.max(0, current + delta);
+  const maxStock = p.is_service ? 99 : p.stock;
+  if (next > maxStock) { toast(`Only ${maxStock} in stock`); return; }
+  if (next === 0) delete _cart[productId];
+  else _cart[productId] = { product: p, qty: next };
+  // Update row
+  const qtyEl = document.getElementById('qty-'+productId);
+  const row = document.getElementById('prod-row-'+productId);
+  if (row) {
+    const ctrl = row.querySelector('.qty-ctrl');
+    const qty = _cart[productId]?.qty || 0;
+    ctrl.innerHTML = `${qty > 0 ? `<div class="qty-btn" onclick="adjustQty('${productId}',-1)">−</div><div class="qty-num" id="qty-${productId}">${qty}</div>` : ''}<div class="qty-btn" onclick="adjustQty('${productId}',1)${!p.is_service && p.stock === 0 ? '" style="opacity:.3;pointer-events:none"' : '"'}>+</div>`;
+  }
+  updateCartBar();
+}
+
+function updateCartBar() {
+  const items = Object.values(_cart);
+  const count = items.reduce((s, i) => s + i.qty, 0);
+  const total = items.reduce((s, i) => s + i.qty * i.product.sell_price, 0);
+  const footer = document.getElementById('cat-footer');
+  if (count === 0) { footer.style.display = 'none'; return; }
+  footer.style.display = '';
+  document.getElementById('cart-summary').textContent = `${count} item${count !== 1 ? 's' : ''}`;
+  document.getElementById('cart-total').textContent = `KES ${fmt(total)}`;
+}
+
+function closeCatalog() {
+  closeSheet('catalog');
+}
+
+// ── CHECKOUT ──
+function openCheckout() {
+  const items = Object.values(_cart);
+  const total = items.reduce((s, i) => s + i.qty * i.product.sell_price, 0);
+  document.getElementById('co-shop-name').textContent = _currentShop?.name || '';
+  document.getElementById('co-total').textContent = `KES ${fmt(total)}`;
+  document.getElementById('co-items').innerHTML = items.map(i =>
+    `<div class="checkout-row"><label>${i.product.emoji || '📦'} ${esc(i.product.name)} × ${i.qty}</label><span>KES ${fmt(i.qty * i.product.sell_price)}</span></div>`
+  ).join('');
+  document.getElementById('co-notes').value = '';
+  openSheet('co');
+}
+
+function closeCheckout() { closeSheet('co'); }
+
+async function placeOrder() {
+  const items = Object.values(_cart).map(i => ({
+    product_id: i.product.id,
+    product_name: i.product.name,
+    product_emoji: i.product.emoji || '📦',
+    quantity: i.qty,
+    unit_price: i.product.sell_price,
+  }));
+  if (!items.length) { toast('Add items first'); return; }
+  const btn = document.querySelector('#co-sheet .btn-primary');
+  btn.disabled = true; btn.textContent = 'Placing order…';
+  try {
+    await api('happa-orders', {
+      action: 'create',
+      phone: _user.phone, pin: _user.pin,
+      shop_id: _catShopId,
+      order_type: document.getElementById('co-type').value,
+      payment_method: document.getElementById('co-pay').value,
+      items,
+      notes: document.getElementById('co-notes').value.trim() || null,
+    });
+    toast('✅ Order placed!');
+    _cart = {};
+    closeSheet('co');
+    closeSheet('catalog');
+    switchTab('orders');
+    loadOrders();
+  } catch(e) {
+    toast('❌ ' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Place Order';
+  }
+}
+
+// ── ORDERS PAGE ──
+async function loadOrders() {
+  try {
+    const { orders } = await api('happa-orders', { action: 'my_orders', phone: _user.phone, pin: _user.pin });
+    _orders = orders || [];
+    renderOrders();
+  } catch(e) {
+    document.getElementById('orders-list').innerHTML = `<div class="empty-state"><div class="es-icon">⚠️</div><p>${e.message}</p></div>`;
+  }
+}
+
+function renderOrders() {
+  const el = document.getElementById('orders-list');
+  if (!_orders.length) {
+    el.innerHTML = `<div class="empty-state"><div class="es-icon">🛒</div><h3>No orders yet</h3><p>Browse nearby merchants and place your first order.</p></div>`;
+    return;
+  }
+  el.innerHTML = _orders.map(o => {
+    const statusLabel = { pending: 'Pending', approved: 'Approved', ready: 'Ready', collected: 'Collected', cancelled: 'Cancelled' }[o.status] || o.status;
+    const items = (o.happa_order_items || []);
+    return `<div class="order-card">
+      <div class="order-card-head">
+        <div>
+          <div class="order-shop-name">${esc(o.shops?.name || '')}</div>
+          <div class="order-date">${timeAgo(o.created_at)} · ${o.order_type} · ${o.payment_method}</div>
+        </div>
+        <div class="order-status ${o.status}">${statusLabel}</div>
+      </div>
+      <div class="order-items">
+        ${items.map(i => `<div class="order-item-row"><span>${i.product_emoji} <strong>${esc(i.product_name)}</strong> × ${i.quantity}</span><span>KES ${fmt(i.unit_price * i.quantity)}</span></div>`).join('')}
+      </div>
+      <div class="order-foot">
+        <div class="order-total">KES ${fmt(o.total_amount)}</div>
+        ${o.status === 'pending' ? `<button class="order-cancel-btn" onclick="cancelOrder('${o.id}')">Cancel</button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function cancelOrder(orderId) {
+  if (!confirm('Cancel this order?')) return;
+  try {
+    await api('happa-orders', { action: 'cancel', phone: _user.phone, pin: _user.pin, order_id: orderId });
+    toast('Order cancelled');
+    loadOrders();
+  } catch(e) { toast('❌ ' + e.message); }
+}
+
+// ── PROFILE ──
+function populateProfile() {
+  document.getElementById('profile-name').textContent = _user.name || 'You';
+  document.getElementById('profile-phone').textContent = _user.phone || '';
+  document.getElementById('profile-invite-code').textContent = _user.invite_code || '—';
+  // Load home shop name
+  if (_user.home_shop_id) {
+    api('happa-browse', { action: 'my_merchants', phone: _user.phone, pin: _user.pin })
+      .then(({ shops, home_shop_id }) => {
+        const home = shops?.find(s => s.id === home_shop_id);
+        if (home) document.getElementById('profile-home').textContent = home.name;
+      }).catch(() => {});
+  } else if (_user.home_agent_ref) {
+    document.getElementById('profile-home').textContent = `Agent ${_user.home_agent_ref}'s community`;
+  }
+}
+
+function openProfile() { openSheet('profile'); }
+function closeProfile() { closeSheet('profile'); }
+
+function copyInvite() {
+  const code = _user.invite_code;
+  if (!code) return;
+  const link = `${location.origin}/happa?ref=${code}`;
+  navigator.clipboard?.writeText(link).then(() => toast('Invite link copied!')).catch(() => toast(link));
+}
+
+// ── SHEETS ──
+function openSheet(name) {
+  document.getElementById(name+'-overlay').style.display = 'block';
+  requestAnimationFrame(() => document.getElementById(name+'-sheet').classList.add('open'));
+}
+function closeSheet(name) {
+  document.getElementById(name+'-sheet').classList.remove('open');
+  setTimeout(() => document.getElementById(name+'-overlay').style.display = 'none', 300);
+}
+
+// ── UTILS ──
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function fmt(n) { return Number(n||0).toLocaleString('en-KE'); }
+function timeAgo(ts) {
+  const d = new Date(ts), now = new Date();
+  const mins = Math.floor((now - d) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return d.toLocaleDateString('en-KE', { day: 'numeric', month: 'short' });
+}
+</script>
+</body>
+</html>
