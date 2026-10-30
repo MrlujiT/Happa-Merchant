@@ -206,9 +206,11 @@
   .hub-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 14px 16px 20px; }
   .hub-tile { background: var(--surf); border: 1px solid var(--bdr); border-radius: 18px; padding: 18px 16px; cursor: pointer; transition: transform .12s; }
   .hub-tile:active { transform: scale(.96); }
+  .hub-tile-green { border-color: rgba(141,196,26,.25); }
+  .hub-tile-green:hover, .hub-tile-green:active { background: rgba(141,196,26,.08); border-color: rgba(141,196,26,.4); }
   .hub-tile-icon { font-size: 30px; margin-bottom: 10px; }
   .hub-tile-label { font-weight: 800; font-size: 14px; color: var(--fg); }
-  .hub-tile-sub { font-size: 11px; color: var(--fg2); margin-top: 3px; }
+  .hub-tile-sub { font-size: 11px; color: var(--lime); margin-top: 3px; opacity:.8; }
 
   /* ── PAGE HEADER BAR ── */
   .page-header-bar { display: flex; align-items: center; gap: 4px; padding: 14px 16px 8px; border-bottom: 1px solid var(--bdr); margin-bottom: 4px; }
@@ -301,40 +303,45 @@
       </div>
       <!-- Hub tiles -->
       <div class="hub-grid" id="hub-grid">
-        <div class="hub-tile" onclick="switchTab('merchants');loadNearby()">
+        <div class="hub-tile hub-tile-green" onclick="switchTab('merchants');loadNearby()">
           <div class="hub-tile-icon">🏪</div>
           <div class="hub-tile-label">Merchants</div>
           <div class="hub-tile-sub">Browse & order</div>
         </div>
-        <div class="hub-tile" onclick="switchTab('community')">
-          <div class="hub-tile-icon">🏘️</div>
-          <div class="hub-tile-label">My Community</div>
-          <div class="hub-tile-sub">Your favourites</div>
-        </div>
-        <div class="hub-tile" onclick="switchTab('family');loadFamily()">
+        <div class="hub-tile hub-tile-green" onclick="switchTab('family');loadFamily()">
           <div class="hub-tile-icon">👨‍👩‍👧</div>
           <div class="hub-tile-label">Family</div>
           <div class="hub-tile-sub">Manage & tasks</div>
         </div>
-        <div class="hub-tile" onclick="switchTab('goals');loadGoals()">
+        <div class="hub-tile hub-tile-green" onclick="switchTab('goals');loadGoals()">
           <div class="hub-tile-icon">🎯</div>
           <div class="hub-tile-label">Goals</div>
-          <div class="hub-tile-sub">Track your wins</div>
+          <div class="hub-tile-sub">Save & track wins</div>
         </div>
-        <div class="hub-tile" onclick="switchTab('goals');loadGoals()">
-          <div class="hub-tile-icon">🎯</div>
-          <div class="hub-tile-label">Goals</div>
-          <div class="hub-tile-sub">Track your wins</div>
+        <div class="hub-tile hub-tile-green" onclick="switchTab('loyalty');loadPoints()">
+          <div class="hub-tile-icon">⭐</div>
+          <div class="hub-tile-label">My Points</div>
+          <div class="hub-tile-sub">Loyalty & rewards</div>
         </div>
-        <div class="hub-tile" onclick="switchTab('games')">
+        <div class="hub-tile hub-tile-green" onclick="switchTab('games')">
           <div class="hub-tile-icon">🎮</div>
           <div class="hub-tile-label">Games</div>
           <div class="hub-tile-sub">Play & earn points</div>
         </div>
-        <div class="hub-tile" onclick="switchTab('loyalty');loadPoints()">
-          <div class="hub-tile-icon">⭐</div>
-          <div class="hub-tile-label">My Points</div>
-          <div class="hub-tile-sub">Loyalty & rewards</div>
+        <div class="hub-tile hub-tile-green" onclick="switchTab('carpool');loadCarpool()">
+          <div class="hub-tile-icon">🚗</div>
+          <div class="hub-tile-label">Carpooling</div>
+          <div class="hub-tile-sub">Share a ride</div>
+        </div>
+        <div class="hub-tile hub-tile-green" onclick="switchTab('leisure');loadLeisure()">
+          <div class="hub-tile-icon">🎉</div>
+          <div class="hub-tile-label">Leisure</div>
+          <div class="hub-tile-sub">Activities & events</div>
+        </div>
+        <div class="hub-tile hub-tile-green" onclick="switchTab('community')">
+          <div class="hub-tile-icon">🏘️</div>
+          <div class="hub-tile-label">Community</div>
+          <div class="hub-tile-sub">Your favourites</div>
         </div>
       </div>
     </div>
@@ -390,6 +397,24 @@
         <span class="page-header-title">My Points</span>
       </div>
       <div id="loyalty-content"><div class="loading-row"><div class="spinner"></div></div></div>
+    </div>
+
+    <!-- CARPOOLING -->
+    <div class="page" id="page-carpool">
+      <div class="page-header-bar">
+        <button class="page-back-btn" onclick="switchTab('home')">‹</button>
+        <span class="page-header-title">🚗 Carpooling</span>
+      </div>
+      <div id="carpool-content"><div class="loading-row"><div class="spinner"></div></div></div>
+    </div>
+
+    <!-- LEISURE & ACTIVITIES -->
+    <div class="page" id="page-leisure">
+      <div class="page-header-bar">
+        <button class="page-back-btn" onclick="switchTab('home')">‹</button>
+        <span class="page-header-title">🎉 Leisure & Activities</span>
+      </div>
+      <div id="leisure-content"><div class="loading-row"><div class="spinner"></div></div></div>
     </div>
 
     <!-- GAMES -->
@@ -635,6 +660,7 @@
 <script>
 // ── CONFIG ──
 const SUPA_URL = 'https://zxucpsdfcokkjtcgygna.supabase.co';
+const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp4dWNwc2RmY29ra2p0Y2d5Z25hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI3NDc0NzUsImV4cCI6MjEwODMyMzQ3NX0.6JH4kLkge4D-8SCYLIGh7zmAvX0exJILThhOQ79BusA';
 const FN = (name) => `${SUPA_URL}/functions/v1/${name}`;
 
 // ── STATE ──
@@ -655,7 +681,7 @@ function load(key) { try { return JSON.parse(localStorage.getItem(key)); } catch
 async function api(fn, body) {
   const r = await fetch(FN(fn), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ANON_KEY}` },
     body: JSON.stringify(body),
   });
   const d = await r.json();
@@ -773,7 +799,7 @@ async function loadAdsOnly() {
 
 // ── TABS ──
 // Map tab names to nav item ids (community/merchants share the merchants nav dot)
-const NAV_MAP = { home:'home', merchants:'merchants', community:'merchants', orders:'orders', family:'family', goals:'home', loyalty:'loyalty', games:'home' };
+const NAV_MAP = { home:'home', merchants:'merchants', community:'merchants', orders:'orders', family:'family', goals:'home', loyalty:'loyalty', games:'home', carpool:'home', leisure:'home' };
 
 function switchTab(name) {
   _tab = name;
@@ -1190,8 +1216,6 @@ async function cancelOrder(orderId) {
 // ── FAMILY ──────────────────────────────────────────────────────────────────
 const FAMILY_URL = `${SUPA_URL}/functions/v1/happa-family`;
 
-const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp4dWNwc2RmY29ra2p0Y2d5Z25hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI3NDc0NzUsImV4cCI6MjEwODMyMzQ3NX0.6JH4kLkge4D-8SCYLIGh7zmAvX0exJILThhOQ79BusA';
-
 async function familyApi(payload) {
   const res = await fetch(FAMILY_URL, {
     method: 'POST',
@@ -1256,7 +1280,10 @@ function renderFamily(data) {
       </div>` : ''}
     </div>
 
-    <div style="font-weight:600;font-size:14px;margin-bottom:8px">Members (${members.length})</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div style="font-weight:600;font-size:14px">Members (${members.length})</div>
+      ${role === 'parent' ? `<button class="btn" style="font-size:12px;padding:5px 12px;background:rgba(141,196,26,.12);border-color:rgba(141,196,26,.4);color:var(--lime)" onclick="openSheet('add-member');document.getElementById('add-member-phone').value='';document.getElementById('add-member-code').textContent='${family.invite_code||''}'">+ Add Member</button>` : ''}
+    </div>
     <div style="display:grid;gap:8px;margin-bottom:16px">
       ${members.map(m => `
         <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--card);border-radius:12px;border:1px solid var(--border)">
@@ -1360,6 +1387,18 @@ async function submitJoinFamily() {
     await familyApi({ action:'join_family', invite_code:code, role });
     toast('👨‍👩‍👧 Joined family!');
     closeSheet('join-family');
+    loadFamily();
+  } catch(e) { toast('❌ ' + e.message); }
+}
+
+async function submitAddMember() {
+  const phone = document.getElementById('add-member-phone').value.trim();
+  const role = document.getElementById('add-member-role').value || 'child';
+  if (!phone) { toast('Enter a phone number'); return; }
+  try {
+    await familyApi({ action:'add_member_by_phone', member_phone:phone, role });
+    toast('✅ Member added!');
+    closeSheet('add-member');
     loadFamily();
   } catch(e) { toast('❌ ' + e.message); }
 }
@@ -2242,47 +2281,147 @@ async function savePoints(amount, reason) {
   }
 }
 
+// ── CARPOOLING ──
+async function loadCarpool() {
+  const el = document.getElementById('carpool-content');
+  el.innerHTML = `
+    <div style="padding:20px 16px">
+      <div style="background:linear-gradient(135deg,rgba(141,196,26,.18),rgba(141,196,26,.06));border:1px solid rgba(141,196,26,.3);border-radius:18px;padding:22px 20px;margin-bottom:20px">
+        <div style="font-size:28px;margin-bottom:8px">🚗</div>
+        <div style="font-weight:900;font-size:18px;color:var(--fg);margin-bottom:6px">Share a Ride</div>
+        <div style="font-size:13px;color:var(--fg2);line-height:1.5">Find other happa users going your way. Split the cost, reduce traffic, and meet your community.</div>
+      </div>
+      <button class="btn btn-primary" style="width:100%;margin-bottom:12px" onclick="openSheet('offer-ride')">+ Offer a Ride</button>
+      <button class="btn" style="width:100%" onclick="openSheet('find-ride')">🔍 Find a Ride</button>
+      <div style="margin-top:24px">
+        <div style="font-weight:700;font-size:13px;letter-spacing:.05em;color:var(--fg2);margin-bottom:12px">ACTIVE RIDES NEARBY</div>
+        <div style="background:var(--surf);border-radius:14px;padding:16px;border:1px solid var(--bdr)">
+          <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px">
+            <div style="font-size:22px">🚙</div>
+            <div><div style="font-weight:700;font-size:14px">Westlands → CBD</div><div style="font-size:12px;color:var(--fg2)">3 seats · Departs 07:30 · KES 150/seat</div></div>
+          </div>
+          <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px">
+            <div style="font-size:22px">🚌</div>
+            <div><div style="font-weight:700;font-size:14px">Ngong Rd → Upperhill</div><div style="font-size:12px;color:var(--fg2)">2 seats · Departs 08:00 · KES 120/seat</div></div>
+          </div>
+          <div style="display:flex;gap:12px;align-items:center">
+            <div style="font-size:22px">🚗</div>
+            <div><div style="font-weight:700;font-size:14px">Kilimani → Kikuyu</div><div style="font-size:12px;color:var(--fg2)">1 seat · Departs 06:45 · KES 300/seat</div></div>
+          </div>
+        </div>
+        <div style="margin-top:16px;padding:14px;background:rgba(141,196,26,.08);border-radius:12px;border:1px solid rgba(141,196,26,.2)">
+          <div style="font-size:12px;font-weight:700;color:var(--lime);margin-bottom:4px">🌿 Coming Soon — Full Feature</div>
+          <div style="font-size:12px;color:var(--fg2)">Live GPS matching, real-time chat with drivers, M-Pesa payment splitting, and ratings.</div>
+        </div>
+      </div>
+    </div>`;
+}
+
+// ── LEISURE & ACTIVITIES ──
+async function loadLeisure() {
+  const el = document.getElementById('leisure-content');
+  el.innerHTML = `
+    <div style="padding:16px 16px 24px">
+      <div style="font-weight:700;font-size:13px;letter-spacing:.05em;color:var(--fg2);margin-bottom:12px">CATEGORIES</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:24px">
+        ${[['🎬','Cinema & Movies','Book tickets online'],['🍽️','Restaurants','Reserve a table'],['⚽','Sports & Fitness','Find classes & courts'],['🎵','Live Music','Events near you'],['🏞️','Outdoor','Hikes & day trips'],['🎭','Arts & Culture','Shows & galleries']].map(([e,l,s])=>`
+        <div style="background:var(--surf);border:1px solid rgba(141,196,26,.2);border-radius:16px;padding:16px 14px;cursor:pointer" onclick="toast('${l} — coming soon!')">
+          <div style="font-size:26px;margin-bottom:8px">${e}</div>
+          <div style="font-weight:800;font-size:13px;color:var(--fg)">${l}</div>
+          <div style="font-size:11px;color:var(--lime);margin-top:3px;opacity:.8">${s}</div>
+        </div>`).join('')}
+      </div>
+      <div style="font-weight:700;font-size:13px;letter-spacing:.05em;color:var(--fg2);margin-bottom:12px">UPCOMING IN NAIROBI</div>
+      ${[['🎵','Boombox Live','Sat 1 Nov · Carnivore Grounds','From KES 1,500'],['⚽','5-a-side Football','Every Sat · Uthiru Sports','KES 200/person'],['🎨','Art Exhibition','3–10 Nov · Nairobi Gallery','Free entry'],['🍺','Food & Craft Fair','Sun 2 Nov · Karen','KES 500 entry']].map(([e,t,d,p])=>`
+      <div style="background:var(--surf);border:1px solid var(--bdr);border-radius:14px;padding:14px 16px;margin-bottom:10px;display:flex;gap:14px;align-items:center">
+        <div style="font-size:28px;flex-shrink:0">${e}</div>
+        <div style="flex:1"><div style="font-weight:700;font-size:14px">${t}</div><div style="font-size:12px;color:var(--fg2);margin-top:2px">${d}</div><div style="font-size:12px;font-weight:700;color:var(--lime);margin-top:4px">${p}</div></div>
+        <button class="btn" style="font-size:12px;padding:6px 12px;flex-shrink:0" onclick="toast('Booking coming soon!')">Book</button>
+      </div>`).join('')}
+      <div style="margin-top:16px;padding:14px;background:rgba(141,196,26,.08);border-radius:12px;border:1px solid rgba(141,196,26,.2);text-align:center">
+        <div style="font-size:12px;font-weight:700;color:var(--lime);margin-bottom:4px">🚀 Full Launch Coming</div>
+        <div style="font-size:12px;color:var(--fg2)">In-app booking, M-Pesa tickets, event reminders and loyalty points for every experience.</div>
+      </div>
+    </div>`;
+}
+
 // ── LOAD POINTS / LOYALTY TAB ──
 async function loadPoints() {
   const el = document.getElementById('loyalty-content');
   el.innerHTML = '<div class="loading-row"><div class="spinner"></div></div>';
   try {
-    const r = await familyApi({ action: 'my_family' });
-    const pts = r.points || [];
-    const totalPts = pts.reduce((s, p) => s + Number(p.amount || 0), 0);
-    const SUPA_URL = 'https://zxucpsdfcokkjtcgygna.supabase.co';
-    const ANON_KEY2 = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp4dWNwc2RmY29ra2p0Y2d5Z25hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI3NDc0NzUsImV4cCI6MjEwODMyMzQ3NX0.6JH4kLkge4D-8SCYLIGh7zmAvX0exJILThhOQ79BusA';
-    // Also fetch raw ledger for this user
+    // Fetch ledger from Supabase REST
     let ledger = [];
     try {
-      const lr = await fetch(`${SUPA_URL}/rest/v1/happa_points_ledger?user_id=eq.${_user.id}&order=created_at.desc&limit=50`, {
-        headers: { 'apikey': ANON_KEY2, 'Authorization': `Bearer ${ANON_KEY2}` }
+      const lr = await fetch(`${SUPA_URL}/rest/v1/happa_points_ledger?user_id=eq.${_user.id}&order=created_at.desc&limit=100`, {
+        headers: { 'apikey': ANON_KEY, 'Authorization': `Bearer ${ANON_KEY}` }
       });
       if (lr.ok) ledger = await lr.json();
     } catch(_) {}
-    const total = ledger.reduce((s, p) => s + Number(p.amount || 0), 0);
-    const rows = ledger.map(p => {
+
+    // Also try family points from happa-family
+    let familyPts = 0;
+    try {
+      const fr = await familyApi({ action: 'my_family' });
+      familyPts = (fr.points || []).reduce((s, p) => s + Number(p.amount || 0), 0);
+    } catch(_) {}
+
+    // Categorize ledger entries
+    const gaming = ledger.filter(p => /route27|quiz|game/i.test(p.reason || ''));
+    const family  = ledger.filter(p => /family|task/i.test(p.reason || ''));
+    const loyalty = ledger.filter(p => !/route27|quiz|game|family|task/i.test(p.reason || ''));
+
+    const sumPts = arr => arr.reduce((s, p) => s + Number(p.amount || 0), 0);
+    const gamingTotal  = sumPts(gaming);
+    const loyaltyTotal = sumPts(loyalty);
+    const grandTotal   = sumPts(ledger);
+
+    const renderRow = p => {
       const d = new Date(p.created_at);
       const dateStr = d.toLocaleDateString('en-KE', { day:'numeric', month:'short' });
-      const label = (p.reason || '').replace('route27:', 'Route 2027 · ').replace('quiz:', 'Quiz · ').replace(':', ' · ');
-      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:13px 16px;border-bottom:1px solid var(--bdr)">
-        <div>
-          <div style="font-size:14px;font-weight:600;color:var(--fg)">${esc(label || 'Points')}</div>
-          <div style="font-size:11px;color:var(--fg3);margin-top:2px">${dateStr}</div>
-        </div>
-        <div style="font-size:16px;font-weight:800;color:${p.amount > 0 ? '#8DC41A' : '#ef4444'}">${p.amount > 0 ? '+' : ''}${p.amount} pts</div>
+      const label = (p.reason || '').replace(/route27:/i,'Route 2027 · ').replace(/quiz:/i,'Quiz · ').replace(':',' · ') || 'Points';
+      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:11px 16px;border-bottom:1px solid var(--bdr)">
+        <div><div style="font-size:13px;font-weight:600;color:var(--fg)">${esc(label)}</div><div style="font-size:11px;color:var(--fg3);margin-top:1px">${dateStr}</div></div>
+        <div style="font-size:15px;font-weight:800;color:${p.amount > 0 ? 'var(--lime)' : '#ef4444'}">${p.amount > 0 ? '+' : ''}${p.amount}</div>
       </div>`;
-    }).join('');
+    };
+
+    const section = (icon, title, color, total, rows) => `
+      <div style="margin:0 16px 20px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div style="font-weight:800;font-size:14px;color:var(--fg)">${icon} ${title}</div>
+          <div style="font-size:20px;font-weight:900;color:${color}">${total.toLocaleString('en-KE')} pts</div>
+        </div>
+        <div style="background:var(--surf);border-radius:14px;border:1px solid var(--bdr);overflow:hidden">
+          ${rows.length ? rows.map(renderRow).join('') : `<div style="padding:16px;text-align:center;font-size:13px;color:var(--fg3)">No ${title.toLowerCase()} yet</div>`}
+        </div>
+      </div>`;
+
     el.innerHTML = `
       <div style="padding:20px 16px 12px">
-        <div style="background:linear-gradient(135deg,#c47200,#F5A623);border-radius:18px;padding:22px 20px;color:#fff;margin-bottom:20px">
+        <div style="background:linear-gradient(135deg,#0d6e2a,#8DC41A);border-radius:18px;padding:22px 20px;color:#fff;margin-bottom:20px">
           <div style="font-size:12px;font-weight:700;opacity:.8;letter-spacing:.08em;text-transform:uppercase">Total happa Points</div>
-          <div style="font-size:48px;font-weight:900;line-height:1.1;margin-top:4px">${total.toLocaleString('en-KE')}</div>
-          <div style="font-size:13px;opacity:.75;margin-top:6px">⭐ ${_user.name || 'You'} · happa member</div>
+          <div style="font-size:48px;font-weight:900;line-height:1.1;margin-top:4px">${grandTotal.toLocaleString('en-KE')}</div>
+          <div style="font-size:13px;opacity:.75;margin-top:6px">⭐ ${esc(_user.name || 'You')} · happa member</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:16px">
+            <div style="background:rgba(255,255,255,.15);border-radius:10px;padding:8px;text-align:center">
+              <div style="font-size:9px;opacity:.7;letter-spacing:.05em;text-transform:uppercase">Gaming</div>
+              <div style="font-size:18px;font-weight:900">${gamingTotal}</div>
+            </div>
+            <div style="background:rgba(255,255,255,.15);border-radius:10px;padding:8px;text-align:center">
+              <div style="font-size:9px;opacity:.7;letter-spacing:.05em;text-transform:uppercase">Family</div>
+              <div style="font-size:18px;font-weight:900">${familyPts}</div>
+            </div>
+            <div style="background:rgba(255,255,255,.15);border-radius:10px;padding:8px;text-align:center">
+              <div style="font-size:9px;opacity:.7;letter-spacing:.05em;text-transform:uppercase">Loyalty</div>
+              <div style="font-size:18px;font-weight:900">${loyaltyTotal}</div>
+            </div>
+          </div>
         </div>
-        <div style="font-size:12px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--fg3);padding:0 0 10px">Points History</div>
       </div>
-      <div>${rows || '<div class="empty-state"><div class="es-icon">⭐</div><h3>No points yet</h3><p>Play games, complete quizzes and shop to earn points!</p></div>'}</div>`;
+      ${section('🎮', 'Gaming Points', 'var(--lime)', gamingTotal, gaming)}
+      ${section('👨‍👩‍👧', 'Family Points', '#F5A623', familyPts, family)}
+      ${section('⭐', 'Loyalty Points', '#60a5fa', loyaltyTotal, loyalty)}`;
   } catch(e) {
     el.innerHTML = `<div class="empty-state"><div class="es-icon">⭐</div><h3>Points</h3><p style="color:#ef4444">${esc(e.message)}</p><button class="btn btn-primary" style="margin-top:16px;max-width:200px" onclick="loadPoints()">Retry</button></div>`;
   }
@@ -2394,6 +2533,31 @@ function timeAgo(ts) {
       <option value="sibling">Sibling</option>
     </select>
     <button class="btn btn-primary" style="margin-top:16px;width:100%" onclick="submitJoinFamily()">Join Family →</button>
+  </div>
+</div>
+
+<!-- ── ADD MEMBER SHEET ── -->
+<div class="sheet-overlay" id="add-member-overlay" onclick="closeSheet('add-member')"></div>
+<div class="sheet" id="add-member-sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head">
+    <h3 style="font-size:18px;font-weight:800">➕ Add Family Member</h3>
+    <p style="color:var(--fg2);font-size:13px;margin-top:4px">Enter their happa phone number to add them directly</p>
+  </div>
+  <div class="sheet-body" style="overflow-y:auto;padding:16px 20px 20px">
+    <label class="fi-lbl">Their Phone Number</label>
+    <input class="fi" id="add-member-phone" type="tel" placeholder="e.g. 0712345678" autocomplete="tel">
+    <label class="fi-lbl">Their Role</label>
+    <select class="fi" id="add-member-role">
+      <option value="child">Child</option>
+      <option value="sibling">Sibling</option>
+      <option value="parent">Parent / Guardian</option>
+    </select>
+    <button class="btn btn-primary" style="margin-top:16px;width:100%" onclick="submitAddMember()">Add Member →</button>
+    <button class="btn btn-ghost" onclick="closeSheet('add-member')" style="margin-top:10px">Cancel</button>
+    <div style="margin-top:16px;padding:12px;background:rgba(141,196,26,.08);border-radius:10px;font-size:12px;color:var(--fg2)">
+      💡 They must already be a happa user. Alternatively share your invite code: <strong style="color:var(--lime)" id="add-member-code">—</strong>
+    </div>
   </div>
 </div>
 
