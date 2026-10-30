@@ -4119,6 +4119,13 @@ async function showOnlineOrders() {
             <span style="position:absolute;top:2px;left:${debtOn?'22':'2'}px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.3s;box-shadow:0 1px 3px rgba(0,0,0,.3)"></span>
           </label>
         </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0 16px;border-bottom:1px solid var(--bdr);margin-bottom:16px">
+          <div>
+            <div style="font-weight:700;font-size:15px">📍 Shop Location</div>
+            <div style="font-size:12px;color:var(--txt2);margin-top:2px" id="loc-status">${shopData?.[0]?.lat ? `Set (${Number(shopData[0].lat).toFixed(4)}, ${Number(shopData[0].lng).toFixed(4)})` : 'Not set — customers can\'t see distance'}</div>
+          </div>
+          <button onclick="setShopLocation()" style="padding:7px 14px;border-radius:10px;border:1px solid var(--bdr);background:var(--bg);color:var(--txt);font-size:13px;font-weight:600;cursor:pointer">${shopData?.[0]?.lat ? 'Update' : 'Set'}</button>
+        </div>
         ${_renderOrderCards(orders)}
       `;
     } catch(e) {
@@ -4178,6 +4185,33 @@ async function toggleDebt(enabled) {
   } catch(e) {
     alert('Failed to update debt setting');
   }
+}
+
+async function setShopLocation() {
+  const statusEl = document.getElementById('loc-status');
+  if (statusEl) statusEl.textContent = 'Getting GPS…';
+  if (!navigator.geolocation) {
+    if (statusEl) statusEl.textContent = 'GPS not available on this device';
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(async (pos) => {
+    const lat = pos.coords.latitude;
+    const lng = pos.coords.longitude;
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/shops?id=eq.${S.shop.id}`, {
+        method: 'PATCH',
+        headers: { ...apiHeaders(), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ lat, lng })
+      });
+      if (!res.ok) throw new Error();
+      if (statusEl) statusEl.textContent = `Set (${lat.toFixed(4)}, ${lng.toFixed(4)}) ✅`;
+      toast('📍 Location saved — customers will now see distance to your shop');
+    } catch(e) {
+      if (statusEl) statusEl.textContent = 'Failed to save location';
+    }
+  }, () => {
+    if (statusEl) statusEl.textContent = 'Location access denied — allow it in browser settings';
+  }, { timeout: 10000, maximumAge: 0 });
 }
 
 async function refreshOrdersBadge() {
