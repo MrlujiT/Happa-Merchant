@@ -51,7 +51,7 @@
   .ref-note { background: var(--lime-light); border: 1px solid var(--lime-mid); border-radius: 8px; padding: 10px 12px; font-size: 13px; color: #4a6a0a; margin-bottom: 16px; display: none; }
 
   /* ── MAIN APP ── */
-  #app { display: none; flex-direction: column; height: 100vh; }
+  #app { display: none; flex-direction: column; height: 100svh; height: 100dvh; }
   .top-bar { background: var(--lime); padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
   .top-bar-left { display: flex; align-items: center; gap: 10px; }
   .top-logo { width: 34px; height: 34px; border-radius: 10px; overflow: hidden; flex-shrink: 0; }
@@ -61,7 +61,7 @@
   .content { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 
   /* ── BOTTOM NAV ── */
-  .bottom-nav { background: var(--bg); border-top: 1.5px solid var(--border); display: flex; flex-shrink: 0; box-shadow: 0 -2px 12px rgba(0,0,0,.06); }
+  .bottom-nav { background: var(--bg); border-top: 1.5px solid var(--border); display: flex; flex-shrink: 0; box-shadow: 0 -2px 12px rgba(0,0,0,.06); padding-bottom: env(safe-area-inset-bottom, 8px); }
   .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 10px 0 14px; gap: 3px; cursor: pointer; transition: color .15s; border: none; background: transparent; color: var(--fg3); font-size: 10px; font-weight: 600; letter-spacing: .3px; text-transform: uppercase; }
   .nav-item .nav-icon { font-size: 22px; }
   .nav-item.active { color: var(--lime); }
@@ -308,6 +308,11 @@
           <div class="hub-tile-label">Goals</div>
           <div class="hub-tile-sub">Track your wins</div>
         </div>
+        <div class="hub-tile" onclick="switchTab('games')">
+          <div class="hub-tile-icon">🎮</div>
+          <div class="hub-tile-label">Games</div>
+          <div class="hub-tile-sub">Play & earn points</div>
+        </div>
       </div>
     </div>
 
@@ -353,6 +358,40 @@
         <span class="page-header-title">My Goals</span>
       </div>
       <div id="goals-content"><div class="loading-row"><div class="spinner"></div></div></div>
+    </div>
+
+    <!-- GAMES -->
+    <div class="page" id="page-games">
+      <div class="page-header-bar">
+        <button class="page-back-btn" onclick="switchTab('home')">‹</button>
+        <span class="page-header-title">Games</span>
+      </div>
+      <div style="padding:16px">
+        <p style="color:var(--fg2);font-size:13px;margin-bottom:16px">Play mini-games and earn Happa points 🎯</p>
+        <div class="hub-grid">
+          <div class="hub-tile" onclick="launchGame('tap')">
+            <div class="hub-tile-icon">👆</div>
+            <div class="hub-tile-label">Tap Rush</div>
+            <div class="hub-tile-sub">Tap as fast as you can</div>
+          </div>
+          <div class="hub-tile" onclick="launchGame('memory')">
+            <div class="hub-tile-icon">🧠</div>
+            <div class="hub-tile-label">Memory Match</div>
+            <div class="hub-tile-sub">Match the pairs</div>
+          </div>
+          <div class="hub-tile" onclick="launchGame('spin')">
+            <div class="hub-tile-icon">🎡</div>
+            <div class="hub-tile-label">Lucky Spin</div>
+            <div class="hub-tile-sub">Daily prize wheel</div>
+          </div>
+          <div class="hub-tile" onclick="launchGame('quiz')">
+            <div class="hub-tile-icon">❓</div>
+            <div class="hub-tile-label">Happa Quiz</div>
+            <div class="hub-tile-sub">Business knowledge</div>
+          </div>
+        </div>
+        <div id="game-area" style="margin-top:20px"></div>
+      </div>
     </div>
   </div>
 
@@ -616,7 +655,7 @@ async function loadAdsOnly() {
 
 // ── TABS ──
 // Map tab names to nav item ids (community/merchants share the merchants nav dot)
-const NAV_MAP = { home:'home', merchants:'merchants', community:'merchants', orders:'orders', family:'family', goals:'goals' };
+const NAV_MAP = { home:'home', merchants:'merchants', community:'merchants', orders:'orders', family:'family', goals:'goals', games:'home' };
 
 function switchTab(name) {
   _tab = name;
@@ -1171,21 +1210,36 @@ function renderFamily(data) {
 }
 
 function promptCreateFamily() {
-  const name = prompt('Family name (e.g. "The Njau Family"):');
-  if (!name?.trim()) return;
-  familyApi({ action: 'create_family', name: name.trim() })
-    .then(() => loadFamily())
-    .catch(e => toast('❌ ' + e.message));
+  openSheet('create-family');
+  document.getElementById('fam-name-input').value = '';
+}
+
+async function submitCreateFamily() {
+  const name = document.getElementById('fam-name-input').value.trim();
+  if (!name) { toast('Enter a family name'); return; }
+  try {
+    await familyApi({ action:'create_family', name });
+    toast('👨‍👩‍👧 Family created!');
+    closeSheet('create-family');
+    loadFamily();
+  } catch(e) { toast('❌ ' + e.message); }
 }
 
 function promptJoinFamily() {
-  const code = prompt('Enter your family invite code:');
-  if (!code?.trim()) return;
-  const role = prompt('Your role in the family?\nType: parent, child, or sibling') || 'child';
-  if (!['parent','child','sibling'].includes(role)) { toast('Invalid role'); return; }
-  familyApi({ action: 'join_family', invite_code: code.trim(), role })
-    .then(() => { toast('Joined!'); loadFamily(); })
-    .catch(e => toast('❌ ' + e.message));
+  openSheet('join-family');
+  document.getElementById('join-code-input').value = '';
+}
+
+async function submitJoinFamily() {
+  const code = document.getElementById('join-code-input').value.trim().toUpperCase();
+  if (!code) { toast('Enter an invite code'); return; }
+  const role = document.getElementById('join-role-input').value || 'child';
+  try {
+    await familyApi({ action:'join_family', invite_code:code, role });
+    toast('👨‍👩‍👧 Joined family!');
+    closeSheet('join-family');
+    loadFamily();
+  } catch(e) { toast('❌ ' + e.message); }
 }
 
 async function submitTask(taskId) {
@@ -1223,18 +1277,29 @@ function openAssignTask() {
   if (!_family?.members) return;
   const children = _family.members.filter(m => m.role !== 'parent');
   if (!children.length) { toast('No children/siblings to assign to'); return; }
-  const names = children.map((m,i) => `${i+1}. ${m.happa_users?.name||m.happa_users?.phone}`).join('\n');
-  const idx = parseInt(prompt(`Assign to:\n${names}\n\nEnter number:`)) - 1;
-  if (isNaN(idx) || idx < 0 || idx >= children.length) return;
-  const assignTo = children[idx].user_id;
-  const title = prompt('Task title:');
-  if (!title?.trim()) return;
-  const desc = prompt('Description (optional):') || '';
-  const pts = parseInt(prompt('Points reward (default 10):') || '10') || 10;
-  const due = prompt('Due date (YYYY-MM-DD, optional):') || '';
-  familyApi({ action: 'assign_task', assigned_to: assignTo, title: title.trim(), description: desc, points_reward: pts, due_date: due||undefined })
-    .then(() => { toast('Task assigned!'); loadFamily(); })
-    .catch(e => toast('❌ ' + e.message));
+  // Build member select options
+  const opts = children.map(m => `<option value="${m.user_id}">${esc(m.happa_users?.name||m.happa_users?.phone||'Member')}</option>`).join('');
+  document.getElementById('task-member-opts').innerHTML = opts;
+  document.getElementById('task-title-input').value = '';
+  document.getElementById('task-desc-input').value = '';
+  document.getElementById('task-pts-input').value = '10';
+  document.getElementById('task-due-input').value = '';
+  openSheet('assign-task');
+}
+
+async function submitAssignTask() {
+  const assignTo = document.getElementById('task-member-opts').value;
+  const title = document.getElementById('task-title-input').value.trim();
+  if (!title) { toast('Enter a task title'); return; }
+  const desc = document.getElementById('task-desc-input').value.trim();
+  const pts = parseInt(document.getElementById('task-pts-input').value || '10') || 10;
+  const due = document.getElementById('task-due-input').value || undefined;
+  try {
+    await familyApi({ action:'assign_task', assigned_to:assignTo, title, description:desc, points_reward:pts, due_date:due });
+    toast('✓ Task assigned!');
+    closeSheet('assign-task');
+    loadFamily();
+  } catch(e) { toast('❌ ' + e.message); }
 }
 
 // ── GOALS ────────────────────────────────────────────────────────────────────
@@ -1255,9 +1320,13 @@ async function loadGoals() {
 function renderGoals() {
   const el = document.getElementById('goals-content');
   let html = `
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
-      <button class="btn btn-primary" onclick="openNewGoal('savings')">💰 Savings Goal</button>
-      <button class="btn btn-primary" onclick="openNewGoal('fitness')">💪 Fitness Goal</button>
+    <div style="padding:14px 16px 0">
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:4px">
+        <button class="goal-type-btn" onclick="openNewGoal('savings')"><span style="font-size:22px">💰</span><span>Savings</span></button>
+        <button class="goal-type-btn" onclick="openNewGoal('fitness')"><span style="font-size:22px">💪</span><span>Fitness</span></button>
+        <button class="goal-type-btn" onclick="openNewGoal('life')"><span style="font-size:22px">🌟</span><span>Life</span></button>
+        <button class="goal-type-btn" onclick="openNewGoal('career')"><span style="font-size:22px">🎓</span><span>Career</span></button>
+      </div>
     </div>`;
 
   if (!_goals.length) {
@@ -1342,50 +1411,144 @@ function renderGoalCard(g) {
   </div>`;
 }
 
+// ── GOAL CREATION SHEETS ──────────────────────────────────────────────────────
+const GOAL_META = {
+  savings: { icon:'💰', label:'Savings Goal', color:'#22c55e', placeholder:'e.g. Mombasa Trip, New Laptop' },
+  fitness: { icon:'💪', label:'Fitness Goal',  color:'#6366f1', placeholder:'e.g. Lose 5kg by December' },
+  life:    { icon:'🌟', label:'Life Goal',     color:'#f59e0b', placeholder:'e.g. Learn to Drive, Buy Land' },
+  career:  { icon:'🎓', label:'Career Goal',   color:'#06b6d4', placeholder:'e.g. Complete ACCA, Get Promotion' },
+};
+
 function openNewGoal(type) {
+  const meta = GOAL_META[type] || GOAL_META.savings;
+  let inner = '';
   if (type === 'savings') {
-    const name = prompt('Goal name (e.g. "Mombasa Trip"):');
-    if (!name?.trim()) return;
-    const target = parseFloat(prompt('Target amount (KES):'));
-    if (!target || target <= 0) { toast('Enter a valid amount'); return; }
-    const freq = prompt('Deposit frequency?\nType: daily, weekly, or monthly') || 'monthly';
-    const depAmt = parseFloat(prompt(`How much per ${freq} deposit? (optional, press Cancel to skip):`) || '0') || null;
-    const storage = prompt('Where will you save?\nType: mpesa, bank, sacco, cash, or other') || 'mpesa';
-    const storageName = prompt(`Name of your ${storage} (e.g. Equity Bank, optional):`) || '';
-    const targetDate  = prompt('Target date (YYYY-MM-DD, optional):') || '';
-    familyApi({ action: 'create_savings_goal', name: name.trim(), target_amount: target, frequency: freq, deposit_amount: depAmt, storage_type: storage, storage_name: storageName||undefined, target_date: targetDate||undefined })
-      .then(() => { toast('💰 Goal created!'); loadGoals(); })
-      .catch(e => toast('❌ ' + e.message));
+    inner = `
+      <label class="fi-lbl">Goal name</label>
+      <input class="fi" id="gnl-name" placeholder="${meta.placeholder}" autocomplete="off">
+      <label class="fi-lbl">Target amount (KES)</label>
+      <input class="fi" id="gnl-target" type="number" placeholder="e.g. 50000" inputmode="numeric">
+      <label class="fi-lbl">Deposit frequency</label>
+      <select class="fi" id="gnl-freq"><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly" selected>Monthly</option></select>
+      <label class="fi-lbl">Amount per deposit (optional)</label>
+      <input class="fi" id="gnl-dep" type="number" placeholder="e.g. 5000" inputmode="numeric">
+      <label class="fi-lbl">Where will you save?</label>
+      <select class="fi" id="gnl-storage"><option value="mpesa">M-Pesa</option><option value="bank">Bank</option><option value="sacco">SACCO</option><option value="cash">Cash</option><option value="other">Other</option></select>
+      <label class="fi-lbl">Account / Wallet name (optional)</label>
+      <input class="fi" id="gnl-sname" placeholder="e.g. Equity Bank, M-Shwari">
+      <label class="fi-lbl">Target date (optional)</label>
+      <input class="fi" id="gnl-date" type="date">`;
+  } else if (type === 'fitness') {
+    inner = `
+      <label class="fi-lbl">Goal name</label>
+      <input class="fi" id="gnl-name" placeholder="${meta.placeholder}" autocomplete="off">
+      <label class="fi-lbl">Goal type</label>
+      <select class="fi" id="gnl-ftype">
+        <option value="weight_loss">Weight Loss</option>
+        <option value="weight_gain">Weight Gain</option>
+        <option value="strength">Strength Training</option>
+        <option value="endurance">Endurance / Running</option>
+        <option value="general" selected>General Fitness</option>
+      </select>
+      <label class="fi-lbl">Current weight (kg, optional)</label>
+      <input class="fi" id="gnl-startw" type="number" placeholder="e.g. 78" inputmode="decimal">
+      <label class="fi-lbl">Target weight (kg, optional)</label>
+      <input class="fi" id="gnl-targetw" type="number" placeholder="e.g. 70" inputmode="decimal">
+      <label class="fi-lbl">Target date (optional)</label>
+      <input class="fi" id="gnl-date" type="date">`;
   } else {
-    const name = prompt('Goal name (e.g. "Lose 5kg by December"):');
-    if (!name?.trim()) return;
-    const ftype = prompt('Goal type?\nType: weight_loss, weight_gain, strength, endurance, or general') || 'general';
-    const startW = parseFloat(prompt('Your current weight (kg, optional):') || '0') || null;
-    const targetW = parseFloat(prompt('Target weight (kg, optional):') || '0') || null;
-    const targetDate = prompt('Target date (YYYY-MM-DD, optional):') || '';
-    familyApi({ action: 'create_fitness_goal', name: name.trim(), fitness_type: ftype, start_weight_kg: startW, target_weight_kg: targetW, target_date: targetDate||undefined })
-      .then(() => { toast('💪 Goal created!'); loadGoals(); })
-      .catch(e => toast('❌ ' + e.message));
+    // life & career — simple name + description + date
+    inner = `
+      <label class="fi-lbl">Goal name</label>
+      <input class="fi" id="gnl-name" placeholder="${meta.placeholder}" autocomplete="off">
+      <label class="fi-lbl">Description (optional)</label>
+      <textarea class="fi" id="gnl-desc" placeholder="What does achieving this look like?" rows="3" style="resize:none"></textarea>
+      <label class="fi-lbl">Target date (optional)</label>
+      <input class="fi" id="gnl-date" type="date">`;
   }
+  openSheet('goal-new');
+  const sh = document.getElementById('sheet-goal-new');
+  sh.querySelector('.sheet-title').textContent = `${meta.icon} New ${meta.label}`;
+  sh.querySelector('.sheet-title').style.color = meta.color;
+  sh.querySelector('#goal-new-fields').innerHTML = inner;
+  sh.dataset.goalType = type;
+}
+
+async function submitNewGoal() {
+  const sh = document.getElementById('sheet-goal-new');
+  const type = sh.dataset.goalType;
+  const name = document.getElementById('gnl-name')?.value?.trim();
+  if (!name) { toast('Enter a goal name'); return; }
+  const date = document.getElementById('gnl-date')?.value || undefined;
+
+  try {
+    if (type === 'savings') {
+      const target = parseFloat(document.getElementById('gnl-target')?.value);
+      if (!target || target <= 0) { toast('Enter a valid target amount'); return; }
+      const freq = document.getElementById('gnl-freq')?.value || 'monthly';
+      const dep = parseFloat(document.getElementById('gnl-dep')?.value || '0') || null;
+      const storage = document.getElementById('gnl-storage')?.value || 'mpesa';
+      const sname = document.getElementById('gnl-sname')?.value?.trim() || undefined;
+      await familyApi({ action:'create_savings_goal', name, target_amount:target, frequency:freq, deposit_amount:dep, storage_type:storage, storage_name:sname, target_date:date });
+      toast('💰 Savings goal created!');
+    } else if (type === 'fitness') {
+      const ftype = document.getElementById('gnl-ftype')?.value || 'general';
+      const startW = parseFloat(document.getElementById('gnl-startw')?.value || '0') || null;
+      const targetW = parseFloat(document.getElementById('gnl-targetw')?.value || '0') || null;
+      await familyApi({ action:'create_fitness_goal', name, fitness_type:ftype, start_weight_kg:startW, target_weight_kg:targetW, target_date:date });
+      toast('💪 Fitness goal created!');
+    } else {
+      const desc = document.getElementById('gnl-desc')?.value?.trim() || undefined;
+      await familyApi({ action:'create_general_goal', name, goal_type:type, description:desc, target_date:date });
+      toast(`🎯 Goal created!`);
+    }
+    closeSheet('goal-new');
+    loadGoals();
+  } catch(e) { toast('❌ ' + e.message); }
 }
 
 function openRecordDeposit(goalId) {
-  const amount = parseFloat(prompt('Amount deposited (KES):'));
-  if (!amount || amount <= 0) return;
-  const code = prompt('Transaction code (M-Pesa/bank ref, optional):') || '';
-  const notes = prompt('Notes (optional):') || '';
-  familyApi({ action: 'record_deposit', goal_id: goalId, amount, transaction_code: code||undefined, notes: notes||undefined })
-    .then(r => { toast(`✓ Deposit recorded! Total: KES ${Number(r.new_total).toLocaleString('en-KE')}`); loadGoals(); })
-    .catch(e => toast('❌ ' + e.message));
+  openSheet('deposit');
+  document.getElementById('sheet-deposit').dataset.goalId = goalId;
+  document.getElementById('dep-amount').value = '';
+  document.getElementById('dep-code').value = '';
+  document.getElementById('dep-notes').value = '';
+}
+
+async function submitDeposit() {
+  const sh = document.getElementById('sheet-deposit');
+  const goalId = sh.dataset.goalId;
+  const amount = parseFloat(document.getElementById('dep-amount').value);
+  if (!amount || amount <= 0) { toast('Enter a valid amount'); return; }
+  const code = document.getElementById('dep-code').value.trim() || undefined;
+  const notes = document.getElementById('dep-notes').value.trim() || undefined;
+  try {
+    const r = await familyApi({ action:'record_deposit', goal_id:goalId, amount, transaction_code:code, notes });
+    toast(`✓ KES ${amount.toLocaleString('en-KE')} recorded! Total: KES ${Number(r.new_total||0).toLocaleString('en-KE')}`);
+    closeSheet('deposit');
+    loadGoals();
+  } catch(e) { toast('❌ ' + e.message); }
 }
 
 function openLogCheckpoint(goalId) {
-  const weight = parseFloat(prompt('Current weight (kg):'));
-  if (!weight || weight <= 0) return;
-  const notes = prompt('Notes (optional):') || '';
-  familyApi({ action: 'log_checkpoint', goal_id: goalId, weight_kg: weight, notes: notes||undefined })
-    .then(() => { toast('✓ Weight logged!'); loadGoals(); })
-    .catch(e => toast('❌ ' + e.message));
+  openSheet('checkpoint');
+  document.getElementById('sheet-checkpoint').dataset.goalId = goalId;
+  document.getElementById('chk-weight').value = '';
+  document.getElementById('chk-notes').value = '';
+}
+
+async function submitCheckpoint() {
+  const sh = document.getElementById('sheet-checkpoint');
+  const goalId = sh.dataset.goalId;
+  const weight = parseFloat(document.getElementById('chk-weight').value);
+  if (!weight || weight <= 0) { toast('Enter your current weight'); return; }
+  const notes = document.getElementById('chk-notes').value.trim() || undefined;
+  try {
+    await familyApi({ action:'log_checkpoint', goal_id:goalId, weight_kg:weight, notes });
+    toast('✓ Weight logged!');
+    closeSheet('checkpoint');
+    loadGoals();
+  } catch(e) { toast('❌ ' + e.message); }
 }
 
 // ── PROFILE ──
@@ -1415,6 +1578,181 @@ function copyInvite() {
   navigator.clipboard?.writeText(link).then(() => toast('Invite link copied!')).catch(() => toast(link));
 }
 
+// ── GAMES ──
+let _gameTimer = null;
+function launchGame(type) {
+  const area = document.getElementById('game-area');
+  if (_gameTimer) { clearInterval(_gameTimer); _gameTimer = null; }
+  if (type === 'tap') {
+    let count = 0, timeLeft = 10;
+    area.innerHTML = `
+      <div style="text-align:center;padding:20px 0">
+        <div style="font-size:14px;font-weight:700;color:var(--fg2);margin-bottom:8px">TAP RUSH — tap as fast as you can!</div>
+        <div id="tap-timer" style="font-size:48px;font-weight:900;color:var(--accent)">${timeLeft}s</div>
+        <div id="tap-count" style="font-size:64px;font-weight:900;line-height:1">0</div>
+        <button id="tap-btn" style="width:140px;height:140px;border-radius:50%;border:none;background:var(--accent);color:#fff;font-size:18px;font-weight:800;cursor:pointer;margin-top:16px;box-shadow:0 4px 20px rgba(0,0,0,.2);active:transform:scale(.95)"
+          ontouchstart="event.preventDefault();tapIt()" onclick="tapIt()">TAP!</button>
+        <div id="tap-result" style="margin-top:12px;font-size:13px;color:var(--fg2)"></div>
+      </div>`;
+    window.tapIt = function() {
+      count++;
+      document.getElementById('tap-count').textContent = count;
+    };
+    _gameTimer = setInterval(() => {
+      timeLeft--;
+      const timerEl = document.getElementById('tap-timer');
+      if (timerEl) timerEl.textContent = timeLeft + 's';
+      if (timeLeft <= 0) {
+        clearInterval(_gameTimer); _gameTimer = null;
+        const btn = document.getElementById('tap-btn');
+        if (btn) btn.disabled = true;
+        const pts = Math.floor(count * 1.5);
+        const res = document.getElementById('tap-result');
+        if (res) res.innerHTML = `<span style="font-size:16px;font-weight:800;color:var(--accent)">🎉 ${count} taps! You earned ${pts} points!</span>`;
+      }
+    }, 1000);
+  } else if (type === 'memory') {
+    const emojis = ['🍕','🍔','🌮','🍜','🍣','🥗','🍩','🎂'];
+    const cards = [...emojis, ...emojis].sort(() => Math.random() - .5);
+    let flipped = [], matched = 0, moves = 0, lockBoard = false;
+    area.innerHTML = `
+      <div style="text-align:center;padding:10px 0">
+        <div style="font-size:14px;font-weight:700;color:var(--fg2);margin-bottom:12px">MEMORY MATCH — find the pairs!</div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;max-width:300px;margin:0 auto" id="mem-grid"></div>
+        <div id="mem-info" style="margin-top:12px;font-size:13px;color:var(--fg2)">Moves: 0</div>
+      </div>`;
+    const grid = document.getElementById('mem-grid');
+    cards.forEach((emoji, i) => {
+      const card = document.createElement('div');
+      card.style.cssText = 'height:64px;background:var(--bg2);border:1.5px solid var(--border);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:28px;cursor:pointer;transition:transform .15s';
+      card.dataset.emoji = emoji; card.dataset.idx = i; card.textContent = '?';
+      card.style.color = 'var(--fg2)';
+      card.onclick = function() {
+        if (lockBoard || flipped.includes(i) || this.dataset.matched) return;
+        this.textContent = emoji; this.style.color = '';
+        this.style.background = 'var(--accent)'; this.style.color = '#fff';
+        flipped.push(i);
+        if (flipped.length === 2) {
+          moves++; lockBoard = true;
+          document.getElementById('mem-info').textContent = `Moves: ${moves}`;
+          const [a, b] = flipped.map(x => grid.children[x]);
+          if (a.dataset.emoji === b.dataset.emoji) {
+            a.dataset.matched = b.dataset.matched = '1';
+            a.style.background = '#22c55e'; b.style.background = '#22c55e';
+            flipped = []; lockBoard = false; matched++;
+            if (matched === emojis.length) {
+              document.getElementById('mem-info').innerHTML = `<span style="color:var(--accent);font-weight:800">🎉 Done in ${moves} moves! You earned ${Math.max(50 - moves * 2, 10)} points!</span>`;
+            }
+          } else {
+            setTimeout(() => {
+              [a, b].forEach(el => { el.textContent = '?'; el.style.color = 'var(--fg2)'; el.style.background = 'var(--bg2)'; });
+              flipped = []; lockBoard = false;
+            }, 900);
+          }
+        }
+      };
+      grid.appendChild(card);
+    });
+  } else if (type === 'spin') {
+    const prizes = [
+      { label: '5 pts', pts: 5, color: '#6366f1' },
+      { label: '10 pts', pts: 10, color: '#22c55e' },
+      { label: '2 pts', pts: 2, color: '#f59e0b' },
+      { label: '20 pts', pts: 20, color: '#ef4444' },
+      { label: '5 pts', pts: 5, color: '#06b6d4' },
+      { label: '50 pts!', pts: 50, color: '#f97316' },
+      { label: '3 pts', pts: 3, color: '#8b5cf6' },
+      { label: '15 pts', pts: 15, color: '#10b981' },
+    ];
+    area.innerHTML = `
+      <div style="text-align:center;padding:10px 0">
+        <div style="font-size:14px;font-weight:700;color:var(--fg2);margin-bottom:12px">LUCKY SPIN — daily prize wheel!</div>
+        <div style="position:relative;width:220px;height:220px;margin:0 auto">
+          <canvas id="spin-canvas" width="220" height="220" style="border-radius:50%"></canvas>
+          <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:40px;height:40px;background:var(--bg);border:3px solid var(--fg);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;z-index:2">⭐</div>
+          <div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);font-size:24px;z-index:3">▼</div>
+        </div>
+        <button id="spin-btn" style="margin-top:16px;padding:12px 32px;background:var(--accent);color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:800;cursor:pointer" onclick="doSpin()">SPIN! 🎡</button>
+        <div id="spin-result" style="margin-top:12px;font-size:14px;font-weight:700;color:var(--fg2);min-height:24px"></div>
+      </div>`;
+    const canvas = document.getElementById('spin-canvas');
+    const ctx = canvas.getContext('2d');
+    let angle = 0;
+    function drawWheel(rot) {
+      const seg = (Math.PI * 2) / prizes.length;
+      prizes.forEach((p, i) => {
+        ctx.beginPath(); ctx.moveTo(110,110);
+        ctx.arc(110,110,108, rot + i*seg, rot + (i+1)*seg);
+        ctx.fillStyle = p.color; ctx.fill();
+        ctx.save(); ctx.translate(110,110);
+        ctx.rotate(rot + i*seg + seg/2);
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 12px sans-serif';
+        ctx.textAlign = 'right'; ctx.fillText(p.label, 95, 4);
+        ctx.restore();
+      });
+    }
+    drawWheel(0);
+    window.doSpin = function() {
+      const btn = document.getElementById('spin-btn');
+      btn.disabled = true;
+      const spins = 5 + Math.random() * 5;
+      const target = Math.random() * Math.PI * 2;
+      const total = spins * Math.PI * 2 + target;
+      let start = null, duration = 4000;
+      function frame(ts) {
+        if (!start) start = ts;
+        const prog = Math.min((ts - start) / duration, 1);
+        const ease = 1 - Math.pow(1 - prog, 3);
+        angle = ease * total;
+        ctx.clearRect(0,0,220,220); drawWheel(angle);
+        if (prog < 1) { requestAnimationFrame(frame); return; }
+        const seg = (Math.PI * 2) / prizes.length;
+        const norm = ((angle % (Math.PI*2)) + Math.PI*2) % (Math.PI*2);
+        const idx = Math.floor(((Math.PI*2 - norm) % (Math.PI*2)) / seg) % prizes.length;
+        const won = prizes[idx];
+        document.getElementById('spin-result').innerHTML = `<span style="color:var(--accent)">🎉 You won ${won.label}!</span>`;
+      }
+      requestAnimationFrame(frame);
+    };
+  } else if (type === 'quiz') {
+    const questions = [
+      { q: 'What does "MVP" stand for in business?', opts: ['Maximum Value Product','Minimum Viable Product','Most Valuable Person','Market Value Proposal'], ans: 1 },
+      { q: 'Which financial statement shows a company\'s revenues and expenses?', opts: ['Balance Sheet','Cash Flow Statement','Income Statement','Equity Statement'], ans: 2 },
+      { q: 'What is "gross profit"?', opts: ['Revenue minus all expenses','Revenue minus cost of goods sold','Net income before tax','Total sales revenue'], ans: 1 },
+      { q: 'What does ROI stand for?', opts: ['Rate of Investment','Return on Investment','Revenue Over Income','Risk of Insolvency'], ans: 1 },
+      { q: 'A business that sells directly to end customers is called:', opts: ['B2B','B2G','B2C','C2C'], ans: 2 },
+    ];
+    let current = 0, score = 0;
+    function renderQ() {
+      const q = questions[current];
+      area.innerHTML = `
+        <div style="padding:0 4px">
+          <div style="font-size:12px;color:var(--fg2);font-weight:700;margin-bottom:8px">Q ${current+1}/${questions.length} · Score: ${score}</div>
+          <div style="font-size:15px;font-weight:700;margin-bottom:14px;line-height:1.4">${q.q}</div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            ${q.opts.map((o, i) => `<button onclick="answerQ(${i})" style="text-align:left;padding:12px 14px;background:var(--bg2);border:1.5px solid var(--border);border-radius:12px;font-size:14px;cursor:pointer;color:var(--fg)">${o}</button>`).join('')}
+          </div>
+        </div>`;
+    }
+    window.answerQ = function(idx) {
+      const q = questions[current];
+      const btns = area.querySelectorAll('button');
+      btns.forEach((b, i) => {
+        b.disabled = true;
+        if (i === q.ans) b.style.background = '#22c55e', b.style.color = '#fff';
+        else if (i === idx && idx !== q.ans) b.style.background = '#ef4444', b.style.color = '#fff';
+      });
+      if (idx === q.ans) score++;
+      setTimeout(() => {
+        current++;
+        if (current < questions.length) renderQ();
+        else area.innerHTML = `<div style="text-align:center;padding:20px 0"><div style="font-size:48px">🎓</div><div style="font-size:18px;font-weight:800;margin:8px 0">Quiz Done!</div><div style="font-size:14px;color:var(--fg2)">Score: ${score}/${questions.length}</div><div style="margin-top:8px;color:var(--accent);font-weight:700">${score >= 4 ? '🏆 Excellent!' : score >= 2 ? '👍 Good effort!' : '📚 Keep learning!'}</div></div>`;
+      }, 1200);
+    };
+    renderQ();
+  }
+}
+
 // ── SHEETS ──
 function openSheet(name) {
   document.getElementById(name+'-overlay').style.display = 'block';
@@ -1438,5 +1776,124 @@ function timeAgo(ts) {
   return d.toLocaleDateString('en-KE', { day: 'numeric', month: 'short' });
 }
 </script>
+
+<!-- ── GOAL CREATION SHEET ── -->
+<div class="sheet-overlay" id="goal-new-overlay" onclick="closeSheet('goal-new')"></div>
+<div class="sheet" id="goal-new-sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head">
+    <h3 class="sheet-title" style="font-size:18px;font-weight:800">New Goal</h3>
+  </div>
+  <div class="sheet-body" style="padding:0 20px 20px">
+    <div id="goal-new-fields"></div>
+    <button class="btn btn-primary" style="margin-top:16px;width:100%" onclick="submitNewGoal()">Create Goal →</button>
+  </div>
+</div>
+
+<!-- ── RECORD DEPOSIT SHEET ── -->
+<div class="sheet-overlay" id="deposit-overlay" onclick="closeSheet('deposit')"></div>
+<div class="sheet" id="deposit-sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head">
+    <h3 style="font-size:18px;font-weight:800">💰 Record Deposit</h3>
+    <p style="color:var(--fg2);font-size:13px;margin-top:4px">Add a new deposit to your savings goal</p>
+  </div>
+  <div class="sheet-body" style="padding:0 20px 20px">
+    <label class="fi-lbl">Amount (KES)</label>
+    <input class="fi" id="dep-amount" type="number" placeholder="e.g. 2000" inputmode="numeric" autofocus>
+    <label class="fi-lbl">M-Pesa / Bank code (optional)</label>
+    <input class="fi" id="dep-code" placeholder="e.g. RQFCJKN0P4" style="text-transform:uppercase" autocomplete="off">
+    <label class="fi-lbl">Notes (optional)</label>
+    <input class="fi" id="dep-notes" placeholder="e.g. January contribution">
+    <button class="btn btn-primary" style="margin-top:16px;width:100%" onclick="submitDeposit()">Save Deposit →</button>
+  </div>
+</div>
+
+<!-- ── LOG WEIGHT SHEET ── -->
+<div class="sheet-overlay" id="checkpoint-overlay" onclick="closeSheet('checkpoint')"></div>
+<div class="sheet" id="checkpoint-sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head">
+    <h3 style="font-size:18px;font-weight:800">💪 Log Weight</h3>
+    <p style="color:var(--fg2);font-size:13px;margin-top:4px">Track your fitness progress</p>
+  </div>
+  <div class="sheet-body" style="padding:0 20px 20px">
+    <label class="fi-lbl">Current weight (kg)</label>
+    <input class="fi" id="chk-weight" type="number" placeholder="e.g. 76.5" inputmode="decimal" autofocus>
+    <label class="fi-lbl">Notes (optional)</label>
+    <input class="fi" id="chk-notes" placeholder="e.g. After morning run, felt great">
+    <button class="btn btn-primary" style="margin-top:16px;width:100%" onclick="submitCheckpoint()">Log It →</button>
+  </div>
+</div>
+
+<!-- ── CREATE FAMILY SHEET ── -->
+<div class="sheet-overlay" id="create-family-overlay" onclick="closeSheet('create-family')"></div>
+<div class="sheet" id="create-family-sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head">
+    <h3 style="font-size:18px;font-weight:800">👨‍👩‍👧 Create a Family</h3>
+    <p style="color:var(--fg2);font-size:13px;margin-top:4px">Invite members using your family code</p>
+  </div>
+  <div class="sheet-body" style="padding:0 20px 20px">
+    <label class="fi-lbl">Family name</label>
+    <input class="fi" id="fam-name-input" placeholder='e.g. The Njau Family' autocomplete="off" autofocus>
+    <button class="btn btn-primary" style="margin-top:16px;width:100%" onclick="submitCreateFamily()">Create Family →</button>
+  </div>
+</div>
+
+<!-- ── JOIN FAMILY SHEET ── -->
+<div class="sheet-overlay" id="join-family-overlay" onclick="closeSheet('join-family')"></div>
+<div class="sheet" id="join-family-sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head">
+    <h3 style="font-size:18px;font-weight:800">🔗 Join a Family</h3>
+    <p style="color:var(--fg2);font-size:13px;margin-top:4px">Enter the invite code from your family admin</p>
+  </div>
+  <div class="sheet-body" style="padding:0 20px 20px">
+    <label class="fi-lbl">Invite code</label>
+    <input class="fi" id="join-code-input" placeholder="e.g. AB12CD" style="text-transform:uppercase;letter-spacing:3px;font-size:18px;font-weight:700;text-align:center" autocomplete="off" autofocus>
+    <label class="fi-lbl">Your role</label>
+    <select class="fi" id="join-role-input">
+      <option value="child">Child</option>
+      <option value="parent">Parent / Guardian</option>
+      <option value="sibling">Sibling</option>
+    </select>
+    <button class="btn btn-primary" style="margin-top:16px;width:100%" onclick="submitJoinFamily()">Join Family →</button>
+  </div>
+</div>
+
+<!-- ── ASSIGN TASK SHEET ── -->
+<div class="sheet-overlay" id="assign-task-overlay" onclick="closeSheet('assign-task')"></div>
+<div class="sheet" id="assign-task-sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head">
+    <h3 style="font-size:18px;font-weight:800">📋 Assign Task</h3>
+  </div>
+  <div class="sheet-body" style="padding:0 20px 20px">
+    <label class="fi-lbl">Assign to</label>
+    <select class="fi" id="task-member-opts"></select>
+    <label class="fi-lbl">Task title</label>
+    <input class="fi" id="task-title-input" placeholder="e.g. Clean bedroom" autocomplete="off" autofocus>
+    <label class="fi-lbl">Description (optional)</label>
+    <input class="fi" id="task-desc-input" placeholder="More details...">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div>
+        <label class="fi-lbl">Points reward</label>
+        <input class="fi" id="task-pts-input" type="number" value="10" inputmode="numeric">
+      </div>
+      <div>
+        <label class="fi-lbl">Due date (optional)</label>
+        <input class="fi" id="task-due-input" type="date">
+      </div>
+    </div>
+    <button class="btn btn-primary" style="margin-top:16px;width:100%" onclick="submitAssignTask()">Assign Task →</button>
+  </div>
+</div>
+
+<style>
+  .fi-lbl { display:block; font-size:12px; font-weight:600; color:var(--fg2); margin:14px 0 4px; text-transform:uppercase; letter-spacing:.5px; }
+  .goal-type-btn { flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; background:var(--bg2); border:1.5px solid var(--border); border-radius:14px; padding:12px 6px; cursor:pointer; font-size:11px; font-weight:700; color:var(--fg); transition:transform .1s; }
+  .goal-type-btn:active { transform:scale(.93); }
+</style>
 </body>
 </html>
