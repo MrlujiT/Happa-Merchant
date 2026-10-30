@@ -190,8 +190,28 @@ tr:hover td{background:rgba(255,255,255,.02)}
           <div class="hdr-sub" id="hdr-email">admin</div>
         </div>
       </div>
-      <button class="btn-s" onclick="doLogout()">Sign Out</button>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn-s" onclick="openChangePwdModal()" style="background:transparent;border:1px solid var(--bdr);color:var(--txt2)">Change Password</button>
+        <button class="btn-s" onclick="doLogout()">Sign Out</button>
+      </div>
     </header>
+
+    <!-- CHANGE PASSWORD MODAL -->
+    <div class="overlay" id="change-pwd-overlay">
+      <div class="modal" style="max-width:400px">
+        <h2>Change Password</h2>
+        <div class="modal-sub">Logged in as <span id="change-pwd-email" style="color:var(--acc)"></span></div>
+        <div class="fg"><label class="fl">New Password</label>
+          <input class="fi" id="new-pwd-input" type="password" placeholder="Min. 8 characters" autocomplete="new-password"></div>
+        <div class="fg"><label class="fl">Confirm Password</label>
+          <input class="fi" id="new-pwd-confirm" type="password" placeholder="Repeat new password" autocomplete="new-password"></div>
+        <div id="change-pwd-err" class="err-msg" style="display:none"></div>
+        <div style="display:flex;gap:8px;margin-top:16px">
+          <button class="btn-s" id="change-pwd-btn" onclick="saveNewPassword()" style="flex:1;padding:12px">Save Password</button>
+          <button class="btn-s" onclick="closeModal();document.getElementById('change-pwd-overlay').classList.remove('on')" style="background:transparent;border:1px solid var(--bdr);color:var(--txt2)">Cancel</button>
+        </div>
+      </div>
+    </div>
 
     <div class="main">
       <div class="page-hdr">
@@ -1518,6 +1538,37 @@ window.addEventListener('appinstalled', () => {
   if (bar) bar.style.display = 'none';
   _adminInstallPrompt = null;
 });
+// ── CHANGE PASSWORD ──
+function openChangePwdModal() {
+  document.getElementById('change-pwd-email').textContent = currentUser?.email || '';
+  document.getElementById('new-pwd-input').value = '';
+  document.getElementById('new-pwd-confirm').value = '';
+  document.getElementById('change-pwd-err').style.display = 'none';
+  document.getElementById('change-pwd-overlay').classList.add('on');
+}
+
+async function saveNewPassword() {
+  const pwd     = document.getElementById('new-pwd-input').value;
+  const confirm = document.getElementById('new-pwd-confirm').value;
+  const err     = document.getElementById('change-pwd-err');
+  const btn     = document.getElementById('change-pwd-btn');
+
+  if (pwd.length < 8) { err.style.display='block'; err.textContent='Password must be at least 8 characters'; return; }
+  if (pwd !== confirm) { err.style.display='block'; err.textContent='Passwords do not match'; return; }
+
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const { error } = await db.auth.updateUser({ password: pwd });
+    if (error) throw new Error(error.message);
+    document.getElementById('change-pwd-overlay').classList.remove('on');
+    showToast('✅ Password updated successfully');
+  } catch(e) {
+    err.style.display = 'block'; err.textContent = e.message;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save Password';
+  }
+}
+
 function installAdminApp() {
   if (!_adminInstallPrompt) return;
   _adminInstallPrompt.prompt();
