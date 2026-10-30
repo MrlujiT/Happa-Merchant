@@ -212,6 +212,8 @@ tr:hover td{background:rgba(255,255,255,.02)}
         <button class="tab" onclick="switchTab('billing')">Billing</button>
         <button class="tab" onclick="switchTab('invites')">Pending Invites</button>
         <button class="tab" onclick="switchTab('users')">All Users</button>
+        <button class="tab" onclick="switchTab('happa')">happa Users</button>
+        <button class="tab" onclick="switchTab('ads')">📢 Ads</button>
       </div>
 
       <div id="tab-content"></div>
@@ -448,6 +450,7 @@ async function apiPatch(table, filter, body) {
 }
 
 let currentTab = 'shops';
+let _adEditId = null;
 
 // ── INIT ──
 (async function init() {
@@ -526,7 +529,7 @@ async function loadStats() {
 function switchTab(tab) {
   currentTab = tab;
   document.querySelectorAll('.tab').forEach((t,i) => {
-    const labels = ['shops','agents','billing','invites','users'];
+    const labels = ['shops','agents','billing','invites','users','happa','ads'];
     t.classList.toggle('on', labels[i] === tab);
   });
   if (tab === 'shops')   renderShops();
@@ -534,6 +537,8 @@ function switchTab(tab) {
   if (tab === 'billing') renderBilling();
   if (tab === 'invites') renderInvites();
   if (tab === 'users')   renderUsers();
+  if (tab === 'happa')   renderHappaUsers();
+  if (tab === 'ads')     renderAds();
 }
 
 // ── AGENTS TAB ──
@@ -1516,6 +1521,207 @@ function installAdminApp() {
   if (!_adminInstallPrompt) return;
   _adminInstallPrompt.prompt();
   _adminInstallPrompt.userChoice.then(() => { _adminInstallPrompt = null; });
+}
+
+// ── HAPPA USERS TAB ──
+async function renderHappaUsers() {
+  const el = document.getElementById('tab-content');
+  el.innerHTML = '<div style="padding:20px;color:var(--txt2)"><span class="spin"></span>Loading happa users…</div>';
+
+  const [happaUsers, families] = await Promise.all([
+    apiGet('happa_users?select=id,name,phone,created_at&order=created_at.desc&limit=200'),
+    apiGet('happa_family_members?select=user_id,role,happa_families(name,invite_code)'),
+  ]);
+
+  if (!happaUsers?.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-ico">📱</div><p>No happa users yet.</p></div>`;
+    return;
+  }
+
+  // Build family map
+  const famMap = {};
+  (families||[]).forEach(m => { famMap[m.user_id] = { role: m.role, family: m.happa_families }; });
+
+  const total = happaUsers.length;
+  const withFamily = Object.keys(famMap).length;
+  const parents = (families||[]).filter(m => m.role === 'parent').length;
+
+  el.innerHTML = `
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px">
+      <div class="sc" style="flex:1;min-width:120px"><div class="sc-lbl">Total Users</div><div class="sc-val">${total}</div><div class="sc-sub">happa app</div></div>
+      <div class="sc" style="flex:1;min-width:120px"><div class="sc-lbl">In Families</div><div class="sc-val">${withFamily}</div><div class="sc-sub">${Math.round(withFamily/total*100)}% of users</div></div>
+      <div class="sc" style="flex:1;min-width:120px"><div class="sc-lbl">Family Heads</div><div class="sc-val">${parents}</div><div class="sc-sub">parents / guardians</div></div>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Name</th><th>Phone</th><th>Family</th><th>Role</th><th>Joined</th></tr></thead>
+      <tbody>${happaUsers.map(u => {
+        const fm = famMap[u.id];
+        const famName = fm?.family?.name || '—';
+        const role = fm?.role || '—';
+        const roleChip = fm ? `<span class="chip ${fm.role==='parent'?'chip-a':'chip-b'}">${role}</span>` : `<span style="color:var(--txt3);font-size:11px">—</span>`;
+        return `<tr>
+          <td><strong>${u.name || '—'}</strong></td>
+          <td style="font-family:monospace;font-size:12px">${u.phone}</td>
+          <td style="color:${fm?'var(--txt)':'var(--txt3)'}">${famName}</td>
+          <td>${roleChip}</td>
+          <td style="color:var(--txt3);font-size:12px">${u.created_at ? new Date(u.created_at).toLocaleDateString('en-KE',{day:'numeric',month:'short',year:'2-digit'}) : '—'}</td>
+        </tr>`;
+      }).join('')}
+      </tbody>
+    </table></div>`;
+}
+
+// ── ADS TAB ──
+const HAPPA_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp4dWNwc2RmY29ra2p0Y2d5Z25hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI3NDc0NzUsImV4cCI6MjEwODMyMzQ3NX0.6JH4kLkge4D-8SCYLIGh7zmAvX0exJILThhOQ79BusA';
+const HAPPA_URL = 'https://zxucpsdfcokkjtcgygna.supabase.co';
+
+async function happaGet(path) {
+  const r = await fetch(`${HAPPA_URL}/rest/v1/${path}`, {
+    headers: { 'apikey': HAPPA_ANON, 'Authorization': `Bearer ${HAPPA_ANON}` }
+  });
+  if (!r.ok) return null;
+  return r.json();
+}
+
+async function renderAds() {
+  const el = document.getElementById('tab-content');
+  el.innerHTML = '<div style="padding:20px;color:var(--txt2)"><span class="spin"></span>Loading ads…</div>';
+
+  let ads = [];
+  try { ads = await happaGet('happa_ads?select=*&order=created_at.desc') || []; } catch(_) {}
+
+  const activeCount = ads.filter(a => a.active).length;
+
+  el.innerHTML = `
+    <div style="margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+      <div>
+        <div style="font-weight:800;font-size:16px">📢 Top Banner Ads</div>
+        <div style="color:var(--txt2);font-size:13px;margin-top:2px">${ads.length} ad${ads.length!==1?'s':''} · ${activeCount} active — shown in happa customer app banner</div>
+      </div>
+      <button class="act-btn primary" onclick="openAdModal()">+ New Ad</button>
+    </div>
+    ${ads.length === 0
+      ? `<div class="empty"><div class="empty-ico">📢</div><p>No ads yet.<br>Add your first sponsored banner below.</p></div>`
+      : `<div class="table-wrap"><table>
+          <thead><tr><th>Ad Title</th><th>Advertiser</th><th>CTA</th><th>Status</th><th>Expires</th><th>Actions</th></tr></thead>
+          <tbody>${ads.map(a => `<tr>
+            <td>
+              <strong>${a.title || '—'}</strong>
+              ${a.subtitle ? `<br><span style="font-size:11px;color:var(--txt3)">${a.subtitle}</span>` : ''}
+            </td>
+            <td style="color:var(--txt2)">${a.advertiser || '—'}</td>
+            <td><span style="font-size:11px;background:rgba(var(--acc-rgb),.1);color:var(--acc);padding:2px 8px;border-radius:20px">${a.cta_label || 'Learn More'}</span></td>
+            <td><span class="chip ${a.active?'chip-a':'chip-b'}">${a.active?'Active':'Paused'}</span></td>
+            <td style="color:var(--txt3);font-size:12px">${a.expires_at ? new Date(a.expires_at).toLocaleDateString('en-KE',{day:'numeric',month:'short',year:'2-digit'}) : 'No expiry'}</td>
+            <td style="display:flex;gap:6px;flex-wrap:wrap">
+              <button class="act-btn" onclick="editAd(${JSON.stringify(a).replace(/"/g,'&quot;')})">Edit</button>
+              <button class="act-btn ${a.active?'':'primary'}" onclick="toggleAd('${a.id}',${!a.active})">${a.active?'Pause':'Activate'}</button>
+              <button class="act-btn danger" onclick="deleteAd('${a.id}')">Delete</button>
+            </td>
+          </tr>`).join('')}
+          </tbody>
+        </table></div>`
+    }
+    <!-- Ad modal -->
+    <div class="overlay" id="ad-modal-overlay" style="display:none">
+      <div class="modal" style="max-width:480px">
+        <h2 id="ad-modal-title">New Ad</h2>
+        <div class="modal-sub">This ad will appear in the top banner of the happa customer app.</div>
+        <div class="fg"><label class="fl">Ad Title *</label><input class="fi" id="ad-title" placeholder="e.g. 50% off at Java House"></div>
+        <div class="fg"><label class="fl">Subtitle</label><input class="fi" id="ad-subtitle" placeholder="Short description"></div>
+        <div class="fg"><label class="fl">Advertiser Name *</label><input class="fi" id="ad-advertiser" placeholder="e.g. Java House Kenya"></div>
+        <div class="fg"><label class="fl">CTA Button Label</label><input class="fi" id="ad-cta" placeholder="e.g. Order Now"></div>
+        <div class="fg"><label class="fl">CTA Link (URL)</label><input class="fi" id="ad-link" type="url" placeholder="https://..."></div>
+        <div class="fg"><label class="fl">Emoji Icon</label><input class="fi" id="ad-emoji" placeholder="e.g. ☕" maxlength="4"></div>
+        <div class="fg"><label class="fl">Expires At (optional)</label><input class="fi" id="ad-expires" type="date"></div>
+        <div class="fg" style="display:flex;align-items:center;gap:10px">
+          <input type="checkbox" id="ad-active" checked style="width:18px;height:18px;cursor:pointer">
+          <label for="ad-active" style="font-weight:600;cursor:pointer">Active (show in app now)</label>
+        </div>
+        <div id="ad-err" class="err-msg" style="display:none"></div>
+        <div style="display:flex;gap:8px;margin-top:16px">
+          <button class="act-btn primary" id="ad-save-btn" onclick="saveAd()" style="flex:1">Save Ad</button>
+          <button class="act-btn" onclick="closeAdModal()">Cancel</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function openAdModal(ad) {
+  _adEditId = ad?.id || null;
+  document.getElementById('ad-modal-title').textContent = ad ? 'Edit Ad' : 'New Ad';
+  document.getElementById('ad-title').value = ad?.title || '';
+  document.getElementById('ad-subtitle').value = ad?.subtitle || '';
+  document.getElementById('ad-advertiser').value = ad?.advertiser || '';
+  document.getElementById('ad-cta').value = ad?.cta_label || '';
+  document.getElementById('ad-link').value = ad?.cta_link || '';
+  document.getElementById('ad-emoji').value = ad?.emoji || '';
+  document.getElementById('ad-expires').value = ad?.expires_at ? ad.expires_at.slice(0,10) : '';
+  document.getElementById('ad-active').checked = ad ? !!ad.active : true;
+  document.getElementById('ad-err').style.display = 'none';
+  document.getElementById('ad-modal-overlay').style.display = 'flex';
+}
+
+function editAd(ad) { openAdModal(ad); }
+
+function closeAdModal() {
+  document.getElementById('ad-modal-overlay').style.display = 'none';
+}
+
+async function saveAd() {
+  const title      = document.getElementById('ad-title').value.trim();
+  const advertiser = document.getElementById('ad-advertiser').value.trim();
+  const err        = document.getElementById('ad-err');
+  const btn        = document.getElementById('ad-save-btn');
+  if (!title || !advertiser) { err.style.display='block'; err.textContent='Title and advertiser are required'; return; }
+
+  const payload = {
+    title,
+    subtitle:    document.getElementById('ad-subtitle').value.trim() || null,
+    advertiser,
+    cta_label:   document.getElementById('ad-cta').value.trim() || 'Learn More',
+    cta_link:    document.getElementById('ad-link').value.trim() || null,
+    emoji:       document.getElementById('ad-emoji').value.trim() || null,
+    expires_at:  document.getElementById('ad-expires').value || null,
+    active:      document.getElementById('ad-active').checked,
+  };
+
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const method = _adEditId ? 'PATCH' : 'POST';
+    const url = _adEditId
+      ? `${HAPPA_URL}/rest/v1/happa_ads?id=eq.${_adEditId}`
+      : `${HAPPA_URL}/rest/v1/happa_ads`;
+    const r = await fetch(url, {
+      method,
+      headers: { 'apikey': HAPPA_ANON, 'Authorization': `Bearer ${HAPPA_ANON}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify(payload),
+    });
+    if (!r.ok) throw new Error('Save failed');
+    closeAdModal();
+    renderAds();
+  } catch(e) {
+    err.style.display = 'block'; err.textContent = e.message;
+    btn.disabled = false; btn.textContent = 'Save Ad';
+  }
+}
+
+async function toggleAd(id, active) {
+  await fetch(`${HAPPA_URL}/rest/v1/happa_ads?id=eq.${id}`, {
+    method: 'PATCH',
+    headers: { 'apikey': HAPPA_ANON, 'Authorization': `Bearer ${HAPPA_ANON}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+    body: JSON.stringify({ active }),
+  });
+  renderAds();
+}
+
+async function deleteAd(id) {
+  if (!confirm('Delete this ad?')) return;
+  await fetch(`${HAPPA_URL}/rest/v1/happa_ads?id=eq.${id}`, {
+    method: 'DELETE',
+    headers: { 'apikey': HAPPA_ANON, 'Authorization': `Bearer ${HAPPA_ANON}` },
+  });
+  renderAds();
 }
 </script>
 </body>

@@ -789,11 +789,15 @@ function launchApp() {
 
 async function loadAdsOnly() {
   try {
-    const payload = { action: 'nearby', phone: _user.phone, pin: _user.pin };
-    if (_gpsLat !== null) { payload.lat = _gpsLat; payload.lng = _gpsLng; }
-    const { shops } = await api('happa-browse', payload);
-    _shops = shops || [];
-    renderAds(_shops);
+    const [browseRes, adsRes] = await Promise.allSettled([
+      api('happa-browse', { action: 'nearby', phone: _user.phone, pin: _user.pin, ...(_gpsLat!==null?{lat:_gpsLat,lng:_gpsLng}:{}) }),
+      fetch(`${SUPA_URL}/rest/v1/happa_ads?active=eq.true&order=created_at.desc&limit=5`, {
+        headers: { 'apikey': ANON_KEY, 'Authorization': `Bearer ${ANON_KEY}` }
+      }).then(r => r.ok ? r.json() : [])
+    ]);
+    _shops = browseRes.status === 'fulfilled' ? (browseRes.value.shops || []) : [];
+    const paidAds = adsRes.status === 'fulfilled' ? (adsRes.value || []) : [];
+    renderAds(_shops, paidAds);
   } catch(e) { /* silent */ }
 }
 
@@ -815,21 +819,33 @@ function switchTab(name) {
 }
 
 // ── ADS BANNER ──
-function renderAds(shops) {
-  // Feature shops that have ordering enabled — show up to 8
-  const featured = shops.filter(s => s.ordering_enabled).slice(0, 8);
+function renderAds(shops, paidAds) {
+  const featured = (shops || []).filter(s => s.ordering_enabled).slice(0, 6);
   const section = document.getElementById('ads-section');
   const scroll  = document.getElementById('ads-scroll');
-  if (!featured.length) { section.style.display = 'none'; return; }
+  const ads = paidAds || [];
+
+  if (!featured.length && !ads.length) { section.style.display = 'none'; return; }
   section.style.display = '';
-  scroll.innerHTML = featured.map(s => {
+
+  // Paid ad cards (prominent, lime border)
+  const paidCards = ads.map(a => `
+    <div class="ad-card" style="background:linear-gradient(160deg,rgba(141,196,26,.18),rgba(15,25,35,.95));border:1.5px solid rgba(141,196,26,.4);min-width:200px" onclick="${a.cta_link?`window.open('${a.cta_link}','_blank')`:'void(0)'}">
+      <div class="ad-card-img" style="background:linear-gradient(135deg,rgba(141,196,26,.2),rgba(141,196,26,.05));display:flex;align-items:center;justify-content:center;font-size:36px">${a.emoji||'📢'}</div>
+      <div class="ad-card-overlay" style="background:linear-gradient(0deg,rgba(10,18,28,.92) 60%,transparent)"></div>
+      <div class="ad-card-body">
+        <div class="ad-card-name" style="font-size:13px">${esc(a.title)}</div>
+        ${a.subtitle ? `<div class="ad-card-tag" style="color:rgba(255,255,255,.7)">${esc(a.subtitle)}</div>` : ''}
+      </div>
+      <div class="ad-card-badge" style="background:var(--lime);color:#0a120d">${esc(a.cta_label||'Learn More')}</div>
+      <div style="position:absolute;top:8px;left:8px;background:rgba(141,196,26,.25);border:1px solid rgba(141,196,26,.5);border-radius:4px;padding:1px 6px;font-size:9px;font-weight:800;color:var(--lime);letter-spacing:.04em">SPONSORED</div>
+    </div>`).join('');
+
+  // Featured merchant cards
+  const shopCards = featured.map(s => {
     const emoji = typeEmoji(s.business_type);
-    const img = s.logo_url
-      ? `<img src="${s.logo_url}" alt="" loading="lazy">`
-      : `<span>${emoji}</span>`;
-    const distTag = s.dist_km != null
-      ? (s.dist_km < 1 ? Math.round(s.dist_km * 1000) + 'm' : s.dist_km + 'km')
-      : '';
+    const img = s.logo_url ? `<img src="${s.logo_url}" alt="" loading="lazy">` : `<span>${emoji}</span>`;
+    const distTag = s.dist_km != null ? (s.dist_km < 1 ? Math.round(s.dist_km*1000)+'m' : s.dist_km+'km') : '';
     return `<div class="ad-card" onclick="openCatalog('${s.id}')">
       <div class="ad-card-img">${img}</div>
       <div class="ad-card-overlay"></div>
@@ -840,6 +856,10 @@ function renderAds(shops) {
       <div class="ad-card-badge">Order</div>
     </div>`;
   }).join('');
+
+  // Label: show "Sponsored" label if any paid ads exist
+  document.querySelector('.ads-section-label').textContent = ads.length ? 'Featured & Sponsored' : 'Featured merchants';
+  scroll.innerHTML = paidCards + shopCards;
 }
 
 // ── GREETING ──
@@ -2317,6 +2337,22 @@ async function loadCarpool() {
     </div>`;
 }
 
+function submitOfferRide() {
+  const from = document.getElementById('ride-from').value.trim();
+  const to   = document.getElementById('ride-to').value.trim();
+  if (!from || !to) { toast('Enter pickup and destination'); return; }
+  toast('✅ Ride posted! Others can see it nearby.');
+  closeSheet('offer-ride');
+}
+
+function submitFindRide() {
+  const from = document.getElementById('find-from').value.trim();
+  const to   = document.getElementById('find-to').value.trim();
+  if (!from || !to) { toast('Enter your pickup and destination'); return; }
+  toast('🔍 Searching for rides your way…');
+  closeSheet('find-ride');
+}
+
 // ── LEISURE & ACTIVITIES ──
 async function loadLeisure() {
   const el = document.getElementById('leisure-content');
@@ -2594,5 +2630,56 @@ function timeAgo(ts) {
   .goal-type-btn { flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; background:var(--bg2); border:1.5px solid var(--border); border-radius:14px; padding:12px 6px; cursor:pointer; font-size:11px; font-weight:700; color:var(--fg); transition:transform .1s; }
   .goal-type-btn:active { transform:scale(.93); }
 </style>
+
+<!-- OFFER RIDE SHEET -->
+<div class="sheet-overlay" id="offer-ride-overlay" onclick="closeSheet('offer-ride')"></div>
+<div class="sheet" id="offer-ride-sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head">
+    <h3 style="font-size:18px;font-weight:800">🚗 Offer a Ride</h3>
+    <p style="color:var(--fg2);font-size:13px;margin-top:4px">Share your route and let others join</p>
+  </div>
+  <div class="sheet-body" style="overflow-y:auto;padding:16px 20px 20px">
+    <label class="fi-lbl">Pickup Location</label>
+    <input class="fi" id="ride-from" placeholder="e.g. Westlands, Nairobi">
+    <label class="fi-lbl">Destination</label>
+    <input class="fi" id="ride-to" placeholder="e.g. CBD, Nairobi">
+    <label class="fi-lbl">Departure Time</label>
+    <input class="fi" id="ride-time" type="time">
+    <label class="fi-lbl">Available Seats</label>
+    <select class="fi" id="ride-seats">
+      <option value="1">1 seat</option>
+      <option value="2" selected>2 seats</option>
+      <option value="3">3 seats</option>
+      <option value="4">4 seats</option>
+    </select>
+    <label class="fi-lbl">Cost per person (KES)</label>
+    <input class="fi" id="ride-cost" type="number" placeholder="e.g. 150" min="0">
+    <button class="btn btn-primary" style="margin-top:16px;width:100%" onclick="submitOfferRide()">Post Ride →</button>
+    <button class="btn btn-ghost" onclick="closeSheet('offer-ride')" style="margin-top:10px">Cancel</button>
+    <div style="margin-top:12px;padding:10px;background:rgba(141,196,26,.08);border-radius:10px;font-size:12px;color:var(--fg2)">🌿 Full ride matching & payment coming soon. Your ride will be visible to nearby happa users.</div>
+  </div>
+</div>
+
+<!-- FIND RIDE SHEET -->
+<div class="sheet-overlay" id="find-ride-overlay" onclick="closeSheet('find-ride')"></div>
+<div class="sheet" id="find-ride-sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head">
+    <h3 style="font-size:18px;font-weight:800">🔍 Find a Ride</h3>
+    <p style="color:var(--fg2);font-size:13px;margin-top:4px">Find people going your way</p>
+  </div>
+  <div class="sheet-body" style="overflow-y:auto;padding:16px 20px 20px">
+    <label class="fi-lbl">Your Pickup Area</label>
+    <input class="fi" id="find-from" placeholder="e.g. Kilimani">
+    <label class="fi-lbl">Where are you going?</label>
+    <input class="fi" id="find-to" placeholder="e.g. Upperhill">
+    <label class="fi-lbl">When do you need to leave?</label>
+    <input class="fi" id="find-time" type="time">
+    <button class="btn btn-primary" style="margin-top:16px;width:100%" onclick="submitFindRide()">Search Rides →</button>
+    <button class="btn btn-ghost" onclick="closeSheet('find-ride')" style="margin-top:10px">Cancel</button>
+    <div style="margin-top:12px;padding:10px;background:rgba(141,196,26,.08);border-radius:10px;font-size:12px;color:var(--fg2)">🌿 Real-time GPS matching is coming soon. We'll notify you when a match is found.</div>
+  </div>
+</div>
 </body>
 </html>
