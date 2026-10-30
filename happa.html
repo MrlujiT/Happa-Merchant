@@ -367,6 +367,7 @@
     <!-- ORDERS -->
     <div class="page" id="page-orders">
       <div class="page-header-bar">
+        <button class="page-back-btn" onclick="switchTab('home')">‹</button>
         <span class="page-header-title">My Orders</span>
       </div>
       <div id="orders-list"><div class="loading-row"><div class="spinner"></div></div></div>
@@ -831,7 +832,6 @@ function renderAds(shops, paidAds) {
   const scroll  = document.getElementById('ads-scroll');
   const ads = paidAds || [];
 
-  if (!featured.length && !ads.length) { section.style.display = 'none'; return; }
   // Only show section if there are paid ads
   if (!ads.length) { section.style.display = 'none'; return; }
   section.style.display = '';
