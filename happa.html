@@ -519,6 +519,30 @@
         <p id="profile-invite-code" style="color:var(--lime);font-weight:700;letter-spacing:1px;cursor:pointer" onclick="copyInvite()">—</p>
       </div>
     </div>
+    <div class="profile-item" onclick="openChangePin()" style="cursor:pointer">
+      <div class="profile-item-icon">🔐</div>
+      <div class="profile-item-info">
+        <h4>Change PIN</h4>
+        <p>Update your 4-digit PIN</p>
+      </div>
+      <span style="color:var(--fg3);font-size:18px">›</span>
+    </div>
+    <div class="profile-item" onclick="openChangePhone()" style="cursor:pointer">
+      <div class="profile-item-icon">📱</div>
+      <div class="profile-item-info">
+        <h4>Change Phone Number</h4>
+        <p>Update your registered phone</p>
+      </div>
+      <span style="color:var(--fg3);font-size:18px">›</span>
+    </div>
+    <div class="profile-item" onclick="showPrivacyPolicy()" style="cursor:pointer">
+      <div class="profile-item-icon">🛡️</div>
+      <div class="profile-item-info">
+        <h4>Privacy Policy</h4>
+        <p>How we protect your data</p>
+      </div>
+      <span style="color:var(--fg3);font-size:18px">›</span>
+    </div>
     <div class="profile-item" style="border:none">
       <div class="profile-item-icon">ℹ️</div>
       <div class="profile-item-info">
@@ -527,6 +551,62 @@
       </div>
     </div>
     <button class="btn btn-ghost signout-btn" onclick="signOut()">Sign out</button>
+    <button class="btn" onclick="confirmDeleteAccount()" style="margin-top:8px;background:#fee2e2;color:#dc2626;border:none;border-radius:12px;padding:14px;width:100%;font-size:14px;font-weight:700;cursor:pointer">🗑️ Delete Account</button>
+  </div>
+</div>
+
+<!-- ── CHANGE PIN SHEET ── -->
+<div class="sheet-overlay" id="change-pin-overlay" onclick="closeSheet('change-pin')"></div>
+<div class="sheet" id="change-pin-sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head"><h3>Change PIN</h3></div>
+  <div class="sheet-body">
+    <div class="form-group"><label>Current PIN</label><input type="password" inputmode="numeric" maxlength="4" id="cp-old" placeholder="Current 4-digit PIN"></div>
+    <div class="form-group"><label>New PIN</label><input type="password" inputmode="numeric" maxlength="4" id="cp-new" placeholder="New 4-digit PIN"></div>
+    <div class="form-group"><label>Confirm New PIN</label><input type="password" inputmode="numeric" maxlength="4" id="cp-new2" placeholder="Repeat new PIN"></div>
+    <p id="cp-err" style="color:#dc2626;font-size:13px;display:none"></p>
+  </div>
+  <div class="sheet-footer">
+    <button class="btn btn-primary" onclick="doChangePin()">Update PIN</button>
+    <button class="btn btn-ghost" onclick="closeSheet('change-pin')" style="margin-top:8px">Cancel</button>
+  </div>
+</div>
+
+<!-- ── CHANGE PHONE SHEET ── -->
+<div class="sheet-overlay" id="change-phone-overlay" onclick="closeSheet('change-phone')"></div>
+<div class="sheet" id="change-phone-sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head"><h3>Change Phone Number</h3></div>
+  <div class="sheet-body">
+    <p style="font-size:13px;color:var(--fg2);margin-bottom:16px">Enter your PIN to confirm this change.</p>
+    <div class="form-group"><label>New Phone Number</label><input type="tel" id="chph-new" placeholder="e.g. 0712345678"></div>
+    <div class="form-group"><label>Your PIN</label><input type="password" inputmode="numeric" maxlength="4" id="chph-pin" placeholder="4-digit PIN"></div>
+    <p id="chph-err" style="color:#dc2626;font-size:13px;display:none"></p>
+  </div>
+  <div class="sheet-footer">
+    <button class="btn btn-primary" onclick="doChangePhone()">Update Phone</button>
+    <button class="btn btn-ghost" onclick="closeSheet('change-phone')" style="margin-top:8px">Cancel</button>
+  </div>
+</div>
+
+<!-- ── PRIVACY POLICY SHEET ── -->
+<div class="sheet-overlay" id="privacy-overlay" onclick="closeSheet('privacy')"></div>
+<div class="sheet" id="privacy-sheet" style="max-height:85vh">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head"><h3>Privacy Policy</h3></div>
+  <div class="sheet-body" style="overflow-y:auto">
+    <p style="font-size:13px;color:var(--fg2);line-height:1.7">
+      <strong>Happa Community App</strong><br><br>
+      We collect your name, phone number, and PIN to create and secure your account. Your shopping and family activity data is stored securely on Supabase servers.<br><br>
+      <strong>What we collect:</strong> Name, phone number (hashed PIN), order history, family group membership, points earned, and app activity.<br><br>
+      <strong>How we use it:</strong> To provide the Happa service, connect you with local shops, manage your family group, and improve the app.<br><br>
+      <strong>Data sharing:</strong> We do not sell your data. Merchant partners see only orders placed with them.<br><br>
+      <strong>Your rights:</strong> You may delete your account at any time. Deletion removes all personal data within 30 days.<br><br>
+      <strong>Contact:</strong> For data requests, email <span style="color:var(--lime)">support@happa.co.ke</span>
+    </p>
+  </div>
+  <div class="sheet-footer">
+    <button class="btn btn-ghost" onclick="closeSheet('privacy')">Close</button>
   </div>
 </div>
 
@@ -1088,10 +1168,12 @@ async function cancelOrder(orderId) {
 // ── FAMILY ──────────────────────────────────────────────────────────────────
 const FAMILY_URL = `${SUPA_URL}/functions/v1/happa-family`;
 
+const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp4dWNwc2RmY29ra2p0Y2d5Z25hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI3NDc0NzUsImV4cCI6MjEwODMyMzQ3NX0.6JH4kLkge4D-8SCYLIGh7zmAvX0exJILThhOQ79BusA';
+
 async function familyApi(payload) {
   const res = await fetch(FAMILY_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ANON_KEY}` },
     body: JSON.stringify({ ...payload, phone: _user.phone, pin: _user.pin })
   });
   const d = await res.json();
@@ -1596,6 +1678,58 @@ function copyInvite() {
   navigator.clipboard?.writeText(link).then(() => toast('Invite link copied!')).catch(() => toast(link));
 }
 
+function openChangePin() { closeProfile(); setTimeout(() => openSheet('change-pin'), 300); }
+function openChangePhone() { closeProfile(); setTimeout(() => openSheet('change-phone'), 300); }
+function showPrivacyPolicy() { closeProfile(); setTimeout(() => openSheet('privacy'), 300); }
+
+async function doChangePin() {
+  const oldPin = document.getElementById('cp-old').value;
+  const newPin = document.getElementById('cp-new').value;
+  const newPin2 = document.getElementById('cp-new2').value;
+  const err = document.getElementById('cp-err');
+  err.style.display = 'none';
+  if (!oldPin || !newPin) { err.textContent = 'All fields required.'; err.style.display = ''; return; }
+  if (oldPin !== _user.pin) { err.textContent = 'Current PIN is incorrect.'; err.style.display = ''; return; }
+  if (!/^\d{4}$/.test(newPin)) { err.textContent = 'New PIN must be 4 digits.'; err.style.display = ''; return; }
+  if (newPin !== newPin2) { err.textContent = 'New PINs do not match.'; err.style.display = ''; return; }
+  try {
+    await api('happa-auth', { action: 'change_pin', phone: _user.phone, old_pin: oldPin, new_pin: newPin });
+    _user.pin = newPin;
+    save('happa_user', _user);
+    closeSheet('change-pin');
+    toast('✅ PIN updated!');
+  } catch(e) { err.textContent = e.message; err.style.display = ''; }
+}
+
+async function doChangePhone() {
+  const newPhone = document.getElementById('chph-new').value.trim();
+  const pin = document.getElementById('chph-pin').value;
+  const err = document.getElementById('chph-err');
+  err.style.display = 'none';
+  if (!newPhone || !pin) { err.textContent = 'All fields required.'; err.style.display = ''; return; }
+  if (pin !== _user.pin) { err.textContent = 'Incorrect PIN.'; err.style.display = ''; return; }
+  try {
+    await api('happa-auth', { action: 'change_phone', phone: _user.phone, new_phone: newPhone, pin });
+    _user.phone = newPhone;
+    save('happa_user', _user);
+    closeSheet('change-phone');
+    toast('✅ Phone number updated!');
+  } catch(e) { err.textContent = e.message; err.style.display = ''; }
+}
+
+async function confirmDeleteAccount() {
+  if (!confirm('Delete your Happa account? This cannot be undone. All your data, points, and family connections will be removed.')) return;
+  const pin = prompt('Enter your PIN to confirm deletion:');
+  if (!pin) return;
+  if (pin !== _user.pin) { toast('❌ Incorrect PIN'); return; }
+  try {
+    await api('happa-auth', { action: 'delete_account', phone: _user.phone, pin });
+    save('happa_user', null);
+    toast('Account deleted. Goodbye!');
+    setTimeout(() => location.reload(), 1500);
+  } catch(e) { toast('❌ ' + e.message); }
+}
+
 // ── GAMES ──
 let _gameTimer = null;
 function launchGame(type) {
@@ -1805,75 +1939,261 @@ function launchGame(type) {
     };
     renderQ();
   } else if (type === 'route27') {
-    // Route 2027 — Mombasa to Kisumu driving challenge
-    const ROUTE = [
-      { name: 'Mombasa', km: 0, hint: 'Start! Coast city, Indian Ocean breeze 🌊' },
-      { name: 'Mariakani', km: 32, hint: 'First checkpoint — Mariakani junction' },
-      { name: 'Voi', km: 165, hint: 'Tsavo country — watch for elephants 🐘' },
-      { name: 'Mtito Andei', km: 233, hint: 'Midpoint of Nairobi-Mombasa road' },
-      { name: 'Nairobi', km: 485, hint: 'Nairobi! Capital city, halfway to Kisumu 🏙️' },
-      { name: 'Nakuru', km: 635, hint: 'Lake Nakuru flamingos 🦩 — you\'re in the Rift' },
-      { name: 'Kericho', km: 753, hint: 'Tea country ☕ — rolling green hills' },
-      { name: 'Kisumu', km: 880, hint: '🎉 KISUMU! Lake Victoria shore — you made it!' },
-    ];
-    // State: last position saved per day
-    const todayKey = `r27_${new Date().toDateString()}`;
-    let pos = parseInt(load(todayKey) || '0');
-    const EVENT_CHANCES = [
-      { txt: 'Smooth highway — great progress! ✅', km: 20 },
-      { txt: 'Police check — short delay ⏱️', km: 8 },
-      { txt: 'You spot a fuel station — topped up! ⛽', km: 15 },
-      { txt: 'Road construction — slow zone 🚧', km: 5 },
-      { txt: 'Clear road ahead — put the foot down! 🚗', km: 25 },
-      { txt: 'Puncture! Changed tyre quickly 🔧', km: 0 },
-      { txt: 'Beautiful view — stopped for a photo 📷', km: 3 },
-    ];
-    function getCurrentStop() {
-      for (let i = ROUTE.length - 1; i >= 0; i--) {
-        if (pos >= ROUTE[i].km) return i;
+    // Route 2027 — Dino-style side-scrolling driving game (Mombasa → Kisumu)
+    area.innerHTML = `
+      <div style="padding:4px 0">
+        <div style="font-size:11px;font-weight:700;color:var(--fg3);letter-spacing:.05em;text-transform:uppercase;margin-bottom:6px">Route 2027 · Mombasa → Kisumu</div>
+        <div style="position:relative;border-radius:14px;overflow:hidden;background:#87CEEB;border:2px solid var(--bdr)">
+          <canvas id="r27-canvas" width="360" height="160" style="display:block;width:100%;touch-action:none"></canvas>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+          <div>
+            <div style="font-size:11px;color:var(--fg3)">Distance</div>
+            <div id="r27-dist" style="font-size:18px;font-weight:900;color:var(--lime)">0 km</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:11px;color:var(--fg3)">Points</div>
+            <div id="r27-pts" style="font-size:18px;font-weight:900;color:var(--accent)">0</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:11px;color:var(--fg3)">Best</div>
+            <div id="r27-best" style="font-size:18px;font-weight:900;color:var(--fg2)">0 km</div>
+          </div>
+        </div>
+        <div id="r27-msg" style="text-align:center;margin-top:12px;font-size:13px;color:var(--fg2);font-weight:600">Tap / Space to jump • Avoid obstacles!</div>
+        <button id="r27-start" onclick="r27Start()" style="width:100%;margin-top:10px;padding:14px;background:var(--lime);color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:800;cursor:pointer;font-family:inherit">🚗 Start Driving!</button>
+      </div>`;
+
+    const canvas = document.getElementById('r27-canvas');
+    const ctx = canvas.getContext('2d');
+    const W = 360, H = 160;
+    const GROUND = H - 30;
+
+    // Best score from localStorage
+    const bestKey = 'r27_best';
+    let bestKm = parseInt(load(bestKey) || '0');
+    document.getElementById('r27-best').textContent = bestKm + ' km';
+
+    // Game state
+    let gRunning = false, gOver = false;
+    let car = { x: 60, y: GROUND - 20, w: 40, h: 20, vy: 0, onGround: true };
+    let obstacles = [];
+    let clouds = [];
+    let frameId = null;
+    let tick = 0;
+    let distKm = 0;
+    let speed = 3;
+    let pointsEarned = 0;
+    let lastPointsTick = 0;
+
+    // Checkpoints
+    const CITIES = ['Mombasa','Mariakani','Voi','Mtito Andei','Nairobi','Nakuru','Kericho','Kisumu'];
+    const CITY_KM = [0,32,165,233,485,635,753,880];
+    let cityIdx = 0;
+
+    // Scrolling road segments (colour bands)
+    let roadX = 0;
+
+    function drawScene() {
+      // Sky gradient
+      const sky = ctx.createLinearGradient(0,0,0,GROUND);
+      sky.addColorStop(0,'#87CEEB');
+      sky.addColorStop(1,'#c8e8f5');
+      ctx.fillStyle = sky;
+      ctx.fillRect(0,0,W,GROUND);
+
+      // Clouds
+      ctx.fillStyle = 'rgba(255,255,255,.85)';
+      clouds.forEach(c => {
+        ctx.beginPath(); ctx.ellipse(c.x,c.y,c.r*1.5,c.r,0,0,Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(c.x+c.r,c.y-4,c.r,c.r*.7,0,0,Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(c.x-c.r*.7,c.y-2,c.r*.8,c.r*.6,0,0,Math.PI*2); ctx.fill();
+      });
+
+      // Ground
+      ctx.fillStyle = '#8B7355';
+      ctx.fillRect(0,GROUND,W,H-GROUND);
+
+      // Road
+      ctx.fillStyle = '#555';
+      ctx.fillRect(0,GROUND-2,W,22);
+      // Road markings
+      ctx.fillStyle = '#fff';
+      for (let x = (roadX%60)-60; x < W+60; x+=60) {
+        ctx.fillRect(x, GROUND+8, 30, 3);
       }
-      return 0;
+
+      // Car (matatu-ish silhouette)
+      const cx = car.x, cy = car.y;
+      ctx.fillStyle = '#8DC41A';
+      ctx.beginPath(); ctx.roundRect(cx-car.w/2, cy-car.h, car.w, car.h, 4); ctx.fill();
+      // Windscreen
+      ctx.fillStyle = '#b8e5f7';
+      ctx.beginPath(); ctx.roundRect(cx+2, cy-car.h+3, car.w/2-4, car.h*0.45, 2); ctx.fill();
+      // Wheels
+      ctx.fillStyle = '#222';
+      ctx.beginPath(); ctx.arc(cx-car.w/2+8, cy, 6, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(cx+car.w/2-8, cy, 6, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#666';
+      ctx.beginPath(); ctx.arc(cx-car.w/2+8, cy, 3, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(cx+car.w/2-8, cy, 3, 0, Math.PI*2); ctx.fill();
+
+      // Obstacles
+      obstacles.forEach(o => {
+        if (o.type === 'pothole') {
+          ctx.fillStyle = '#3a2a10';
+          ctx.beginPath(); ctx.ellipse(o.x, GROUND+2, o.w/2, 5, 0, 0, Math.PI*2); ctx.fill();
+        } else if (o.type === 'elephant') {
+          ctx.fillStyle = '#888';
+          ctx.beginPath(); ctx.roundRect(o.x-12, o.y-o.h, 24, o.h, 4); ctx.fill();
+          ctx.beginPath(); ctx.ellipse(o.x, o.y-o.h-6, 10, 8, 0, 0, Math.PI*2); ctx.fill();
+          ctx.fillStyle = '#aaa';
+          ctx.fillRect(o.x-2, o.y-o.h-14, 4, 10); // trunk
+        } else if (o.type === 'roadblock') {
+          ctx.fillStyle = '#dc2626';
+          ctx.fillRect(o.x-o.w/2, o.y-o.h, o.w, 4);
+          ctx.fillStyle = '#fff';
+          ctx.fillRect(o.x-o.w/2, o.y-o.h, o.w/2, 4);
+          // poles
+          ctx.fillStyle = '#555';
+          ctx.fillRect(o.x-o.w/2, o.y-o.h, 4, o.h);
+          ctx.fillRect(o.x+o.w/2-4, o.y-o.h, 4, o.h);
+        }
+      });
+
+      // HUD city
+      ctx.fillStyle = 'rgba(0,0,0,.4)';
+      ctx.fillRect(0,0,W,18);
+      ctx.fillStyle = '#fff';
+      ctx.font = '700 10px system-ui';
+      ctx.textAlign = 'left';
+      ctx.fillText(`📍 ${CITIES[Math.min(cityIdx,CITIES.length-1)]}`, 6, 12);
+      ctx.textAlign = 'right';
+      ctx.fillText(`${Math.round(distKm)} / 880 km`, W-6, 12);
+      ctx.textAlign = 'left';
     }
-    function renderRoute27() {
-      const stopIdx = getCurrentStop();
-      const next = ROUTE[stopIdx + 1];
-      const current_stop = ROUTE[stopIdx];
-      const pct = Math.round((pos / 880) * 100);
-      area.innerHTML = `
-        <div style="padding:4px 0">
-          <div style="background:var(--surf);border:1px solid var(--bdr);border-radius:14px;padding:16px;margin-bottom:12px">
-            <div style="font-size:11px;font-weight:700;color:var(--fg3);letter-spacing:.05em;text-transform:uppercase;margin-bottom:6px">Route 2027 · Mombasa → Kisumu</div>
-            <div style="font-size:22px;font-weight:900;color:var(--fg)">📍 ${current_stop.name}</div>
-            <div style="font-size:12px;color:var(--fg2);margin-top:2px">${current_stop.hint}</div>
-            <div style="margin-top:12px;background:var(--surf2);border-radius:8px;height:8px;overflow:hidden">
-              <div style="width:${pct}%;background:var(--lime);height:100%;border-radius:8px;transition:width .5s"></div>
-            </div>
-            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--fg3);margin-top:4px">
-              <span>${pos} km done</span><span>${pct}% of 880 km</span><span>${880 - pos} km left</span>
-            </div>
-          </div>
-          ${next ? `<div style="font-size:13px;color:var(--fg2);margin-bottom:10px">Next stop: <strong>${next.name}</strong> (${next.km - pos} km away)</div>` : ''}
-          ${pos < 880 ? `<button id="r27-drive-btn" onclick="r27Drive()" style="width:100%;padding:14px;background:var(--lime);color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:800;cursor:pointer;font-family:inherit">🚗 Drive!</button>
-          <div id="r27-event" style="margin-top:10px;font-size:13px;color:var(--fg2);text-align:center;min-height:20px"></div>` : '<div style="text-align:center;padding:20px 0;font-size:16px;font-weight:800;color:var(--lime)">🎉 You reached Kisumu! Drive again tomorrow!</div>'}
-          <div style="margin-top:16px">
-            <div style="font-size:11px;font-weight:700;color:var(--fg3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Stops</div>
-            ${ROUTE.map((s,i) => `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--bdr)"><span style="font-size:16px">${pos >= s.km ? (i===stopIdx?'📍':'✅') : '⬜'}</span><span style="font-size:13px;color:${pos >= s.km ? 'var(--fg)' : 'var(--fg3)'};font-weight:${i===stopIdx?'700':'400'}">${s.name}</span><span style="margin-left:auto;font-size:11px;color:var(--fg3)">${s.km} km</span></div>`).join('')}
-          </div>
-        </div>`;
+
+    function spawnCloud() {
+      clouds.push({ x: W+40, y: 20+Math.random()*30, r: 12+Math.random()*12 });
+      if (clouds.length > 8) clouds.shift();
     }
-    window.r27Drive = function() {
-      if (pos >= 880) return;
-      const btn = document.getElementById('r27-drive-btn');
-      if (btn) btn.disabled = true;
-      const evt = EVENT_CHANCES[Math.floor(Math.random() * EVENT_CHANCES.length)];
-      const eventEl = document.getElementById('r27-event');
-      if (eventEl) eventEl.textContent = evt.txt;
-      pos = Math.min(pos + evt.km, 880);
-      save(todayKey, String(pos));
-      if (evt.km > 0) savePoints(evt.km, `route27:${todayKey}`);
-      setTimeout(() => renderRoute27(), 1000);
+
+    function spawnObstacle() {
+      const types = ['pothole','pothole','elephant','roadblock'];
+      const t = types[Math.floor(Math.random()*types.length)];
+      if (t === 'pothole') obstacles.push({ type:'pothole', x:W+20, y:GROUND, w:20, h:6 });
+      else if (t === 'elephant') obstacles.push({ type:'elephant', x:W+20, y:GROUND-6, w:30, h:28 });
+      else obstacles.push({ type:'roadblock', x:W+20, y:GROUND-4, w:30, h:20 });
+    }
+
+    function collides(a, o) {
+      const ax1=a.x-a.w/2+6, ax2=a.x+a.w/2-6, ay1=a.y-a.h+4, ay2=a.y-4;
+      let ox1,ox2,oy1,oy2;
+      if (o.type==='pothole') { ox1=o.x-o.w/2; ox2=o.x+o.w/2; oy1=GROUND-2; oy2=GROUND+4; }
+      else { ox1=o.x-o.w/2+4; ox2=o.x+o.w/2-4; oy1=o.y-o.h+4; oy2=o.y-2; }
+      return ax1<ox2 && ax2>ox1 && ay1<oy2 && ay2>oy1;
+    }
+
+    const GRAVITY = 0.7, JUMP_V = -11;
+
+    function jump() {
+      if (!gRunning) { r27Start(); return; }
+      if (car.onGround) { car.vy = JUMP_V; car.onGround = false; }
+    }
+
+    function gameLoop() {
+      if (!gRunning) return;
+      tick++;
+      roadX = (roadX - speed) % 60;
+      speed = 3 + Math.min(distKm / 120, 5);
+      distKm += speed * 0.04;
+
+      // City progression
+      while (cityIdx < CITY_KM.length-1 && distKm >= CITY_KM[cityIdx+1]) { cityIdx++; }
+
+      // Points every ~5 km
+      if (tick - lastPointsTick > 120) {
+        pointsEarned += 5;
+        lastPointsTick = tick;
+        document.getElementById('r27-pts').textContent = pointsEarned;
+      }
+      document.getElementById('r27-dist').textContent = Math.round(distKm) + ' km';
+
+      // Gravity
+      car.vy += GRAVITY;
+      car.y += car.vy;
+      if (car.y >= GROUND - 20) { car.y = GROUND - 20; car.vy = 0; car.onGround = true; }
+
+      // Clouds
+      clouds.forEach(c => c.x -= 0.5);
+      clouds = clouds.filter(c => c.x > -60);
+      if (tick % 90 === 0) spawnCloud();
+
+      // Obstacles
+      obstacles.forEach(o => o.x -= speed);
+      obstacles = obstacles.filter(o => o.x > -40);
+      const minGap = Math.max(80, 160 - distKm/8);
+      const lastX = obstacles.length ? obstacles[obstacles.length-1].x : 0;
+      if (!obstacles.length || lastX < W - minGap) {
+        if (tick % 40 === 0 || (!obstacles.length && tick > 60)) spawnObstacle();
+      }
+
+      // Collision
+      for (const o of obstacles) {
+        if (collides(car, o)) { endGame(); return; }
+      }
+
+      drawScene();
+      frameId = requestAnimationFrame(gameLoop);
+    }
+
+    function endGame() {
+      gRunning = false; gOver = true;
+      cancelAnimationFrame(frameId);
+      const km = Math.round(distKm);
+      if (km > bestKm) { bestKm = km; save(bestKey, String(bestKm)); }
+      // Save points to Supabase
+      const todayKey = `r27_${new Date().toDateString()}`;
+      if (pointsEarned > 0) savePoints(pointsEarned, `route27:${todayKey}:${tick}`);
+      ctx.fillStyle = 'rgba(0,0,0,.6)';
+      ctx.fillRect(0,0,W,H);
+      ctx.fillStyle = '#fff';
+      ctx.font = '700 18px system-ui';
+      ctx.textAlign = 'center';
+      ctx.fillText('💥 CRASHED!', W/2, H/2-18);
+      ctx.font = '600 13px system-ui';
+      ctx.fillText(`${km} km · ${pointsEarned} pts earned`, W/2, H/2+4);
+      ctx.font = '500 11px system-ui';
+      ctx.fillStyle = '#8DC41A';
+      ctx.fillText('Tap to try again', W/2, H/2+22);
+      document.getElementById('r27-msg').textContent = `You drove ${km} km • Best: ${bestKm} km`;
+      document.getElementById('r27-best').textContent = bestKm + ' km';
+      document.getElementById('r27-start').style.display = '';
+      document.getElementById('r27-start').textContent = '🚗 Try Again';
+    }
+
+    window.r27Start = function() {
+      // Reset state
+      car = { x: 60, y: GROUND-20, w: 40, h: 20, vy: 0, onGround: true };
+      obstacles = []; clouds = [];
+      tick = 0; distKm = 0; speed = 3; pointsEarned = 0; lastPointsTick = 0; cityIdx = 0;
+      gRunning = true; gOver = false;
+      document.getElementById('r27-start').style.display = 'none';
+      document.getElementById('r27-msg').textContent = 'Tap canvas or press Space to jump!';
+      document.getElementById('r27-pts').textContent = '0';
+      document.getElementById('r27-dist').textContent = '0 km';
+      spawnCloud(); spawnCloud();
+      cancelAnimationFrame(frameId);
+      frameId = requestAnimationFrame(gameLoop);
     };
-    renderRoute27();
+
+    // Input
+    canvas.addEventListener('click', jump);
+    canvas.addEventListener('touchstart', e => { e.preventDefault(); jump(); }, { passive: false });
+    document.addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); jump(); } });
+
+    // Initial draw
+    drawScene();
   }
 }
 

@@ -3708,7 +3708,22 @@ async function renderHome(el) {
   const avg       = txns ? Math.round(rev / txns) : 0;
   const low       = S.products.filter(p => p.stock <= p.low_stock_at);
 
-  const recentAll = await apiGet(`sales?shop_id=eq.${S.shop.id}&recorded_at=gte.${todayISO}&order=recorded_at.desc&limit=5`);
+  const recentWalkIn = await apiGet(`sales?shop_id=eq.${S.shop.id}&recorded_at=gte.${todayISO}&order=recorded_at.desc&limit=5`);
+  // Merge online orders (collected/approved) into recent list
+  const recentOnline = todayOnline
+    .filter(o => ['collected','approved','pending'].includes(o.status))
+    .slice(0, 5)
+    .map(o => ({
+      _is_online: true,
+      id: o.id,
+      total: parseFloat(o.total_amount || 0),
+      payment_method: o.payment_method || 'online',
+      recorded_at: o.created_at,
+      note: `Online · ${o.happa_users?.name || 'Customer'} · ${o.status}`,
+    }));
+  const recentAll = [...(recentWalkIn||[]), ...recentOnline]
+    .sort((a,b) => new Date(b.recorded_at) - new Date(a.recorded_at))
+    .slice(0, 6);
 
   // 7-day chart
   const days = build7Days(daily || []);
@@ -4190,6 +4205,16 @@ async function doOrderStatus(order_id, status) {
   }
 }
 
+function _updateToggleVisual(inputId, enabled, onColor) {
+  const el = document.getElementById(inputId);
+  if (!el) return;
+  const label = el.closest('label');
+  if (!label) return;
+  const spans = label.querySelectorAll('span');
+  if (spans[0]) spans[0].style.background = enabled ? onColor : '#d1d5db';
+  if (spans[1]) spans[1].style.left = enabled ? '22px' : '2px';
+}
+
 async function toggleOrdering(enabled) {
   const el = document.getElementById('ordering-toggle');
   try {
@@ -4201,9 +4226,11 @@ async function toggleOrdering(enabled) {
     const d = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`);
     if (S.shop) S.shop.ordering_enabled = enabled;
+    _updateToggleVisual('ordering-toggle', enabled, '#22c55e');
     showToast(enabled ? '✅ Online orders enabled' : '⏸ Online orders paused');
   } catch(e) {
     if (el) el.checked = !enabled; // revert
+    _updateToggleVisual('ordering-toggle', !enabled, '#22c55e');
     showToast('❌ ' + e.message);
   }
 }
@@ -4219,9 +4246,11 @@ async function toggleDebt(enabled) {
     const d = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`);
     if (S.shop) S.shop.allows_debt = enabled;
+    _updateToggleVisual('debt-toggle', enabled, '#f97316');
     showToast(enabled ? '✅ Debt orders enabled' : '⏸ Debt orders disabled');
   } catch(e) {
     if (el) el.checked = !enabled; // revert
+    _updateToggleVisual('debt-toggle', !enabled, '#f97316');
     showToast('❌ ' + e.message);
   }
 }
@@ -5909,6 +5938,17 @@ function txRow(s, showDate) {
   const ts = showDate && !isToday(d)
     ? d.toLocaleDateString('en-KE',{day:'numeric',month:'short'})
     : d.toLocaleTimeString('en-KE',{hour:'2-digit',minute:'2-digit'});
+  if (s._is_online) {
+    const statusColor = s.note?.includes('pending') ? '#f97316' : '#22c55e';
+    return `<div class="txi">
+      <div class="tx-ico">🛒</div>
+      <div class="tx-inf">
+        <div class="tx-nm">Online Order <span style="font-size:10px;background:${statusColor}22;color:${statusColor};padding:1px 6px;border-radius:6px;font-weight:700">${s.note?.split(' · ')[2]||''}</span></div>
+        <div class="tx-mt">${s.note?.split(' · ')[1]||'Customer'} · ${ts} 📱</div>
+      </div>
+      <div class="tx-amt">${kes(s.total)}</div>
+    </div>`;
+  }
   const cls = s.payment_method==='debt'?'debt':s.payment_method==='mpesa'?'mpesa':'';
   const icon = s.payment_method==='debt'?'📋':s.payment_method==='mpesa'?'📱':'💵';
   return `<div class="txi">
