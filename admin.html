@@ -168,7 +168,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <div class="auth-wrap">
       <div class="auth-logo"><img src="/happa-logo.jpg" alt="Happa"></div>
       <div class="auth-title">Happa Admin</div>
-      <div class="auth-sub">Super-admin panel — Njau only</div>
+      <div class="auth-sub">Super-admin panel</div>
       <div class="auth-card">
         <div class="fg"><label class="fl">Email</label>
           <input class="fi" id="auth-email" type="email" placeholder="your@email.com" autocomplete="email"></div>
@@ -471,7 +471,8 @@ let _adEditId = null;
 })();
 
 async function checkAdminAndLoad() {
-  if (currentUser.email !== 'njautheinvestmentsconsultant@gmail.com') {
+  const ADMIN_EMAILS = ['njautheinvestmentsconsultant@gmail.com', 'muchiri@adventis-africa.com'];
+  if (!ADMIN_EMAILS.includes(currentUser.email)) {
     showToast('Access denied — admin only', true);
     await db.auth.signOut(); return;
   }
