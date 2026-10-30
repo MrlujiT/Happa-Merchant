@@ -3677,16 +3677,36 @@ async function renderTab(tab) {
 ═══════════════════════════════ */
 async function renderHome(el) {
   const todayISO = todayStart();
-  const [todaySales, daily] = await Promise.all([
+  const todayDateStr = new Date().toLocaleDateString('en-CA', {timeZone:'Africa/Nairobi'}); // YYYY-MM-DD
+
+  const [todaySales, daily, onlineOrdersResp] = await Promise.all([
     apiGet(`sales?shop_id=eq.${S.shop.id}&recorded_at=gte.${todayISO}&select=total,profit,payment_method`),
     apiGet(`sales?shop_id=eq.${S.shop.id}&recorded_at=gte.${sevenDaysAgo()}&select=total,recorded_at`),
+    // Fetch today's online orders via edge function
+    fetch(`${SUPABASE_URL}/functions/v1/happa-orders`, {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', 'Authorization':`Bearer ${currentSession?.access_token ?? SUPABASE_KEY}` },
+      body: JSON.stringify({ action:'shop_orders', shop_id: S.shop.id }),
+    }).then(r => r.json()).catch(() => ({ orders: [] })),
   ]);
 
-  const rev   = sum(todaySales, 'total');
-  const prof  = sum(todaySales, 'profit');
-  const txns  = todaySales?.length || 0;
-  const avg   = txns ? Math.round(rev / txns) : 0;
-  const low   = S.products.filter(p => p.stock <= p.low_stock_at);
+  // Filter online orders to today only (created_at starts with today's date in Nairobi)
+  const allOnlineOrders = onlineOrdersResp?.orders || [];
+  const todayOnline = allOnlineOrders.filter(o => {
+    const d = (o.created_at || '').slice(0, 10);
+    return d === todayDateStr && !['cancelled', 'on_hold'].includes(o.status);
+  });
+  const onlineRev   = todayOnline.reduce((s, o) => s + parseFloat(o.total_amount || 0), 0);
+  const onlineTxns  = todayOnline.length;
+  const pendingCnt  = allOnlineOrders.filter(o => o.status === 'pending').length;
+
+  const salesRev  = sum(todaySales, 'total');
+  const prof      = sum(todaySales, 'profit');
+  const salesTxns = todaySales?.length || 0;
+  const rev       = salesRev + onlineRev;
+  const txns      = salesTxns + onlineTxns;
+  const avg       = txns ? Math.round(rev / txns) : 0;
+  const low       = S.products.filter(p => p.stock <= p.low_stock_at);
 
   const recentAll = await apiGet(`sales?shop_id=eq.${S.shop.id}&recorded_at=gte.${todayISO}&order=recorded_at.desc&limit=5`);
 
@@ -3698,11 +3718,14 @@ async function renderHome(el) {
     <div class="hero">
       <div class="hero-lbl">Today's Revenue</div>
       <div class="hero-amt">${kes(rev)}</div>
-      <div class="hero-sub"><span>${txns} sales</span><span>·</span><span>Profit ${kes(prof)}</span></div>
+      <div class="hero-sub">
+        <span>${salesTxns} walk-in</span><span>·</span>
+        <span style="color:rgba(255,255,255,.9)">${onlineTxns} online${pendingCnt ? ` <span style="background:rgba(255,255,255,.25);border-radius:10px;padding:0 5px;font-size:11px">${pendingCnt} pending</span>` : ''}</span>
+      </div>
     </div>
     <div class="stats">
-      <div class="scard"><div class="scard-lbl">Transactions</div><div class="scard-val">${txns}</div><span class="bdg bdg-g">today</span></div>
-      <div class="scard"><div class="scard-lbl">Avg Sale</div><div class="scard-val">${kshort(avg)}</div><div class="scard-sub">KES</div></div>
+      <div class="scard"><div class="scard-lbl">Walk-in Sales</div><div class="scard-val">${kshort(salesRev)}</div><div class="scard-sub">KES</div></div>
+      <div class="scard" onclick="showOnlineOrders()" style="cursor:pointer"><div class="scard-lbl">Online Orders</div><div class="scard-val">${kshort(onlineRev)}</div>${pendingCnt ? `<span class="bdg bdg-r">${pendingCnt} new</span>` : `<div class="scard-sub">KES</div>`}</div>
       <div class="scard"><div class="scard-lbl">Low Stock</div><div class="scard-val">${low.length}</div><span class="bdg ${low.length?'bdg-r':'bdg-g'}">${low.length?'items':'all ok'}</span></div>
     </div>`;
 

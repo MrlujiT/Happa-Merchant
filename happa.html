@@ -186,10 +186,24 @@
   .ad-card-tag { font-size: 10px; font-weight: 700; color: rgba(255,255,255,.8); margin-top: 1px; }
   .ad-card-badge { position: absolute; top: 8px; right: 8px; background: var(--lime); color: #fff; font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 20px; }
 
-  /* ── CATEGORY ROWS (homepage) ── */
-  .home-greeting { padding: 16px 16px 4px; }
-  .home-greeting h2 { font-size: 20px; font-weight: 800; color: var(--fg); }
-  .home-greeting p { font-size: 13px; color: var(--fg2); margin-top: 2px; }
+  /* ── HUB PAGE ── */
+  .home-greeting { padding: 20px 16px 4px; }
+  .home-greeting h2 { font-size: 22px; font-weight: 900; color: var(--fg); }
+  .home-greeting p { font-size: 13px; color: var(--fg2); margin-top: 3px; }
+  .hub-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 16px; }
+  .hub-tile { background: var(--bg2); border: 1px solid var(--border); border-radius: 20px; padding: 18px 16px; cursor: pointer; transition: transform .12s, box-shadow .12s; }
+  .hub-tile:active { transform: scale(.96); box-shadow: none; }
+  .hub-tile-icon { font-size: 32px; margin-bottom: 10px; }
+  .hub-tile-label { font-weight: 800; font-size: 15px; color: var(--fg); }
+  .hub-tile-sub { font-size: 12px; color: var(--fg2); margin-top: 3px; }
+
+  /* ── PAGE HEADER BAR ── */
+  .page-header-bar { display: flex; align-items: center; gap: 4px; padding: 16px 16px 8px; }
+  .page-back-btn { background: none; border: none; font-size: 24px; font-weight: 700; color: var(--fg2); cursor: pointer; padding: 0 8px 0 0; line-height: 1; }
+  .page-header-title { font-size: 18px; font-weight: 800; color: var(--fg); }
+
+  /* ── CATEGORY ROWS (merchants page) ── */
+  .home-greeting-alt { padding: 20px 16px 4px; }
   .cat-section { margin-bottom: 4px; }
   .cat-title { padding: 16px 16px 8px; font-size: 14px; font-weight: 700; color: var(--fg); display: flex; align-items: center; gap: 6px; }
   .cat-count { font-size: 12px; font-weight: 500; color: var(--fg3); }
@@ -261,52 +275,93 @@
   </div>
 
   <div class="content">
-    <!-- Nearby -->
-    <div class="page active" id="page-nearby">
-      <!-- Greeting -->
-      <div class="home-greeting" id="home-greeting">
+    <!-- HOME (hub) -->
+    <div class="page active" id="page-home">
+      <div class="home-greeting">
         <h2 id="greeting-text">Good morning 👋</h2>
-        <p>Discover businesses in your community</p>
+        <p id="greeting-sub">Discover your community</p>
       </div>
       <!-- Ads / Featured banner -->
       <div class="ads-section" id="ads-section" style="display:none">
         <div class="ads-section-label">Featured merchants</div>
         <div class="ads-scroll" id="ads-scroll"></div>
       </div>
+      <!-- Hub tiles -->
+      <div class="hub-grid" id="hub-grid">
+        <div class="hub-tile" onclick="switchTab('merchants');loadNearby()">
+          <div class="hub-tile-icon">🏪</div>
+          <div class="hub-tile-label">Merchants</div>
+          <div class="hub-tile-sub">Browse & order</div>
+        </div>
+        <div class="hub-tile" onclick="switchTab('community')">
+          <div class="hub-tile-icon">🏘️</div>
+          <div class="hub-tile-label">My Community</div>
+          <div class="hub-tile-sub">Your favourites</div>
+        </div>
+        <div class="hub-tile" onclick="switchTab('family');loadFamily()">
+          <div class="hub-tile-icon">👨‍👩‍👧</div>
+          <div class="hub-tile-label">Family</div>
+          <div class="hub-tile-sub">Manage & tasks</div>
+        </div>
+        <div class="hub-tile" onclick="switchTab('goals');loadGoals()">
+          <div class="hub-tile-icon">🎯</div>
+          <div class="hub-tile-label">Goals</div>
+          <div class="hub-tile-sub">Track your wins</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MERCHANTS (categorised browse) -->
+    <div class="page" id="page-merchants">
+      <div class="page-header-bar">
+        <button class="page-back-btn" onclick="switchTab('home')">‹</button>
+        <span class="page-header-title">Merchants</span>
+      </div>
       <div id="nearby-list"><div class="loading-row"><div class="spinner"></div></div></div>
     </div>
 
-    <!-- My Merchants -->
-    <div class="page" id="page-mine">
-      <div class="section-header">Your merchants</div>
+    <!-- COMMUNITY (saved merchants) -->
+    <div class="page" id="page-community">
+      <div class="page-header-bar">
+        <button class="page-back-btn" onclick="switchTab('home')">‹</button>
+        <span class="page-header-title">My Community</span>
+      </div>
       <div id="mine-list"><div class="loading-row"><div class="spinner"></div></div></div>
     </div>
 
-    <!-- Orders -->
+    <!-- ORDERS -->
     <div class="page" id="page-orders">
-      <div class="section-header">Your orders</div>
+      <div class="page-header-bar">
+        <span class="page-header-title">My Orders</span>
+      </div>
       <div id="orders-list"><div class="loading-row"><div class="spinner"></div></div></div>
     </div>
 
-    <!-- Family -->
+    <!-- FAMILY -->
     <div class="page" id="page-family">
-      <div class="section-header">Family</div>
+      <div class="page-header-bar">
+        <button class="page-back-btn" onclick="switchTab('home')">‹</button>
+        <span class="page-header-title">Family</span>
+      </div>
       <div id="family-content"><div class="loading-row"><div class="spinner"></div></div></div>
     </div>
 
-    <!-- Goals -->
+    <!-- GOALS -->
     <div class="page" id="page-goals">
-      <div class="section-header">My Goals</div>
+      <div class="page-header-bar">
+        <button class="page-back-btn" onclick="switchTab('home')">‹</button>
+        <span class="page-header-title">My Goals</span>
+      </div>
       <div id="goals-content"><div class="loading-row"><div class="spinner"></div></div></div>
     </div>
   </div>
 
   <nav class="bottom-nav">
-    <button class="nav-item active" id="nav-nearby" onclick="switchTab('nearby')">
-      <span class="nav-icon">🏪</span>Nearby
+    <button class="nav-item active" id="nav-home" onclick="switchTab('home')">
+      <span class="nav-icon">🏠</span>Home
     </button>
-    <button class="nav-item" id="nav-mine" onclick="switchTab('mine')">
-      <span class="nav-icon">❤️</span>Mine
+    <button class="nav-item" id="nav-merchants" onclick="switchTab('merchants');loadNearby()">
+      <span class="nav-icon">🏪</span>Merchants
     </button>
     <button class="nav-item" id="nav-orders" onclick="switchTab('orders');loadOrders()">
       <span class="nav-icon">🛒</span>Orders
@@ -431,7 +486,7 @@ let _shops = [];
 let _cart = {}; // product_id → { product, qty }
 let _currentShop = null;
 let _orders = [];
-let _tab = 'nearby';
+let _tab = 'home';
 let _gpsLat = null;
 let _gpsLng = null;
 
@@ -537,26 +592,43 @@ function launchApp() {
   document.getElementById('auth-wrap').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
   setGreeting(_user?.name || '');
-  // Request GPS location silently
+  // Pre-fetch ads/featured merchants for the home banner (silent)
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(
-      pos => { _gpsLat = pos.coords.latitude; _gpsLng = pos.coords.longitude; loadNearby(); },
-      () => { loadNearby(); }, // still load without GPS
+      pos => { _gpsLat = pos.coords.latitude; _gpsLng = pos.coords.longitude; loadAdsOnly(); },
+      () => { loadAdsOnly(); },
       { timeout: 6000, maximumAge: 60000 }
     );
-  } else { loadNearby(); }
-  loadMine();
+  } else { loadAdsOnly(); }
   loadOrders();
   populateProfile();
 }
 
+async function loadAdsOnly() {
+  try {
+    const payload = { action: 'nearby', phone: _user.phone, pin: _user.pin };
+    if (_gpsLat !== null) { payload.lat = _gpsLat; payload.lng = _gpsLng; }
+    const { shops } = await api('happa-browse', payload);
+    _shops = shops || [];
+    renderAds(_shops);
+  } catch(e) { /* silent */ }
+}
+
 // ── TABS ──
+// Map tab names to nav item ids (community/merchants share the merchants nav dot)
+const NAV_MAP = { home:'home', merchants:'merchants', community:'merchants', orders:'orders', family:'family', goals:'goals' };
+
 function switchTab(name) {
   _tab = name;
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.getElementById('page-'+name).classList.add('active');
+  const pg = document.getElementById('page-'+name);
+  if (pg) pg.classList.add('active');
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  document.getElementById('nav-'+name).classList.add('active');
+  const navId = 'nav-' + (NAV_MAP[name] || name);
+  const navEl = document.getElementById(navId);
+  if (navEl) navEl.classList.add('active');
+  // Lazy-load community when first opened
+  if (name === 'community' && document.getElementById('mine-list').children.length <= 1) loadMine();
 }
 
 // ── ADS BANNER ──
