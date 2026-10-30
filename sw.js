@@ -1,4 +1,4 @@
-const CACHE = 'happa-v56';
+const CACHE = 'happa-v57';
 const SHELL = [
   '/',
   '/index.html',
@@ -34,7 +34,7 @@ self.addEventListener('push', e => {
     badge: '/happa-logo.jpg',
     tag: data.tag || 'happa-push',
     renotify: !!data.tag,
-    data: { url: data.url || '/agent.html' }
+    data: { url: data.url || '/index.html' }
   }));
 });
 
@@ -45,7 +45,7 @@ self.addEventListener('notificationclick', e => {
     clients.matchAll({ type:'window', includeUncontrolled:true }).then(wins => {
       const match = wins.find(w => w.url.includes(url));
       if (match) return match.focus();
-      return clients.openWindow(url);
+      return clients.openWindow(url || '/index.html');
     })
   );
 });

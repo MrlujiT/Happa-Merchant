@@ -852,7 +852,7 @@ async function loadUserContext() {
 }
 
 /* ── Merchant Push Subscriptions ── */
-const HAPPA_VAPID_PUBLIC_KEY = 'BMidbDdDZQtjWoSN5X8qoKFBHVbkeqWAgFyheGa8M5YGX_ccYYiuKX4Y_c9Q9kDDwYrjjn5J_N8JiR_qbMMV0fk';
+const HAPPA_VAPID_PUBLIC_KEY = 'BCGdKHtZqLJLEYkZao5pm3XMGOy19k21ospPGV2f4WV_6wKubNXk1q_JWB69q2yz2kZpqIecsm2BqZILnYznTQg';
 
 function urlBase64ToUint8Array(b64) {
   const pad = '='.repeat((4 - b64.length % 4) % 4);
@@ -871,16 +871,16 @@ async function subscribeMerchantPush() {
     if (!sub) {
       sub = await reg.pushManager.subscribe({ userVisibleOnly:true, applicationServerKey:urlBase64ToUint8Array(HAPPA_VAPID_PUBLIC_KEY) });
     }
-    if (!S.user?.id) return;
+    if (!S.shop?.id) return;
     const k256 = btoa(String.fromCharCode(...new Uint8Array(sub.getKey('p256dh')))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
     const kAuth = btoa(String.fromCharCode(...new Uint8Array(sub.getKey('auth')))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
     // Save push subscription keyed to the SHOP so happa-orders can push by shop_id
-    await fetch(`${SUPABASE_URL}/functions/v1/send-notification`, {
-      method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${SUPABASE_KEY}`},
+    await fetch(`${SUPABASE_URL}/functions/v1/happa-orders`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${currentSession?.access_token ?? SUPABASE_KEY}`},
       body: JSON.stringify({
-        action:'save_subscription', user_type:'merchant', user_id:S.shop.id,
-        subscription:{ endpoint:sub.endpoint, keys:{ p256dh:k256, auth:kAuth } },
-        user_agent: navigator.userAgent.slice(0,100)
+        action:'save_push_sub', shop_id: S.shop.id,
+        subscription:{ endpoint: sub.endpoint, keys:{ p256dh: k256, auth: kAuth } }
       })
     });
   } catch(_) {}
@@ -4085,6 +4085,12 @@ async function showOnlineOrders() {
         body: JSON.stringify({ action:'shop_orders', shop_id:S.shop.id })
       });
       const d = await res.json();
+      if (!res.ok) {
+        const body = document.querySelector('.sh-body');
+        if (body) body.innerHTML = `<div style="text-align:center;padding:30px;color:#dc2626;font-size:14px">⚠️ ${d.error || 'Failed to load orders'}<br><span style="font-size:12px;color:var(--txt2)">Status ${res.status} — tap to retry</span></div>`;
+        if (body) body.onclick = refresh;
+        return;
+      }
       const orders = d.orders || [];
       // Update badge
       const pending = orders.filter(o => o.status === 'pending').length;
