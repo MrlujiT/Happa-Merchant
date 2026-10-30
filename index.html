@@ -4059,7 +4059,7 @@ function _renderOrderCards(orders) {
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
         <div>
           <div style="font-weight:700;font-size:14px">${cust}</div>
-          <div style="font-size:11px;color:var(--txt2);margin-top:2px">${dt} · ${o.order_type||'pickup'} · ${(o.payment_method||'cash').replace('_',' ')}</div>
+          <div style="font-size:11px;color:var(--txt2);margin-top:2px">${dt} · ${o.order_type||'pickup'} · ${(o.payment_method||'cash').replace('_',' ')}${o.mpesa_code?` (${o.mpesa_code})`:''}${o.debt_payment_date?` — pay by ${o.debt_payment_date}`:''}</div>
         </div>
         ${_orderStatusChip(o.status)}
       </div>
@@ -4090,13 +4090,14 @@ async function showOnlineOrders() {
       const pending = orders.filter(o => o.status === 'pending').length;
       const badge = document.getElementById('orders-more-badge');
       if (badge) { badge.textContent = pending; badge.style.display = pending ? '' : 'none'; }
-      // Fetch ordering status
-      const shopData = await fetch(`${SUPABASE_URL}/rest/v1/shops?id=eq.${S.shop.id}&select=ordering_enabled`,{headers:apiHeaders()}).then(r=>r.json()).catch(()=>[]);
+      // Fetch ordering status + debt setting
+      const shopData = await fetch(`${SUPABASE_URL}/rest/v1/shops?id=eq.${S.shop.id}&select=ordering_enabled,allows_debt`,{headers:apiHeaders()}).then(r=>r.json()).catch(()=>[]);
       const orderingOn = shopData?.[0]?.ordering_enabled ?? false;
+      const debtOn = shopData?.[0]?.allows_debt ?? false;
       const body = document.querySelector('.sh-body');
       if (!body) return;
       body.innerHTML = `
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0 16px;border-bottom:1px solid var(--bdr);margin-bottom:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0 16px;border-bottom:1px solid var(--bdr)">
           <div>
             <div style="font-weight:700;font-size:15px">Accept Online Orders</div>
             <div style="font-size:12px;color:var(--txt2);margin-top:2px">${orderingOn?'Customers can place orders now':'Currently not accepting orders'}</div>
@@ -4105,6 +4106,17 @@ async function showOnlineOrders() {
             <input type="checkbox" id="ordering-toggle" ${orderingOn?'checked':''} style="opacity:0;width:0;height:0" onchange="toggleOrdering(this.checked)">
             <span style="position:absolute;inset:0;border-radius:12px;background:${orderingOn?'#22c55e':'#d1d5db'};transition:.3s"></span>
             <span style="position:absolute;top:2px;left:${orderingOn?'22':'2'}px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.3s;box-shadow:0 1px 3px rgba(0,0,0,.3)"></span>
+          </label>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0 16px;border-bottom:1px solid var(--bdr);margin-bottom:16px">
+          <div>
+            <div style="font-weight:700;font-size:15px">Allow Debt Orders</div>
+            <div style="font-size:12px;color:var(--txt2);margin-top:2px">${debtOn?'Customers can order on debt & pay later':'Customers must pay at time of order'}</div>
+          </div>
+          <label style="position:relative;display:inline-block;width:44px;height:24px;cursor:pointer">
+            <input type="checkbox" id="debt-toggle" ${debtOn?'checked':''} style="opacity:0;width:0;height:0" onchange="toggleDebt(this.checked)">
+            <span style="position:absolute;inset:0;border-radius:12px;background:${debtOn?'#f97316':'#d1d5db'};transition:.3s"></span>
+            <span style="position:absolute;top:2px;left:${debtOn?'22':'2'}px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.3s;box-shadow:0 1px 3px rgba(0,0,0,.3)"></span>
           </label>
         </div>
         ${_renderOrderCards(orders)}
@@ -4152,6 +4164,19 @@ async function toggleOrdering(enabled) {
     if (!res.ok) throw new Error();
   } catch(e) {
     alert('Failed to update ordering status');
+  }
+}
+
+async function toggleDebt(enabled) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/happa-orders`, {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${currentSession?.access_token ?? SUPABASE_KEY}` },
+      body: JSON.stringify({ action:'toggle_debt', shop_id:S.shop.id, enabled })
+    });
+    if (!res.ok) throw new Error();
+  } catch(e) {
+    alert('Failed to update debt setting');
   }
 }
 

@@ -113,16 +113,23 @@
   .qty-num { font-weight: 700; font-size: 15px; min-width: 20px; text-align: center; }
 
   /* ── CHECKOUT SHEET ── */
-  .checkout-row { padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); }
-  .checkout-row label { font-size: 14px; color: var(--fg2); }
+  .checkout-row { padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); gap: 12px; }
+  .checkout-row label { font-size: 14px; color: var(--fg2); flex-shrink: 0; }
   .checkout-row select, .checkout-row .co-val { background: var(--bg2); border: 1.5px solid var(--border); border-radius: 8px; padding: 8px 12px; color: var(--fg); font-size: 14px; outline: none; }
-  .checkout-row select:focus { border-color: var(--lime); }
+  .checkout-row select:focus, .checkout-row .co-val:focus { border-color: var(--lime); }
   .checkout-total { padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; }
   .checkout-total span { font-size: 13px; color: var(--fg2); }
   .checkout-total strong { font-size: 20px; font-weight: 900; color: #4a6a0a; }
   .notes-row { padding: 12px 20px 16px; }
   .notes-row textarea { width: 100%; background: var(--bg3); border: 1.5px solid var(--border); border-radius: 10px; padding: 10px 12px; color: var(--fg); font-size: 14px; outline: none; resize: none; font-family: inherit; }
   .notes-row textarea:focus { border-color: var(--lime); }
+  .co-item-row { display: flex; align-items: center; padding: 12px 20px; border-bottom: 1px solid var(--border); gap: 10px; }
+  .co-item-row .co-item-label { flex: 1; font-size: 14px; }
+  .co-item-row .co-item-price { font-size: 14px; font-weight: 600; color: #4a6a0a; flex-shrink: 0; }
+  .co-del-btn { background: none; border: none; font-size: 18px; cursor: pointer; padding: 2px 6px; border-radius: 6px; color: var(--fg3); flex-shrink: 0; }
+  .co-del-btn:active { background: var(--bg3); }
+  .sheet-back-btn { background: none; border: none; font-size: 15px; color: var(--fg2); cursor: pointer; padding: 4px 8px 4px 0; font-weight: 600; display: flex; align-items: center; gap: 4px; }
+  .sheet-back-btn:active { color: var(--fg); }
 
   /* ── ORDERS PAGE ── */
   .order-card { margin: 0 16px 12px; background: var(--bg2); border-radius: var(--radius); overflow: hidden; }
@@ -251,6 +258,7 @@
 <div class="sheet" id="catalog-sheet">
   <div class="sheet-handle"></div>
   <div class="sheet-head">
+    <button class="sheet-back-btn" onclick="closeCatalog()">‹ Back</button>
     <h3 id="cat-shop-name">Shop</h3>
     <p id="cat-shop-meta"></p>
   </div>
@@ -264,10 +272,11 @@
 </div>
 
 <!-- ── CHECKOUT SHEET ── -->
-<div class="sheet-overlay" id="co-overlay" onclick="closeCheckout()"></div>
+<div class="sheet-overlay" id="co-overlay"></div>
 <div class="sheet" id="co-sheet">
   <div class="sheet-handle"></div>
   <div class="sheet-head">
+    <button class="sheet-back-btn" onclick="closeCheckout()">‹ Back</button>
     <h3>Review your order</h3>
     <p id="co-shop-name"></p>
   </div>
@@ -282,14 +291,23 @@
       <select id="co-type">
         <option value="pickup">Pickup</option>
         <option value="collection">Collection (I'll send someone)</option>
+        <option value="delivery">Delivery (billed by rider)</option>
       </select>
     </div>
     <div class="checkout-row">
       <label>Pay with</label>
-      <select id="co-pay">
+      <select id="co-pay" onchange="onPayChange()">
         <option value="cash">Cash</option>
         <option value="mpesa">M-Pesa</option>
       </select>
+    </div>
+    <div class="checkout-row" id="mpesa-code-row" style="display:none">
+      <label>M-Pesa code *</label>
+      <input class="co-val" type="text" id="co-mpesa" placeholder="e.g. QKL12345WX" style="text-transform:uppercase;max-width:160px">
+    </div>
+    <div class="checkout-row" id="debt-date-row" style="display:none">
+      <label>Pay by *</label>
+      <input class="co-val" type="date" id="co-debt-date" style="max-width:160px">
     </div>
     <div class="notes-row">
       <textarea id="co-notes" rows="2" placeholder="Any notes for the merchant? (optional)"></textarea>
@@ -297,6 +315,7 @@
   </div>
   <div class="sheet-footer">
     <button class="btn btn-primary" onclick="placeOrder()">Place Order</button>
+    <button class="btn btn-ghost" onclick="abandonCart()" style="margin-top:8px">Cancel order</button>
   </div>
 </div>
 
@@ -346,6 +365,8 @@ let _cart = {}; // product_id → { product, qty }
 let _currentShop = null;
 let _orders = [];
 let _tab = 'nearby';
+let _gpsLat = null;
+let _gpsLng = null;
 
 // ── STORAGE ──
 function save(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch {} }
@@ -448,7 +469,14 @@ window.addEventListener('load', async () => {
 function launchApp() {
   document.getElementById('auth-wrap').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
-  loadNearby();
+  // Request GPS location silently
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      pos => { _gpsLat = pos.coords.latitude; _gpsLng = pos.coords.longitude; loadNearby(); },
+      () => { loadNearby(); }, // still load without GPS
+      { timeout: 6000, maximumAge: 60000 }
+    );
+  } else { loadNearby(); }
   loadMine();
   loadOrders();
   populateProfile();
@@ -466,7 +494,9 @@ function switchTab(name) {
 // ── NEARBY ──
 async function loadNearby() {
   try {
-    const { shops } = await api('happa-browse', { action: 'nearby', phone: _user.phone, pin: _user.pin });
+    const payload = { action: 'nearby', phone: _user.phone, pin: _user.pin };
+    if (_gpsLat !== null) { payload.lat = _gpsLat; payload.lng = _gpsLng; }
+    const { shops } = await api('happa-browse', payload);
     _shops = shops || [];
     renderShopList('nearby-list', _shops, null);
   } catch(e) {
@@ -494,6 +524,7 @@ function renderShopList(containerId, shops, homeShopId) {
     const isHome = s.id === homeShopId;
     const emoji = typeEmoji(s.business_type);
     const img = s.logo_url ? `<img src="${s.logo_url}" alt="">` : emoji;
+    const distTag = s.dist_km != null ? ` · ${s.dist_km < 1 ? Math.round(s.dist_km*1000)+'m' : s.dist_km+'km'}` : '';
     const badge = isHome ? `<div class="shop-badge home">🏠 Your home merchant</div>` :
                   s.ordering_enabled ? `<div class="shop-badge">✅ Orders open</div>` :
                   `<div class="shop-badge no-orders">Orders closed</div>`;
@@ -502,7 +533,7 @@ function renderShopList(containerId, shops, homeShopId) {
         <div class="shop-avatar">${img}</div>
         <div class="shop-info">
           <div class="shop-name">${esc(s.name)}</div>
-          <div class="shop-meta">${esc(s.location || s.business_type || '')}</div>
+          <div class="shop-meta">${esc(s.location || s.business_type || '')}${distTag}</div>
           ${badge}
         </div>
         <button class="shop-order-btn" ${s.ordering_enabled ? '' : 'disabled'} onclick="event.stopPropagation();openCatalog('${s.id}')">
@@ -601,19 +632,67 @@ function closeCatalog() {
 }
 
 // ── CHECKOUT ──
-function openCheckout() {
+function renderCheckoutItems() {
   const items = Object.values(_cart);
   const total = items.reduce((s, i) => s + i.qty * i.product.sell_price, 0);
-  document.getElementById('co-shop-name').textContent = _currentShop?.name || '';
   document.getElementById('co-total').textContent = `KES ${fmt(total)}`;
   document.getElementById('co-items').innerHTML = items.map(i =>
-    `<div class="checkout-row"><label>${i.product.emoji || '📦'} ${esc(i.product.name)} × ${i.qty}</label><span>KES ${fmt(i.qty * i.product.sell_price)}</span></div>`
+    `<div class="co-item-row">
+      <div class="co-item-label">${i.product.emoji || '📦'} <strong>${esc(i.product.name)}</strong> × ${i.qty}</div>
+      <div class="co-item-price">KES ${fmt(i.qty * i.product.sell_price)}</div>
+      <button class="co-del-btn" onclick="removeCartItem('${i.product.id}')" title="Remove">✕</button>
+    </div>`
   ).join('');
+  if (!items.length) { closeCheckout(); }
+}
+
+function removeCartItem(productId) {
+  delete _cart[productId];
+  // Also update catalog qty display
+  const row = document.getElementById('prod-row-'+productId);
+  if (row) {
+    const p = _catProducts.find(x => x.id === productId);
+    if (p) {
+      const ctrl = row.querySelector('.qty-ctrl');
+      if (ctrl) ctrl.innerHTML = `<div class="qty-btn" onclick="adjustQty('${productId}',1)">+</div>`;
+    }
+  }
+  updateCartBar();
+  renderCheckoutItems();
+}
+
+function openCheckout() {
+  document.getElementById('co-shop-name').textContent = _currentShop?.name || '';
   document.getElementById('co-notes').value = '';
+  // Build payment options dynamically based on shop's debt setting
+  const paySelect = document.getElementById('co-pay');
+  const hasDebt = _currentShop?.allows_debt;
+  paySelect.innerHTML = `<option value="cash">Cash</option>
+    <option value="mpesa">M-Pesa</option>
+    ${hasDebt ? '<option value="debt">Debt (pay later)</option>' : ''}`;
+  onPayChange();
+  // Set min date for debt to tomorrow
+  const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate()+1);
+  document.getElementById('co-debt-date').min = tomorrow.toISOString().split('T')[0];
+  renderCheckoutItems();
   openSheet('co');
 }
 
+function onPayChange() {
+  const pay = document.getElementById('co-pay').value;
+  document.getElementById('mpesa-code-row').style.display = pay === 'mpesa' ? '' : 'none';
+  document.getElementById('debt-date-row').style.display = pay === 'debt' ? '' : 'none';
+  if (pay !== 'mpesa') document.getElementById('co-mpesa').value = '';
+}
+
 function closeCheckout() { closeSheet('co'); }
+
+function abandonCart() {
+  _cart = {};
+  updateCartBar();
+  closeSheet('co');
+  closeSheet('catalog');
+}
 
 async function placeOrder() {
   const items = Object.values(_cart).map(i => ({
@@ -623,7 +702,15 @@ async function placeOrder() {
     quantity: i.qty,
     unit_price: i.product.sell_price,
   }));
-  if (!items.length) { toast('Add items first'); return; }
+  if (!items.length) { toast('Cart is empty'); return; }
+
+  const payMethod = document.getElementById('co-pay').value;
+  const mpesaCode = document.getElementById('co-mpesa').value.trim().toUpperCase();
+  const debtDate = document.getElementById('co-debt-date').value;
+
+  if (payMethod === 'mpesa' && !mpesaCode) { toast('Enter your M-Pesa transaction code'); return; }
+  if (payMethod === 'debt' && !debtDate) { toast('Choose a payment date for debt'); return; }
+
   const btn = document.querySelector('#co-sheet .btn-primary');
   btn.disabled = true; btn.textContent = 'Placing order…';
   try {
@@ -632,7 +719,9 @@ async function placeOrder() {
       phone: _user.phone, pin: _user.pin,
       shop_id: _catShopId,
       order_type: document.getElementById('co-type').value,
-      payment_method: document.getElementById('co-pay').value,
+      payment_method: payMethod,
+      mpesa_code: payMethod === 'mpesa' ? mpesaCode : undefined,
+      debt_payment_date: payMethod === 'debt' ? debtDate : undefined,
       items,
       notes: document.getElementById('co-notes').value.trim() || null,
     });
@@ -673,7 +762,7 @@ function renderOrders() {
       <div class="order-card-head">
         <div>
           <div class="order-shop-name">${esc(o.shops?.name || '')}</div>
-          <div class="order-date">${timeAgo(o.created_at)} · ${o.order_type} · ${o.payment_method}</div>
+          <div class="order-date">${timeAgo(o.created_at)} · ${o.order_type} · ${o.payment_method}${o.mpesa_code ? ' ' + o.mpesa_code : ''}${o.debt_payment_date ? ' — pay by ' + o.debt_payment_date : ''}</div>
         </div>
         <div class="order-status ${o.status}">${statusLabel}</div>
       </div>
