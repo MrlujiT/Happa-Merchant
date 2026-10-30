@@ -4191,28 +4191,38 @@ async function doOrderStatus(order_id, status) {
 }
 
 async function toggleOrdering(enabled) {
+  const el = document.getElementById('ordering-toggle');
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/happa-orders`, {
       method:'POST',
-      headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${currentSession?.access_token ?? SUPABASE_KEY}` },
+      headers:{ 'Content-Type':'application/json', 'apikey': SUPABASE_KEY },
       body: JSON.stringify({ action:'toggle_ordering', shop_id:S.shop.id, enabled })
     });
-    if (!res.ok) throw new Error();
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`);
+    if (S.shop) S.shop.ordering_enabled = enabled;
+    showToast(enabled ? '✅ Online orders enabled' : '⏸ Online orders paused');
   } catch(e) {
-    alert('Failed to update ordering status');
+    if (el) el.checked = !enabled; // revert
+    showToast('❌ ' + e.message);
   }
 }
 
 async function toggleDebt(enabled) {
+  const el = document.getElementById('debt-toggle');
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/happa-orders`, {
       method:'POST',
-      headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${currentSession?.access_token ?? SUPABASE_KEY}` },
+      headers:{ 'Content-Type':'application/json', 'apikey': SUPABASE_KEY },
       body: JSON.stringify({ action:'toggle_debt', shop_id:S.shop.id, enabled })
     });
-    if (!res.ok) throw new Error();
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`);
+    if (S.shop) S.shop.allows_debt = enabled;
+    showToast(enabled ? '✅ Debt orders enabled' : '⏸ Debt orders disabled');
   } catch(e) {
-    alert('Failed to update debt setting');
+    if (el) el.checked = !enabled; // revert
+    showToast('❌ ' + e.message);
   }
 }
 
