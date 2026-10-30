@@ -848,6 +848,7 @@ async function loadUserContext() {
   setupNav();
   showTab('home');
   subscribeMerchantPush();
+  if (!S.isAirbnb && !S.isFit) setTimeout(refreshOrdersBadge, 2000);
 }
 
 /* ── Merchant Push Subscriptions ── */
@@ -873,10 +874,11 @@ async function subscribeMerchantPush() {
     if (!S.user?.id) return;
     const k256 = btoa(String.fromCharCode(...new Uint8Array(sub.getKey('p256dh')))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
     const kAuth = btoa(String.fromCharCode(...new Uint8Array(sub.getKey('auth')))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+    // Save push subscription keyed to the SHOP so happa-orders can push by shop_id
     await fetch(`${SUPABASE_URL}/functions/v1/send-notification`, {
       method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${SUPABASE_KEY}`},
       body: JSON.stringify({
-        action:'save_subscription', user_type:'merchant', user_id:S.user.id,
+        action:'save_subscription', user_type:'merchant', user_id:S.shop.id,
         subscription:{ endpoint:sub.endpoint, keys:{ p256dh:k256, auth:kAuth } },
         user_agent: navigator.userAgent.slice(0,100)
       })
@@ -4018,6 +4020,157 @@ async function saveLoyaltySettings() {
 }
 
 /* ═══════════════════════════════
+   ONLINE ORDERS (Merchant)
+═══════════════════════════════ */
+let _ordersPoller = null;
+
+function _orderStatusChip(status) {
+  const map = {
+    pending:   ['⏳','#f59e0b','#fef3c7'],
+    approved:  ['✅','#2563eb','#dbeafe'],
+    ready:     ['📦','#7c3aed','#ede9fe'],
+    collected: ['🏁','#16a34a','#dcfce7'],
+    cancelled: ['✕', '#6b7280','#f3f4f6'],
+  };
+  const [ico, color, bg] = map[status] || ['?','#6b7280','#f3f4f6'];
+  return `<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;background:${bg};color:${color}">${ico} ${status.charAt(0).toUpperCase()+status.slice(1)}</span>`;
+}
+
+function _orderActions(order) {
+  if (order.status === 'collected' || order.status === 'cancelled') return '';
+  const btns = [];
+  const s = order.status;
+  if (s === 'pending')   btns.push(`<button onclick="doOrderStatus('${order.id}','approved')"  style="background:#2563eb;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer">✅ Approve</button>`);
+  if (s === 'approved')  btns.push(`<button onclick="doOrderStatus('${order.id}','ready')"     style="background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer">📦 Ready</button>`);
+  if (s === 'ready')     btns.push(`<button onclick="doOrderStatus('${order.id}','collected')" style="background:#16a34a;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer">🏁 Collected</button>`);
+  if (s !== 'cancelled') btns.push(`<button onclick="doOrderStatus('${order.id}','cancelled')" style="background:#fee2e2;color:#dc2626;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer">✕ Cancel</button>`);
+  return `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">${btns.join('')}</div>`;
+}
+
+function _renderOrderCards(orders) {
+  if (!orders.length) return `<div style="text-align:center;padding:40px 0;color:var(--txt2)"><div style="font-size:36px;margin-bottom:8px">🛍️</div><div style="font-weight:600">No orders yet</div><div style="font-size:13px;margin-top:4px">Orders from customers will appear here</div></div>`;
+  const active = orders.filter(o => !['collected','cancelled'].includes(o.status));
+  const done   = orders.filter(o =>  ['collected','cancelled'].includes(o.status));
+  function card(o) {
+    const items = (o.happa_order_items || []).map(i => `${i.product_emoji||'📦'} ${i.product_name} ×${i.quantity}`).join('<br>');
+    const cust  = o.happa_users ? (o.happa_users.name || o.happa_users.phone) : '—';
+    const dt    = new Date(o.created_at).toLocaleString('en-KE',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+    return `<div style="background:var(--card);border-radius:12px;padding:14px 16px;margin-bottom:10px;border:1px solid var(--bdr)">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+        <div>
+          <div style="font-weight:700;font-size:14px">${cust}</div>
+          <div style="font-size:11px;color:var(--txt2);margin-top:2px">${dt} · ${o.order_type||'pickup'} · ${(o.payment_method||'cash').replace('_',' ')}</div>
+        </div>
+        ${_orderStatusChip(o.status)}
+      </div>
+      <div style="font-size:13px;color:var(--txt2);margin-bottom:6px;line-height:1.6">${items}</div>
+      ${o.notes ? `<div style="font-size:12px;color:var(--txt3);font-style:italic;margin-bottom:4px">📝 ${o.notes}</div>` : ''}
+      <div style="font-weight:700;font-size:15px;color:var(--txt1)">${kes(o.total_amount)}</div>
+      ${_orderActions(o)}
+    </div>`;
+  }
+  return (active.length ? `<div style="font-size:12px;font-weight:700;color:var(--txt3);letter-spacing:.04em;margin:0 0 8px">ACTIVE (${active.length})</div>`+active.map(card).join('') : '')
+       + (done.length   ? `<div style="font-size:12px;font-weight:700;color:var(--txt3);letter-spacing:.04em;margin:16px 0 8px">COMPLETED</div>`+done.map(card).join('') : '');
+}
+
+async function showOnlineOrders() {
+  pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>🛍️ Online Orders</h2></div><div class="sh-body"><div style="text-align:center;padding:30px;color:var(--txt2)">Loading…</div></div>`);
+  if (_ordersPoller) clearInterval(_ordersPoller);
+
+  async function refresh() {
+    try {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/happa-orders`, {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${currentSession?.access_token ?? SUPABASE_KEY}` },
+        body: JSON.stringify({ action:'shop_orders', shop_id:S.shop.id })
+      });
+      const d = await res.json();
+      const orders = d.orders || [];
+      // Update badge
+      const pending = orders.filter(o => o.status === 'pending').length;
+      const badge = document.getElementById('orders-more-badge');
+      if (badge) { badge.textContent = pending; badge.style.display = pending ? '' : 'none'; }
+      // Fetch ordering status
+      const shopData = await fetch(`${SUPABASE_URL}/rest/v1/shops?id=eq.${S.shop.id}&select=ordering_enabled`,{headers:apiHeaders()}).then(r=>r.json()).catch(()=>[]);
+      const orderingOn = shopData?.[0]?.ordering_enabled ?? false;
+      const body = document.querySelector('.sh-body');
+      if (!body) return;
+      body.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0 16px;border-bottom:1px solid var(--bdr);margin-bottom:16px">
+          <div>
+            <div style="font-weight:700;font-size:15px">Accept Online Orders</div>
+            <div style="font-size:12px;color:var(--txt2);margin-top:2px">${orderingOn?'Customers can place orders now':'Currently not accepting orders'}</div>
+          </div>
+          <label style="position:relative;display:inline-block;width:44px;height:24px;cursor:pointer">
+            <input type="checkbox" id="ordering-toggle" ${orderingOn?'checked':''} style="opacity:0;width:0;height:0" onchange="toggleOrdering(this.checked)">
+            <span style="position:absolute;inset:0;border-radius:12px;background:${orderingOn?'#22c55e':'#d1d5db'};transition:.3s"></span>
+            <span style="position:absolute;top:2px;left:${orderingOn?'22':'2'}px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.3s;box-shadow:0 1px 3px rgba(0,0,0,.3)"></span>
+          </label>
+        </div>
+        ${_renderOrderCards(orders)}
+      `;
+    } catch(e) {
+      const body = document.querySelector('.sh-body');
+      if (body) body.innerHTML = `<div style="text-align:center;padding:30px;color:#dc2626">Failed to load orders</div>`;
+    }
+  }
+
+  await refresh();
+  _ordersPoller = setInterval(refresh, 30000);
+
+  // Stop polling when sheet closes
+  const sheet = document.getElementById('sheet-overlay');
+  if (sheet) {
+    const orig = sheet.onclick;
+    sheet.onclick = (e) => { if (_ordersPoller) { clearInterval(_ordersPoller); _ordersPoller = null; } if (orig) orig(e); else if(e.target===sheet) sheet.remove(); };
+  }
+}
+
+async function doOrderStatus(order_id, status) {
+  try {
+    await fetch(`${SUPABASE_URL}/functions/v1/happa-orders`, {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${currentSession?.access_token ?? SUPABASE_KEY}` },
+      body: JSON.stringify({ action:'update_status', shop_id:S.shop.id, order_id, status })
+    });
+    // Refresh the sheet
+    const refresh = document.querySelector('.sh-body');
+    if (refresh) refresh.innerHTML = `<div style="text-align:center;padding:20px;color:var(--txt2)">Updating…</div>`;
+    await showOnlineOrders();
+  } catch(e) {
+    alert('Failed to update order status');
+  }
+}
+
+async function toggleOrdering(enabled) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/happa-orders`, {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${currentSession?.access_token ?? SUPABASE_KEY}` },
+      body: JSON.stringify({ action:'toggle_ordering', shop_id:S.shop.id, enabled })
+    });
+    if (!res.ok) throw new Error();
+  } catch(e) {
+    alert('Failed to update ordering status');
+  }
+}
+
+async function refreshOrdersBadge() {
+  if (!S.shop?.id || !currentSession) return;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/happa-orders`, {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${currentSession?.access_token ?? SUPABASE_KEY}` },
+      body: JSON.stringify({ action:'shop_orders', shop_id:S.shop.id })
+    });
+    const d = await res.json();
+    const pending = (d.orders||[]).filter(o=>o.status==='pending').length;
+    const badge = document.getElementById('orders-more-badge');
+    if (badge) { badge.textContent = pending; badge.style.display = pending ? '' : 'none'; }
+  } catch(_) {}
+}
+
+/* ═══════════════════════════════
    WALLET MANAGER (Owner)
 ═══════════════════════════════ */
 async function showWalletManager() {
@@ -4687,6 +4840,10 @@ function renderMore(el) {
           <div class="more-ico" style="background:#16a34a22">💰</div>
           <div class="more-inf"><div class="more-nm">Business Health</div><div class="more-mt">Revenue minus expenses</div></div>
           <span style="color:var(--txt3)">›</span></div>` : ''} `:`
+        <div class="more-item" onclick="showOnlineOrders()">
+          <div class="more-ico" style="background:#f9731622">🛍️</div>
+          <div class="more-inf"><div class="more-nm">Online Orders<span id="orders-more-badge" style="display:none;margin-left:6px;background:#ef4444;color:#fff;font-size:11px;font-weight:700;padding:1px 6px;border-radius:10px;vertical-align:middle">0</span></div><div class="more-mt">Customer orders — approve, prepare & collect</div></div>
+          <span style="color:var(--txt3)">›</span></div>
         <div class="more-item" onclick="showAddProductSheet()">
           <div class="more-ico" style="background:var(--acc-d)">📦</div>
           <div class="more-inf"><div class="more-nm">Add Product</div><div class="more-mt">Add a new item to your inventory</div></div>
