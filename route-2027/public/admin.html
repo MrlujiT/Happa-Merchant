@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Route 2027 Team</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#15181A">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<link rel="stylesheet" href="style.css">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);box-sizing:border-box}html,body{margin:0}</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand">
+      <span class="plate">ROUTE 2027</span>
+      <span class="sub" id="who">Team</span>
+    </div>
+    <div class="hdr-right">
+      <a class="teamlink" href="./" target="_blank" rel="noopener">Open player app</a>
+      <button class="teamlink" id="signout" type="button" hidden>Sign out</button>
+    </div>
+  </header>
+
+  <section class="panel" id="auth">
+    <div class="dash">
+      <form class="form login" id="loginf">
+        <h3>Team sign in</h3>
+        <label>Email<input id="em" name="email" type="email" autocomplete="username" required></label>
+        <label>Password<input id="pw" name="password" type="password" autocomplete="current-password" required></label>
+        <button class="btn" type="submit">Sign in</button>
+        <p class="src" id="loginmsg">Accounts are created by the campaign admin. Ask them for your login.</p>
+        <p class="src"><a href="#" id="tosignup">First-time owner setup</a></p>
+      </form>
+      <form class="form login" id="signupf" hidden>
+        <h3>Owner setup</h3>
+        <p class="src">Create the first account. Claude then promotes it to superadmin. Anyone else who signs up here gets no access.</p>
+        <label>Email<input name="email" type="email" autocomplete="username" required></label>
+        <label>Password (8+ characters)<input name="password" type="password" minlength="8" autocomplete="new-password" required></label>
+        <button class="btn" type="submit">Create account</button>
+        <p class="src" id="signupmsg"></p>
+        <p class="src"><a href="#" id="tologin">Back to sign in</a></p>
+      </form>
+    </div>
+  </section>
+
+  <div id="main" hidden style="display:flex;flex-direction:column;gap:10px;flex:1;min-height:0">
+    <div class="tabs" role="tablist" id="dtabs"></div>
+    <section class="panel"><div class="dash" id="dash"></div></section>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<script src="demo-sb.js"></script>
+<script src="content.js"></script>
+<script src="admin.js"></script>
+</body>
+</html>

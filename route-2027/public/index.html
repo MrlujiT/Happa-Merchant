@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="sw">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>The Route 2027</title>
+<meta name="description" content="Safari ya Mombasa hadi Kisumu: elewa story ya Kenya, soma solutions, then decide mwenyewe.">
+<meta name="theme-color" content="#F2B705">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<link rel="stylesheet" href="style.css">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);box-sizing:border-box}html,body{margin:0}</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand">
+      <span class="plate">ROUTE 2027</span>
+      <span class="sub">Mombasa → Kisumu</span>
+    </div>
+  </header>
+  <div class="countdown" id="countdown" role="timer" aria-label="Countdown to the 10 August 2027 General Election">
+      <div class="lbl">Uchaguzi Mkuu 2027<small>Jumanne, 10 August 2027 (IEBC)</small></div>
+      <div class="clk"><span><b id="cd-d">--</b><small>siku</small></span><span><b id="cd-h">--</b><small>saa</small></span><span><b id="cd-m">--</b><small>dak</small></span><span><b id="cd-s">--</b><small>sek</small></span></div>
+    </div>
+  <div class="tabs" role="tablist">
+    <button id="tab-bot" role="tab" aria-selected="true" aria-controls="p-bot">Bot</button>
+    <button id="tab-game" role="tab" aria-selected="false" aria-controls="p-game">Drive</button>
+  </div>
+  <section class="panel" id="p-bot" role="tabpanel" aria-labelledby="tab-bot">
+    <div class="chat" id="chat" aria-live="polite"></div>
+    <div class="chips" id="chips"></div>
+    <form class="composer" id="composer">
+      <input id="msg" autocomplete="off" placeholder="Andika hapa, ama MENU" aria-label="Message">
+      <button class="send" type="submit">Tuma</button>
+    </form>
+    <input type="file" id="vid" accept="video/*" hidden>
+  </section>
+  <section class="panel" id="p-game" role="tabpanel" aria-labelledby="tab-game" hidden>
+    <div class="hud">
+      <div>Kenya borrowed while you drove<b id="tick">KSh 0</b></div>
+      <div>Score<b id="score">0</b></div>
+      <div>Time<b id="clock">0:00</b></div>
+      <div>Crashes<b id="crashes">0</b></div>
+    </div>
+    <div class="route">
+      <div class="bar"><i id="prog"></i></div>
+      <div class="towns"><span id="from">Mombasa</span><span id="legname">Free drive</span><span id="to">Kisumu</span></div>
+    </div>
+    <div class="stage" id="stage">
+      <canvas id="cv" aria-label="Route 2027 driving game. Tap or press space to jump."></canvas>
+      <div class="overlay" id="ov"></div>
+    </div>
+    <div class="board" id="board"></div>
+  </section>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<script src="demo-sb.js"></script>
+<script src="content.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

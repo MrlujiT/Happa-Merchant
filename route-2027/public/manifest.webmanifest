@@ -1,0 +1,10 @@
+{
+  "name": "The Route 2027",
+  "short_name": "Route 2027",
+  "description": "Safari ya Mombasa hadi Kisumu: story ya Kenya, solutions, then decide mwenyewe.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#ECEFEA",
+  "theme_color": "#F2B705",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
