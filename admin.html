@@ -570,10 +570,11 @@ async function renderAgents() {
   const el = document.getElementById('tab-content');
   el.innerHTML = '<div style="padding:20px;color:var(--txt2)"><span class="spin"></span>Loading…</div>';
 
-  const [agents, shops, leads] = await Promise.all([
+  const [agents, shops, leads, happaUsers] = await Promise.all([
     apiGet('agents?select=id,name,phone,email,ref_code,pin,notes,active&order=name'),
     apiGet('shops?select=id,name,business_type,agent_id,subscriptions(status,monthly_rate)&order=name'),
     apiGet('leads?select=agent_id,status&order=created_at.desc'),
+    apiGet('happa_users?select=id,home_agent_ref&home_agent_ref=not.is.null'),
   ]);
 
   const thisMonth = new Date(); thisMonth.setDate(1);
@@ -592,13 +593,30 @@ async function renderAgents() {
     if (l.status === 'new') leadsMap[l.agent_id].new++;
   });
 
-  const agentCards = (agents||[]).map(a => {
+  // happa users by agent ref_code
+  const happaMap = {};
+  (happaUsers||[]).forEach(u => {
+    if (u.home_agent_ref) happaMap[u.home_agent_ref] = (happaMap[u.home_agent_ref]||0) + 1;
+  });
+
+  // sort agents: most happa users first (leaderboard)
+  const sortedAgents = [...(agents||[])].sort((a,b) => {
+    const uA = happaMap[a.ref_code||''] || 0;
+    const uB = happaMap[b.ref_code||''] || 0;
+    return uB - uA;
+  });
+
+  const totalHappaUsers = (happaUsers||[]).length;
+
+  const agentCards = sortedAgents.map((a, rank) => {
     const myShops    = (shops||[]).filter(s => s.agent_id === a.id);
     const activeShops= myShops.filter(s => s.subscriptions?.[0]?.status === 'active');
     const commission = activeShops.reduce((sum,s) => sum + Math.round((s.subscriptions?.[0]?.monthly_rate||0)*0.20),0);
     const paid       = paidMap[a.id];
     const myLeads    = leadsMap[a.id] || { total:0, new:0 };
+    const happaCount = happaMap[a.ref_code||''] || 0;
     const refLink    = `${APP_URL}/?ref=${encodeURIComponent(a.ref_code||a.id)}`;
+    const rankEmoji  = rank === 0 ? '🥇' : rank === 1 ? '🥈' : rank === 2 ? '🥉' : `#${rank+1}`;
     const nameEsc    = (a.name||'').replace(/'/g,"\\'");
 
     const commBadge = paid?.paid
@@ -611,7 +629,7 @@ async function renderAgents() {
     <div style="background:var(--surf2);border-radius:16px;padding:16px;margin-bottom:12px">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;gap:8px">
         <div>
-          <div style="font-weight:800;font-size:15px">${a.name}</div>
+          <div style="font-weight:800;font-size:15px"><span style="margin-right:4px;font-size:14px">${rankEmoji}</span>${a.name}</div>
           <div style="font-size:11px;color:var(--txt3)">${a.phone||a.email||'No contact'}</div>
           ${a.ref_code ? `<div style="display:inline-block;margin-top:4px;background:var(--acc);color:#fff;font-size:11px;font-weight:800;padding:2px 8px;border-radius:6px;letter-spacing:.5px">${a.ref_code}</div>` : ''}
         </div>
@@ -635,17 +653,21 @@ async function renderAgents() {
       </div>
 
       <!-- Stats row -->
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin-bottom:10px">
         <div style="text-align:center;background:var(--bg);border-radius:10px;padding:8px">
-          <div style="font-size:18px;font-weight:800">${myLeads.total}</div>
+          <div style="font-size:16px;font-weight:800;color:var(--acc)">${happaCount}</div>
+          <div style="font-size:10px;color:var(--txt2);text-transform:uppercase;letter-spacing:.4px">happa<br>Users</div>
+        </div>
+        <div style="text-align:center;background:var(--bg);border-radius:10px;padding:8px">
+          <div style="font-size:16px;font-weight:800">${myLeads.total}</div>
           <div style="font-size:10px;color:var(--txt2);text-transform:uppercase;letter-spacing:.4px">Leads${myLeads.new>0?`<br><span style="color:var(--acc)">${myLeads.new} new</span>`:''}</div>
         </div>
         <div style="text-align:center;background:var(--bg);border-radius:10px;padding:8px">
-          <div style="font-size:18px;font-weight:800">${myShops.length}</div>
+          <div style="font-size:16px;font-weight:800">${myShops.length}</div>
           <div style="font-size:10px;color:var(--txt2);text-transform:uppercase;letter-spacing:.4px">Shops<br><span style="color:var(--grn)">${activeShops.length} active</span></div>
         </div>
         <div style="text-align:center;background:var(--bg);border-radius:10px;padding:8px">
-          <div style="font-size:18px;font-weight:800;color:${commission>0?'var(--grn)':'var(--txt)'}">${kes(commission)}</div>
+          <div style="font-size:16px;font-weight:800;color:${commission>0?'var(--grn)':'var(--txt)'}">${kes(commission)}</div>
           <div style="font-size:10px;color:var(--txt2);text-transform:uppercase;letter-spacing:.4px">${monthLabel.split(' ')[0]}</div>
         </div>
       </div>
@@ -668,10 +690,10 @@ async function renderAgents() {
   const newLeads   = (leads||[]).filter(l=>l.status==='new').length;
 
   el.innerHTML = `
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:16px">
       <div style="background:var(--surf2);border-radius:12px;padding:12px;text-align:center">
-        <div style="font-size:20px;font-weight:900;color:var(--acc)">20%</div>
-        <div style="font-size:10px;color:var(--txt2);text-transform:uppercase;letter-spacing:.4px">Commission</div>
+        <div style="font-size:20px;font-weight:900;color:var(--acc)">${totalHappaUsers}</div>
+        <div style="font-size:10px;color:var(--txt2);text-transform:uppercase;letter-spacing:.4px">happa Users</div>
       </div>
       <div style="background:var(--surf2);border-radius:12px;padding:12px;text-align:center">
         <div style="font-size:20px;font-weight:900;color:var(--grn)">${kes(totalDue)}</div>
@@ -681,6 +703,10 @@ async function renderAgents() {
         <div style="font-size:20px;font-weight:900;color:${newLeads>0?'var(--acc)':'var(--txt)'}">${totalLeads}</div>
         <div style="font-size:10px;color:var(--txt2);text-transform:uppercase;letter-spacing:.4px">Leads${newLeads>0?`<br><span style="color:var(--acc)">${newLeads} new</span>`:''}</div>
       </div>
+      <div style="background:var(--surf2);border-radius:12px;padding:12px;text-align:center">
+        <div style="font-size:20px;font-weight:900;color:var(--acc)">20%</div>
+        <div style="font-size:10px;color:var(--txt2);text-transform:uppercase;letter-spacing:.4px">Commission</div>
+      </div>
     </div>
 
     <!-- Admin Toolbar -->
@@ -689,7 +715,7 @@ async function renderAgents() {
       <button class="btn-acc" style="flex:1;min-width:130px;background:var(--surf2);color:var(--txt);border:1px solid var(--bdr)" onclick="openAdminBroadcastSheet()">📢 Broadcast</button>
     </div>
 
-    ${agents?.length ? agentCards : `<div class="empty"><div class="empty-ico">🤝</div><p>No agents yet.<br>Add your first marketing agent below.</p></div>`}
+    ${sortedAgents?.length ? agentCards : `<div class="empty"><div class="empty-ico">🤝</div><p>No agents yet.<br>Add your first marketing agent below.</p></div>`}
 
     <button class="btn-acc" onclick="showAddAgentModal()" style="width:100%;margin-top:8px">+ Add Agent</button>`;
 }
@@ -937,25 +963,30 @@ async function toggleShopDetail(shopId) {
   detailRow.style.display = '';
   detailInner.classList.add('on');
 
-  // Load shop stats
+  // Load shop stats — include both POS sales AND Airbnb bookings
   const today = new Date(); today.setHours(0,0,0,0);
   const month = new Date(); month.setDate(1); month.setHours(0,0,0,0);
-  const [salesMonth, productsCount, membersCount] = await Promise.all([
+  const [salesMonth, bookingsMonth, productsCount, membersCount] = await Promise.all([
     apiGet(`sales?shop_id=eq.${shopId}&recorded_at=gte.${month.toISOString()}&select=total,profit`),
+    apiGet(`bookings?shop_id=eq.${shopId}&recorded_at=gte.${month.toISOString()}&select=total`),
     apiCount('products', `&shop_id=eq.${shopId}&active=eq.true`),
     apiCount('shop_members', `&shop_id=eq.${shopId}`),
   ]);
 
-  const monthRev    = (salesMonth||[]).reduce((a,s)=>a+(s.total||0),0);
-  const monthProfit = (salesMonth||[]).reduce((a,s)=>a+(s.profit||0),0);
+  const posRev      = (salesMonth||[]).reduce((a,s)=>a+(Number(s.total)||0),0);
+  const posProfit   = (salesMonth||[]).reduce((a,s)=>a+(Number(s.profit)||0),0);
+  const bookingsRev = (bookingsMonth||[]).reduce((a,b)=>a+(Number(b.total)||0),0);
+  const monthRev    = posRev + bookingsRev;
   const salesCount  = (salesMonth||[]).length;
+  const bookingsCount = (bookingsMonth||[]).length;
+  const hasBookings = bookingsCount > 0;
 
   detailInner.innerHTML = `
     <div style="font-size:11px;font-weight:700;color:var(--txt2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">This Month's Numbers</div>
     <div class="detail-stats">
-      <div class="ds"><div class="ds-lbl">Sales</div><div class="ds-val">${salesCount}</div></div>
+      <div class="ds"><div class="ds-lbl">${hasBookings ? 'Bookings' : 'Sales'}</div><div class="ds-val">${hasBookings ? bookingsCount : salesCount}</div></div>
       <div class="ds"><div class="ds-lbl">Revenue</div><div class="ds-val" style="font-size:14px">KES ${monthRev.toLocaleString()}</div></div>
-      <div class="ds"><div class="ds-lbl">Profit</div><div class="ds-val" style="font-size:14px;color:var(--grn)">KES ${monthProfit.toLocaleString()}</div></div>
+      ${!hasBookings ? `<div class="ds"><div class="ds-lbl">Profit</div><div class="ds-val" style="font-size:14px;color:var(--grn)">KES ${posProfit.toLocaleString()}</div></div>` : ''}
       <div class="ds"><div class="ds-lbl">Products</div><div class="ds-val">${productsCount}</div></div>
       <div class="ds"><div class="ds-lbl">Staff</div><div class="ds-val">${membersCount}</div></div>
     </div>`;

@@ -4220,7 +4220,7 @@ async function toggleOrdering(enabled) {
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/happa-orders`, {
       method:'POST',
-      headers:{ 'Content-Type':'application/json', 'apikey': SUPABASE_KEY },
+      headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${currentSession?.access_token ?? SUPABASE_KEY}` },
       body: JSON.stringify({ action:'toggle_ordering', shop_id:S.shop.id, enabled })
     });
     const d = await res.json().catch(() => ({}));
@@ -4240,7 +4240,7 @@ async function toggleDebt(enabled) {
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/happa-orders`, {
       method:'POST',
-      headers:{ 'Content-Type':'application/json', 'apikey': SUPABASE_KEY },
+      headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${currentSession?.access_token ?? SUPABASE_KEY}` },
       body: JSON.stringify({ action:'toggle_debt', shop_id:S.shop.id, enabled })
     });
     const d = await res.json().catch(() => ({}));
@@ -4925,6 +4925,10 @@ function renderMore(el) {
           <div class="more-ico" style="background:#16a34a22">💰</div>
           <div class="more-inf"><div class="more-nm">Business Health</div><div class="more-mt">Revenue minus expenses — profitability view</div></div>
           <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showOnlineOrders()">
+          <div class="more-ico" style="background:#f9731622">🛍️</div>
+          <div class="more-inf"><div class="more-nm">Online Orders<span id="orders-more-badge" style="display:none;margin-left:6px;background:#ef4444;color:#fff;font-size:11px;font-weight:700;padding:1px 6px;border-radius:10px;vertical-align:middle">0</span></div><div class="more-mt">Merchandise & online orders — approve & manage</div></div>
+          <span style="color:var(--txt3)">›</span></div>
         ` : S.isAirbnb?`
         <div class="more-item" onclick="showAddUnitSheet()">
           <div class="more-ico" style="background:var(--acc-d)">🛏️</div>
@@ -4966,6 +4970,10 @@ function renderMore(el) {
         <div class="more-item" onclick="showBusinessHealth()">
           <div class="more-ico" style="background:#16a34a22">💰</div>
           <div class="more-inf"><div class="more-nm">Business Health</div><div class="more-mt">Revenue minus expenses</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showOnlineOrders()">
+          <div class="more-ico" style="background:#f9731622">🛍️</div>
+          <div class="more-inf"><div class="more-nm">Online Orders & Bookings</div><div class="more-mt">Customer bookings — approve & manage</div></div>
           <span style="color:var(--txt3)">›</span></div>` : ''} `:`
         <div class="more-item" onclick="showOnlineOrders()">
           <div class="more-ico" style="background:#f9731622">🛍️</div>
