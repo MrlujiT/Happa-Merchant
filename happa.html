@@ -238,6 +238,18 @@
       <div class="section-header">Your orders</div>
       <div id="orders-list"><div class="loading-row"><div class="spinner"></div></div></div>
     </div>
+
+    <!-- Family -->
+    <div class="page" id="page-family">
+      <div class="section-header">Family</div>
+      <div id="family-content"><div class="loading-row"><div class="spinner"></div></div></div>
+    </div>
+
+    <!-- Goals -->
+    <div class="page" id="page-goals">
+      <div class="section-header">My Goals</div>
+      <div id="goals-content"><div class="loading-row"><div class="spinner"></div></div></div>
+    </div>
   </div>
 
   <nav class="bottom-nav">
@@ -245,10 +257,16 @@
       <span class="nav-icon">🏪</span>Nearby
     </button>
     <button class="nav-item" id="nav-mine" onclick="switchTab('mine')">
-      <span class="nav-icon">❤️</span>My Merchants
+      <span class="nav-icon">❤️</span>Mine
     </button>
     <button class="nav-item" id="nav-orders" onclick="switchTab('orders')">
       <span class="nav-icon">🛒</span>Orders
+    </button>
+    <button class="nav-item" id="nav-family" onclick="switchTab('family');loadFamily()">
+      <span class="nav-icon">👨‍👩‍👧</span>Family
+    </button>
+    <button class="nav-item" id="nav-goals" onclick="switchTab('goals');loadGoals()">
+      <span class="nav-icon">🎯</span>Goals
     </button>
   </nav>
 </div>
@@ -784,6 +802,366 @@ async function cancelOrder(orderId) {
     toast('Order cancelled');
     loadOrders();
   } catch(e) { toast('❌ ' + e.message); }
+}
+
+// ── FAMILY ──────────────────────────────────────────────────────────────────
+const FAMILY_URL = `${SUPABASE_URL}/functions/v1/happa-family`;
+
+async function familyApi(payload) {
+  const res = await fetch(FAMILY_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...payload, phone: _user.phone, pin: _user.pin })
+  });
+  const d = await res.json();
+  if (!res.ok) throw new Error(d.error || 'Request failed');
+  return d;
+}
+
+let _family = null; // cached family state
+
+async function loadFamily() {
+  const el = document.getElementById('family-content');
+  el.innerHTML = `<div class="loading-row"><div class="spinner"></div></div>`;
+  try {
+    const data = await familyApi({ action: 'my_family' });
+    _family = data;
+    renderFamily(data);
+  } catch(e) {
+    el.innerHTML = `<div class="empty-state"><div class="es-icon">⚠️</div><p>${e.message}</p></div>`;
+  }
+}
+
+function renderFamily(data) {
+  const el = document.getElementById('family-content');
+  if (!data.family) {
+    el.innerHTML = `
+      <div style="padding:24px 0">
+        <div class="empty-state"><div class="es-icon">👨‍👩‍👧</div>
+          <h3>No family yet</h3>
+          <p>Create a family and invite your household, or join one with an invite code.</p>
+        </div>
+        <div style="display:grid;gap:10px;margin-top:20px">
+          <button class="btn btn-primary" onclick="promptCreateFamily()">+ Create a Family</button>
+          <button class="btn" onclick="promptJoinFamily()">Join with Invite Code</button>
+        </div>
+      </div>`;
+    return;
+  }
+
+  const { family, role, members, totalPoints, myTasks, assignedTasks, pendingOrders } = data;
+  const roleEmoji = { parent:'👑', child:'🧒', sibling:'👫' }[role] || '👤';
+  const childMembers = members.filter(m => m.role === 'child');
+
+  let html = `
+    <div style="background:var(--card);border-radius:16px;padding:16px;margin-bottom:14px;border:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <div style="font-weight:700;font-size:17px">${esc(family.name)}</div>
+          <div style="font-size:13px;color:var(--txt2);margin-top:2px">${roleEmoji} You are the ${role}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:22px;font-weight:800;color:var(--green)">${totalPoints}</div>
+          <div style="font-size:11px;color:var(--txt2)">points</div>
+        </div>
+      </div>
+      ${role === 'parent' ? `<div style="margin-top:10px;padding:8px 10px;background:var(--bg);border-radius:10px;font-size:12px;color:var(--txt2)">
+        Invite code: <strong style="letter-spacing:2px;color:var(--txt)">${family.invite_code}</strong>
+        <button onclick="navigator.clipboard.writeText('${family.invite_code}').then(()=>toast('Copied!'))" style="margin-left:8px;background:none;border:none;cursor:pointer;font-size:13px">📋</button>
+      </div>` : ''}
+    </div>
+
+    <div style="font-weight:600;font-size:14px;margin-bottom:8px">Members (${members.length})</div>
+    <div style="display:grid;gap:8px;margin-bottom:16px">
+      ${members.map(m => `
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--card);border-radius:12px;border:1px solid var(--border)">
+          <div style="font-size:20px">${{ parent:'👑', child:'🧒', sibling:'👫' }[m.role] || '👤'}</div>
+          <div><div style="font-weight:600;font-size:14px">${esc(m.happa_users?.name || m.happa_users?.phone || '—')}</div>
+            <div style="font-size:11px;color:var(--txt2)">${m.role}</div></div>
+        </div>`).join('')}
+    </div>`;
+
+  // Pending child orders for parent to approve
+  if (role === 'parent' && pendingOrders?.length) {
+    html += `<div style="font-weight:600;font-size:14px;margin-bottom:8px;color:#f97316">⏳ Waiting for your approval (${pendingOrders.length})</div>`;
+    html += pendingOrders.map(o => {
+      const items = o.happa_order_items?.slice(0,2).map(i => `${i.product_emoji||'📦'} ${esc(i.product_name)} ×${i.quantity}`).join(', ') || '';
+      return `<div style="background:var(--card);border:1px solid #f97316;border-radius:14px;padding:14px;margin-bottom:10px">
+        <div style="font-weight:700">${esc(o.happa_users?.name||o.happa_users?.phone||'Child')}</div>
+        <div style="font-size:13px;margin:4px 0">${esc(o.shops?.name||'')} · ${items}</div>
+        <div style="font-weight:700;margin-bottom:10px">KES ${Number(o.total_amount).toLocaleString('en-KE')}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <button class="btn" style="background:#22c55e;color:#fff;border-color:#22c55e" onclick="reviewOrder('${o.id}',true)">✓ Approve</button>
+          <button class="btn" style="background:#ef4444;color:#fff;border-color:#ef4444" onclick="reviewOrder('${o.id}',false)">✕ Reject</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // Tasks for this user (child/sibling)
+  if (myTasks?.length) {
+    html += `<div style="font-weight:600;font-size:14px;margin-bottom:8px">Your tasks (${myTasks.length})</div>`;
+    html += myTasks.map(t => `
+      <div style="background:var(--card);border-radius:12px;padding:12px 14px;margin-bottom:8px;border:1px solid var(--border)">
+        <div style="display:flex;justify-content:space-between">
+          <div style="font-weight:600">${esc(t.title)}</div>
+          <div style="font-size:12px;font-weight:700;color:var(--green)">+${t.points_reward} pts</div>
+        </div>
+        ${t.description ? `<div style="font-size:12px;color:var(--txt2);margin-top:3px">${esc(t.description)}</div>` : ''}
+        ${t.due_date ? `<div style="font-size:11px;color:var(--txt2);margin-top:3px">Due ${t.due_date}</div>` : ''}
+        <div style="margin-top:8px">
+          ${t.status === 'pending' ? `<button class="btn" style="font-size:13px;padding:6px 14px" onclick="submitTask('${t.id}')">Mark done ✓</button>` :
+            t.status === 'submitted' ? `<span style="font-size:12px;color:#f97316;font-weight:600">⏳ Waiting for parent approval</span>` :
+            t.status === 'rejected' ? `<span style="font-size:12px;color:#ef4444;font-weight:600">✕ Rejected — try again</span>` : ''}
+        </div>
+      </div>`).join('');
+  }
+
+  // Tasks assigned by parent
+  if (role === 'parent') {
+    html += `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="font-weight:600;font-size:14px">Tasks you've assigned</div>
+        ${childMembers.length ? `<button class="btn" style="font-size:12px;padding:5px 12px" onclick="openAssignTask()">+ Assign</button>` : ''}
+      </div>`;
+    if (assignedTasks?.length) {
+      html += assignedTasks.map(t => {
+        const statusCol = { pending:'var(--txt2)', submitted:'#f97316', approved:'#22c55e', rejected:'#ef4444' }[t.status];
+        return `<div style="background:var(--card);border-radius:12px;padding:12px 14px;margin-bottom:8px;border:1px solid var(--border)">
+          <div style="display:flex;justify-content:space-between">
+            <div style="font-weight:600">${esc(t.title)}</div>
+            <div style="font-size:11px;font-weight:700;color:${statusCol}">${t.status.toUpperCase()}</div>
+          </div>
+          <div style="font-size:12px;color:var(--txt2);margin-top:2px">For: ${esc(t.happa_users?.name||'—')} · +${t.points_reward} pts</div>
+          ${t.status === 'submitted' ? `<button class="btn" style="font-size:12px;padding:5px 12px;margin-top:8px;background:#22c55e;color:#fff;border-color:#22c55e" onclick="reviewTask('${t.id}',true)">Approve ✓</button>
+            <button class="btn" style="font-size:12px;padding:5px 12px;margin-top:8px;margin-left:6px;background:#ef4444;color:#fff;border-color:#ef4444" onclick="reviewTask('${t.id}',false)">Reject ✕</button>` : ''}
+        </div>`;
+      }).join('');
+    } else {
+      html += `<div style="font-size:13px;color:var(--txt2);margin-bottom:12px">No tasks assigned yet.</div>`;
+    }
+  }
+
+  html += `<button class="btn" style="margin-top:12px;width:100%;color:#ef4444;border-color:#ef4444" onclick="leaveFamily()">Leave Family</button>`;
+  el.innerHTML = html;
+}
+
+function promptCreateFamily() {
+  const name = prompt('Family name (e.g. "The Njau Family"):');
+  if (!name?.trim()) return;
+  familyApi({ action: 'create_family', name: name.trim() })
+    .then(() => loadFamily())
+    .catch(e => toast('❌ ' + e.message));
+}
+
+function promptJoinFamily() {
+  const code = prompt('Enter your family invite code:');
+  if (!code?.trim()) return;
+  const role = prompt('Your role in the family?\nType: parent, child, or sibling') || 'child';
+  if (!['parent','child','sibling'].includes(role)) { toast('Invalid role'); return; }
+  familyApi({ action: 'join_family', invite_code: code.trim(), role })
+    .then(() => { toast('Joined!'); loadFamily(); })
+    .catch(e => toast('❌ ' + e.message));
+}
+
+async function submitTask(taskId) {
+  try {
+    await familyApi({ action: 'submit_task', task_id: taskId });
+    toast('Task submitted for approval!');
+    loadFamily();
+  } catch(e) { toast('❌ ' + e.message); }
+}
+
+async function reviewTask(taskId, approved) {
+  try {
+    const r = await familyApi({ action: 'review_task', task_id: taskId, approved });
+    toast(approved ? `✓ Task approved! +${r.points_awarded} pts` : 'Task rejected');
+    loadFamily();
+  } catch(e) { toast('❌ ' + e.message); }
+}
+
+async function reviewOrder(orderId, approved) {
+  try {
+    await familyApi({ action: 'review_order', order_id: orderId, approved });
+    toast(approved ? '✓ Order approved — sent to shop' : 'Order rejected');
+    loadFamily();
+  } catch(e) { toast('❌ ' + e.message); }
+}
+
+async function leaveFamily() {
+  if (!confirm('Leave your family? You will lose access to family tasks and approvals.')) return;
+  await familyApi({ action: 'leave_family' }).catch(() => {});
+  _family = null;
+  loadFamily();
+}
+
+function openAssignTask() {
+  if (!_family?.members) return;
+  const children = _family.members.filter(m => m.role !== 'parent');
+  if (!children.length) { toast('No children/siblings to assign to'); return; }
+  const names = children.map((m,i) => `${i+1}. ${m.happa_users?.name||m.happa_users?.phone}`).join('\n');
+  const idx = parseInt(prompt(`Assign to:\n${names}\n\nEnter number:`)) - 1;
+  if (isNaN(idx) || idx < 0 || idx >= children.length) return;
+  const assignTo = children[idx].user_id;
+  const title = prompt('Task title:');
+  if (!title?.trim()) return;
+  const desc = prompt('Description (optional):') || '';
+  const pts = parseInt(prompt('Points reward (default 10):') || '10') || 10;
+  const due = prompt('Due date (YYYY-MM-DD, optional):') || '';
+  familyApi({ action: 'assign_task', assigned_to: assignTo, title: title.trim(), description: desc, points_reward: pts, due_date: due||undefined })
+    .then(() => { toast('Task assigned!'); loadFamily(); })
+    .catch(e => toast('❌ ' + e.message));
+}
+
+// ── GOALS ────────────────────────────────────────────────────────────────────
+let _goals = [];
+
+async function loadGoals() {
+  const el = document.getElementById('goals-content');
+  el.innerHTML = `<div class="loading-row"><div class="spinner"></div></div>`;
+  try {
+    const data = await familyApi({ action: 'my_goals' });
+    _goals = data.goals || [];
+    renderGoals();
+  } catch(e) {
+    el.innerHTML = `<div class="empty-state"><div class="es-icon">⚠️</div><p>${e.message}</p></div>`;
+  }
+}
+
+function renderGoals() {
+  const el = document.getElementById('goals-content');
+  let html = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+      <button class="btn btn-primary" onclick="openNewGoal('savings')">💰 Savings Goal</button>
+      <button class="btn btn-primary" onclick="openNewGoal('fitness')">💪 Fitness Goal</button>
+    </div>`;
+
+  if (!_goals.length) {
+    html += `<div class="empty-state"><div class="es-icon">🎯</div><h3>No goals yet</h3><p>Set a savings target or fitness goal and track your progress.</p></div>`;
+    el.innerHTML = html;
+    return;
+  }
+
+  const active = _goals.filter(g => g.status === 'active');
+  const done   = _goals.filter(g => g.status !== 'active');
+
+  if (active.length) html += `<div style="font-weight:600;font-size:14px;margin-bottom:8px">Active (${active.length})</div>`;
+  html += active.map(renderGoalCard).join('');
+
+  if (done.length) {
+    html += `<div style="font-weight:600;font-size:14px;margin:12px 0 8px;color:var(--txt2)">Completed / Past</div>`;
+    html += done.map(renderGoalCard).join('');
+  }
+  el.innerHTML = html;
+}
+
+function renderGoalCard(g) {
+  const isSavings = g.goal_type === 'savings';
+  const sg = g.happa_savings_goals;
+  const fg = g.happa_fitness_goals;
+  const checkpoints = g.happa_fitness_checkpoints || [];
+  const deposits    = g.happa_savings_deposits || [];
+  const daysLeft    = g.target_date ? Math.ceil((new Date(g.target_date) - new Date()) / 86400000) : null;
+
+  let progress = '';
+  let detail = '';
+
+  if (isSavings && sg) {
+    const pct = Math.min(100, Math.round((sg.current_amount / sg.target_amount) * 100));
+    const remaining = sg.target_amount - sg.current_amount;
+    progress = `<div style="margin:8px 0 4px;background:var(--bg);border-radius:6px;height:8px;overflow:hidden">
+      <div style="width:${pct}%;background:#22c55e;height:100%;border-radius:6px;transition:.3s"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--txt2)">
+      <span>KES ${Number(sg.current_amount||0).toLocaleString('en-KE')} saved</span>
+      <span>${pct}% of KES ${Number(sg.target_amount).toLocaleString('en-KE')}</span>
+    </div>`;
+    detail = `${sg.storage_type.toUpperCase()}${sg.storage_name ? ' · ' + esc(sg.storage_name) : ''} · ${sg.frequency} deposits`;
+    if (remaining > 0) detail += ` · KES ${Number(remaining).toLocaleString('en-KE')} to go`;
+  }
+
+  if (!isSavings && fg) {
+    const latest = checkpoints.slice().sort((a,b) => new Date(b.checked_at)-new Date(a.checked_at))[0];
+    const currentW = latest?.weight_kg ?? fg.start_weight_kg;
+    if (fg.start_weight_kg && fg.target_weight_kg) {
+      const totalChange = Math.abs(fg.target_weight_kg - fg.start_weight_kg);
+      const done = Math.abs((currentW||fg.start_weight_kg) - fg.start_weight_kg);
+      const pct = totalChange > 0 ? Math.min(100, Math.round((done/totalChange)*100)) : 0;
+      progress = `<div style="margin:8px 0 4px;background:var(--bg);border-radius:6px;height:8px;overflow:hidden">
+        <div style="width:${pct}%;background:#6366f1;height:100%;border-radius:6px;transition:.3s"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--txt2)">
+        <span>Current: ${currentW||'?'} kg</span>
+        <span>Target: ${fg.target_weight_kg} kg</span>
+      </div>`;
+    }
+    detail = fg.fitness_type.replace('_',' ');
+    if (fg.happa_fitness_goals?.shops?.name) detail += ` · 🏋️ ${esc(fg.shops.name)}`;
+    if (fg.trainer_notes) detail += `<div style="font-size:11px;color:#6366f1;margin-top:3px">💬 Trainer: ${esc(fg.trainer_notes)}</div>`;
+  }
+
+  return `<div style="background:var(--card);border-radius:14px;padding:14px;margin-bottom:10px;border:1px solid var(--border)">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start">
+      <div>
+        <div style="font-size:16px;font-weight:700">${isSavings?'💰':'💪'} ${esc(g.name)}</div>
+        <div style="font-size:12px;color:var(--txt2);margin-top:2px">${detail}</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        ${daysLeft !== null ? `<div style="font-size:11px;color:${daysLeft<7?'#ef4444':'var(--txt2)'}">${daysLeft>0?daysLeft+'d left':'overdue'}</div>` : ''}
+      </div>
+    </div>
+    ${progress}
+    <div style="display:flex;gap:8px;margin-top:10px">
+      ${isSavings ? `<button class="btn" style="flex:1;font-size:12px;padding:6px" onclick="openRecordDeposit('${g.id}')">+ Record Deposit</button>` :
+        `<button class="btn" style="flex:1;font-size:12px;padding:6px" onclick="openLogCheckpoint('${g.id}')">+ Log Weight</button>`}
+    </div>
+  </div>`;
+}
+
+function openNewGoal(type) {
+  if (type === 'savings') {
+    const name = prompt('Goal name (e.g. "Mombasa Trip"):');
+    if (!name?.trim()) return;
+    const target = parseFloat(prompt('Target amount (KES):'));
+    if (!target || target <= 0) { toast('Enter a valid amount'); return; }
+    const freq = prompt('Deposit frequency?\nType: daily, weekly, or monthly') || 'monthly';
+    const depAmt = parseFloat(prompt(`How much per ${freq} deposit? (optional, press Cancel to skip):`) || '0') || null;
+    const storage = prompt('Where will you save?\nType: mpesa, bank, sacco, cash, or other') || 'mpesa';
+    const storageName = prompt(`Name of your ${storage} (e.g. Equity Bank, optional):`) || '';
+    const targetDate  = prompt('Target date (YYYY-MM-DD, optional):') || '';
+    familyApi({ action: 'create_savings_goal', name: name.trim(), target_amount: target, frequency: freq, deposit_amount: depAmt, storage_type: storage, storage_name: storageName||undefined, target_date: targetDate||undefined })
+      .then(() => { toast('💰 Goal created!'); loadGoals(); })
+      .catch(e => toast('❌ ' + e.message));
+  } else {
+    const name = prompt('Goal name (e.g. "Lose 5kg by December"):');
+    if (!name?.trim()) return;
+    const ftype = prompt('Goal type?\nType: weight_loss, weight_gain, strength, endurance, or general') || 'general';
+    const startW = parseFloat(prompt('Your current weight (kg, optional):') || '0') || null;
+    const targetW = parseFloat(prompt('Target weight (kg, optional):') || '0') || null;
+    const targetDate = prompt('Target date (YYYY-MM-DD, optional):') || '';
+    familyApi({ action: 'create_fitness_goal', name: name.trim(), fitness_type: ftype, start_weight_kg: startW, target_weight_kg: targetW, target_date: targetDate||undefined })
+      .then(() => { toast('💪 Goal created!'); loadGoals(); })
+      .catch(e => toast('❌ ' + e.message));
+  }
+}
+
+function openRecordDeposit(goalId) {
+  const amount = parseFloat(prompt('Amount deposited (KES):'));
+  if (!amount || amount <= 0) return;
+  const code = prompt('Transaction code (M-Pesa/bank ref, optional):') || '';
+  const notes = prompt('Notes (optional):') || '';
+  familyApi({ action: 'record_deposit', goal_id: goalId, amount, transaction_code: code||undefined, notes: notes||undefined })
+    .then(r => { toast(`✓ Deposit recorded! Total: KES ${Number(r.new_total).toLocaleString('en-KE')}`); loadGoals(); })
+    .catch(e => toast('❌ ' + e.message));
+}
+
+function openLogCheckpoint(goalId) {
+  const weight = parseFloat(prompt('Current weight (kg):'));
+  if (!weight || weight <= 0) return;
+  const notes = prompt('Notes (optional):') || '';
+  familyApi({ action: 'log_checkpoint', goal_id: goalId, weight_kg: weight, notes: notes||undefined })
+    .then(() => { toast('✓ Weight logged!'); loadGoals(); })
+    .catch(e => toast('❌ ' + e.message));
 }
 
 // ── PROFILE ──
