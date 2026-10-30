@@ -185,6 +185,26 @@
   .ad-card-name { font-size: 13px; font-weight: 800; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .ad-card-tag { font-size: 10px; font-weight: 700; color: rgba(255,255,255,.8); margin-top: 1px; }
   .ad-card-badge { position: absolute; top: 8px; right: 8px; background: var(--lime); color: #fff; font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 20px; }
+
+  /* ── CATEGORY ROWS (homepage) ── */
+  .home-greeting { padding: 16px 16px 4px; }
+  .home-greeting h2 { font-size: 20px; font-weight: 800; color: var(--fg); }
+  .home-greeting p { font-size: 13px; color: var(--fg2); margin-top: 2px; }
+  .cat-section { margin-bottom: 4px; }
+  .cat-title { padding: 16px 16px 8px; font-size: 14px; font-weight: 700; color: var(--fg); display: flex; align-items: center; gap: 6px; }
+  .cat-count { font-size: 12px; font-weight: 500; color: var(--fg3); }
+  .cat-scroll { display: flex; gap: 10px; overflow-x: auto; padding: 0 16px 14px; scrollbar-width: none; -ms-overflow-style: none; scroll-snap-type: x mandatory; }
+  .cat-scroll::-webkit-scrollbar { display: none; }
+  .shop-pill { flex-shrink: 0; width: 130px; background: var(--bg2); border-radius: 14px; overflow: hidden; cursor: pointer; scroll-snap-align: start; transition: transform .1s; border: 1px solid var(--border); }
+  .shop-pill:active { transform: scale(.96); }
+  .shop-pill-img { height: 72px; background: var(--bg3); display: flex; align-items: center; justify-content: center; font-size: 32px; position: relative; overflow: hidden; }
+  .shop-pill-img img { width: 100%; height: 100%; object-fit: cover; }
+  .shop-pill-open-dot { position: absolute; top: 6px; right: 6px; width: 8px; height: 8px; border-radius: 50%; background: var(--lime); border: 1.5px solid var(--bg2); }
+  .shop-pill-body { padding: 7px 9px 9px; }
+  .shop-pill-name { font-weight: 700; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--fg); }
+  .shop-pill-meta { font-size: 10px; color: var(--fg2); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .shop-pill-order { display: inline-block; margin-top: 5px; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 20px; background: var(--lime); color: #fff; }
+  .shop-pill-order.closed { background: var(--bg3); color: var(--fg3); }
 </style>
 </head>
 <body>
@@ -243,12 +263,16 @@
   <div class="content">
     <!-- Nearby -->
     <div class="page active" id="page-nearby">
+      <!-- Greeting -->
+      <div class="home-greeting" id="home-greeting">
+        <h2 id="greeting-text">Good morning 👋</h2>
+        <p>Discover businesses in your community</p>
+      </div>
       <!-- Ads / Featured banner -->
       <div class="ads-section" id="ads-section" style="display:none">
         <div class="ads-section-label">Featured merchants</div>
         <div class="ads-scroll" id="ads-scroll"></div>
       </div>
-      <div class="section-header">Businesses near you</div>
       <div id="nearby-list"><div class="loading-row"><div class="spinner"></div></div></div>
     </div>
 
@@ -512,6 +536,7 @@ window.addEventListener('load', async () => {
 function launchApp() {
   document.getElementById('auth-wrap').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
+  setGreeting(_user?.name || '');
   // Request GPS location silently
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(
@@ -562,6 +587,79 @@ function renderAds(shops) {
   }).join('');
 }
 
+// ── GREETING ──
+function setGreeting(name) {
+  const h = new Date().getHours();
+  const part = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
+  const first = (name || '').split(' ')[0];
+  document.getElementById('greeting-text').textContent = `Good ${part}${first ? ', ' + first : ''} 👋`;
+}
+
+// ── CATEGORY CONFIG ──
+const CATEGORIES = [
+  { key: 'food',    label: '🍽️ Food & Dining',      types: ['restaurant','food','cafe','bakery','bar'] },
+  { key: 'goods',   label: '🛒 Shops & Markets',     types: ['goods','market','supermarket','shop'] },
+  { key: 'services',label: '✂️ Services',            types: ['services','service','salon','barber','laundry','repair'] },
+  { key: 'fitness', label: '💪 Health & Fitness',    types: ['gym','fit','fitness','health','pharmacy'] },
+  { key: 'stay',    label: '🏠 Accommodation',       types: ['host','airbnb','hotel','lodge','guesthouse'] },
+  { key: 'mixed',   label: '🏪 Other Businesses',    types: [] }, // catch-all
+];
+
+function bucketShops(shops) {
+  const buckets = {};
+  for (const cat of CATEGORIES) buckets[cat.key] = [];
+  for (const shop of shops) {
+    const type = (shop.business_type || '').toLowerCase().trim();
+    let placed = false;
+    for (const cat of CATEGORIES) {
+      if (cat.types.includes(type)) { buckets[cat.key].push(shop); placed = true; break; }
+    }
+    if (!placed) buckets['mixed'].push(shop);
+  }
+  return buckets;
+}
+
+function shopPillHtml(s) {
+  const emoji = typeEmoji(s.business_type);
+  const img = s.logo_url
+    ? `<img src="${esc(s.logo_url)}" alt="" loading="lazy">`
+    : emoji;
+  const distTag = s.dist_km != null
+    ? (s.dist_km < 1 ? Math.round(s.dist_km * 1000) + 'm' : s.dist_km + 'km')
+    : '';
+  const openDot = s.ordering_enabled ? `<div class="shop-pill-open-dot"></div>` : '';
+  const orderBadge = s.ordering_enabled
+    ? `<span class="shop-pill-order">Order</span>`
+    : `<span class="shop-pill-order closed">Closed</span>`;
+  return `<div class="shop-pill" onclick="openCatalog('${s.id}')">
+    <div class="shop-pill-img">${img}${openDot}</div>
+    <div class="shop-pill-body">
+      <div class="shop-pill-name">${esc(s.name)}</div>
+      <div class="shop-pill-meta">${esc(s.location || distTag || '')}</div>
+      ${orderBadge}
+    </div>
+  </div>`;
+}
+
+function renderCategorizedShops(shops) {
+  const el = document.getElementById('nearby-list');
+  if (!shops.length) {
+    el.innerHTML = `<div class="empty-state"><div class="es-icon">🏪</div><h3>No businesses yet</h3><p>Ask an agent or business to invite you to Happa.</p></div>`;
+    return;
+  }
+  const buckets = bucketShops(shops);
+  let html = '';
+  for (const cat of CATEGORIES) {
+    const items = buckets[cat.key];
+    if (!items.length) continue;
+    html += `<div class="cat-section">
+      <div class="cat-title">${cat.label} <span class="cat-count">${items.length}</span></div>
+      <div class="cat-scroll">${items.map(shopPillHtml).join('')}</div>
+    </div>`;
+  }
+  el.innerHTML = html;
+}
+
 // ── NEARBY ──
 async function loadNearby() {
   try {
@@ -570,7 +668,7 @@ async function loadNearby() {
     const { shops } = await api('happa-browse', payload);
     _shops = shops || [];
     renderAds(_shops);
-    renderShopList('nearby-list', _shops, null);
+    renderCategorizedShops(_shops);
   } catch(e) {
     document.getElementById('nearby-list').innerHTML = `<div class="empty-state"><div class="es-icon">⚠️</div><h3>Couldn't load</h3><p>${e.message}</p></div>`;
   }
