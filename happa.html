@@ -551,10 +551,10 @@
     <p id="profile-phone" style="color:var(--fg2);font-size:13px;margin-top:4px"></p>
   </div>
   <div class="sheet-body">
-    <div class="profile-item">
+    <div class="profile-item" onclick="openHomeLocationPicker()" style="cursor:pointer">
       <div class="profile-item-icon">🏠</div>
       <div class="profile-item-info">
-        <h4>Home community</h4>
+        <h4>Home community <span style="font-size:11px;opacity:.5">📍 tap to set</span></h4>
         <p id="profile-home">—</p>
       </div>
     </div>
@@ -780,7 +780,7 @@ function launchApp() {
   if (topName && _user) {
     const displayName = _user.name ? _user.name.split(' ')[0] : _user.phone;
     const happaId = _user.id ? String(_user.id).padStart(4,'0') : '';
-    topName.innerHTML = `${displayName}<span style="font-weight:400;font-size:12px;opacity:.8;margin-left:4px">#${happaId}</span>`;
+    topName.textContent = displayName;
   }
   // Pre-fetch ads/featured merchants for the home banner (silent)
   if (navigator.geolocation) {
@@ -827,12 +827,13 @@ function switchTab(name) {
 
 // ── ADS BANNER ──
 function renderAds(shops, paidAds) {
-  const featured = (shops || []).filter(s => s.ordering_enabled).slice(0, 6);
   const section = document.getElementById('ads-section');
   const scroll  = document.getElementById('ads-scroll');
   const ads = paidAds || [];
 
   if (!featured.length && !ads.length) { section.style.display = 'none'; return; }
+  // Only show section if there are paid ads
+  if (!ads.length) { section.style.display = 'none'; return; }
   section.style.display = '';
 
   // Paid ad cards (prominent, lime border)
@@ -848,8 +849,8 @@ function renderAds(shops, paidAds) {
       <div style="position:absolute;top:8px;left:8px;background:rgba(141,196,26,.25);border:1px solid rgba(141,196,26,.5);border-radius:4px;padding:1px 6px;font-size:9px;font-weight:800;color:var(--lime);letter-spacing:.04em">SPONSORED</div>
     </div>`).join('');
 
-  // Featured merchant cards
-  const shopCards = featured.map(s => {
+  // (No organic featured merchant cards — paid ads only)
+  const shopCards_unused = [].map(s => {
     const emoji = typeEmoji(s.business_type);
     const img = s.logo_url ? `<img src="${s.logo_url}" alt="" loading="lazy">` : `<span>${emoji}</span>`;
     const distTag = s.dist_km != null ? (s.dist_km < 1 ? Math.round(s.dist_km*1000)+'m' : s.dist_km+'km') : '';
@@ -864,9 +865,8 @@ function renderAds(shops, paidAds) {
     </div>`;
   }).join('');
 
-  // Label: show "Sponsored" label if any paid ads exist
-  document.querySelector('.ads-section-label').textContent = ads.length ? 'Featured & Sponsored' : 'Featured merchants';
-  scroll.innerHTML = paidCards + shopCards;
+  document.querySelector('.ads-section-label').textContent = 'Sponsored';
+  scroll.innerHTML = paidCards;
 }
 
 // ── GREETING ──
@@ -1754,10 +1754,69 @@ function populateProfile() {
   } else if (_user.home_agent_ref) {
     document.getElementById('profile-home').textContent = `Agent ${_user.home_agent_ref}'s community`;
   }
+  // Show home location label if set
+  if (_user.home_location_label) {
+    const el = document.getElementById('profile-home');
+    if (el) el.textContent = _user.home_location_label;
+  }
 }
 
 function openProfile() { openSheet('profile'); }
 function closeProfile() { closeSheet('profile'); }
+
+function openHomeLocationPicker() {
+  // Try GPS first, fall back to manual label entry
+  const lbl = document.getElementById('profile-home');
+  const current = lbl?.textContent || '';
+  const modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.7);display:flex;align-items:flex-end';
+  modal.innerHTML = `
+    <div style="background:var(--surf);border-radius:20px 20px 0 0;padding:24px;width:100%;max-width:480px;margin:0 auto">
+      <h3 style="margin:0 0 8px">📍 Set home location</h3>
+      <p style="font-size:13px;opacity:.6;margin:0 0 16px">Your home location helps agents near you find you. It's only visible to your home agent.</p>
+      <button id="hlp-gps-btn" style="width:100%;padding:14px;background:var(--lime);color:#0b1c0b;border:none;border-radius:12px;font-weight:700;font-size:15px;cursor:pointer;margin-bottom:10px">📡 Use my current GPS location</button>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <div style="flex:1;height:1px;background:var(--border)"></div>
+        <span style="font-size:12px;opacity:.5">or type a label</span>
+        <div style="flex:1;height:1px;background:var(--border)"></div>
+      </div>
+      <input id="hlp-label" placeholder="e.g. Westlands, Nairobi" value="${current !== '—' ? current : ''}"
+        style="width:100%;box-sizing:border-box;padding:12px 14px;border-radius:12px;border:1px solid var(--border);background:var(--surf2);color:var(--fg);font-size:15px;margin-bottom:10px">
+      <button id="hlp-save-btn" style="width:100%;padding:14px;background:var(--surf2);color:var(--fg);border:1px solid var(--border);border-radius:12px;font-weight:600;font-size:15px;cursor:pointer;margin-bottom:8px">Save label only</button>
+      <button onclick="this.closest('div[style]').remove()" style="width:100%;padding:12px;background:none;border:none;color:var(--fg);opacity:.5;font-size:14px;cursor:pointer">Cancel</button>
+    </div>`;
+  document.body.appendChild(modal);
+
+  async function saveLocation(lat, lng, label) {
+    const btn = document.getElementById('hlp-gps-btn') || document.getElementById('hlp-save-btn');
+    try {
+      await api('happa-family', { action:'set_home_location', phone:_user.phone, pin:_user.pin, lat, lng, label });
+      if (_user) { _user.home_lat = lat; _user.home_lng = lng; _user.home_location_label = label; }
+      document.getElementById('profile-home').textContent = label || 'Location set';
+      modal.remove();
+      showToast('Home location saved ✓');
+    } catch(e) { showToast('Could not save: ' + e.message); }
+  }
+
+  document.getElementById('hlp-gps-btn').onclick = () => {
+    const gpsbtn = document.getElementById('hlp-gps-btn');
+    gpsbtn.textContent = '…getting location';
+    gpsbtn.disabled = true;
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const label = document.getElementById('hlp-label').value.trim() || `${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`;
+        saveLocation(pos.coords.latitude, pos.coords.longitude, label);
+      },
+      () => { gpsbtn.textContent = '📡 GPS unavailable'; gpsbtn.disabled = false; showToast('Location access denied. Type a label instead.'); }
+    );
+  };
+
+  document.getElementById('hlp-save-btn').onclick = () => {
+    const label = document.getElementById('hlp-label').value.trim();
+    if (!label) { showToast('Please enter a location name'); return; }
+    saveLocation(null, null, label);
+  };
+}
 
 function copyInvite() {
   const code = _user.invite_code;
