@@ -5,42 +5,44 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Happa</title>
 <link rel="manifest" href="/manifest.json">
-<meta name="theme-color" content="#8DC41A">
+<meta name="theme-color" content="#0F1923">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
   :root {
     --lime: #8DC41A;
-    --lime-d: rgba(141,196,26,.14);
-    --lime-mid: rgba(141,196,26,.22);
-    --lime-light: rgba(141,196,26,.10);
+    --lime-d: rgba(141,196,26,.18);
+    --lime-mid: rgba(141,196,26,.28);
+    --lime-light: rgba(141,196,26,.12);
     --red: #EF4444;
-    --red-d: rgba(239,68,68,.12);
-    --amber: #F59E0B;
-    --bg: #FFFFFF;
-    --surf: #F4F6F0;
-    --surf2: #EAF0E5;
-    --bdr: #DDE3D8;
-    --fg: #111A0E;
-    --fg2: #617058;
-    --fg3: #9AAD90;
+    --red-d: rgba(239,68,68,.15);
+    --amber: #F5A623;
+    --accent: #F5A623;
+    /* Dark navy palette */
+    --bg: #0F1923;
+    --surf: #1A2535;
+    --surf2: #243044;
+    --bdr: #2E3D55;
+    --fg: #F0F4F8;
+    --fg2: #8FA3BC;
+    --fg3: #5A7494;
     --radius: 16px;
     --radius-sm: 11px;
     /* Aliases */
-    --border: #DDE3D8;
-    --bg2: #F4F6F0;
-    --bg3: #EAF0E5;
-    --card: #F4F6F0;
-    --txt: #111A0E;
-    --txt2: #617058;
+    --border: #2E3D55;
+    --bg2: #1A2535;
+    --bg3: #243044;
+    --card: #1A2535;
+    --txt: #F0F4F8;
+    --txt2: #8FA3BC;
     --green: #8DC41A;
   }
   *,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   html, body { height: 100%; background: var(--bg); color: var(--fg); font-family: 'Plus Jakarta Sans', system-ui, sans-serif; font-size: 15px; line-height: 1.4; overflow: hidden; }
 
   /* ── AUTH SCREENS ── */
-  #auth-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 24px; background: var(--bg); }
+  #auth-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 24px; background: linear-gradient(160deg,#0A1520 0%,#0F1923 60%,#0D1E30 100%); }
   .happa-logo { width: 88px; height: 88px; border-radius: 22px; overflow: hidden; margin-bottom: 14px; box-shadow: 0 8px 32px var(--lime-mid); }
   .happa-logo img { width: 100%; height: 100%; object-fit: cover; }
   .happa-wordmark { font-size: 28px; font-weight: 900; letter-spacing: -1px; color: var(--lime); margin-bottom: 4px; }
@@ -50,33 +52,33 @@
   .fl { display: block; font-size: 11px; font-weight: 700; color: var(--fg2); margin-bottom: 6px; letter-spacing: .03em; }
   .fg-field { margin-bottom: 14px; }
   .fi { width: 100%; background: var(--surf2); border: 1px solid var(--bdr); border-radius: var(--radius-sm); padding: 12px 14px; color: var(--fg); font-size: 15px; font-family: inherit; outline: none; transition: border-color .15s; }
-  .fi:focus { border-color: var(--lime); }
+  .fi:focus { border-color: var(--amber); }
   .fi::placeholder { color: var(--fg3); }
   .btn { width: 100%; padding: 13px; border-radius: var(--radius-sm); font-size: 15px; font-weight: 800; cursor: pointer; border: none; transition: opacity .15s; font-family: inherit; }
   .btn:active { opacity: .8; }
-  .btn-primary { background: var(--lime); color: #fff; }
+  .btn-primary { background: var(--amber); color: #fff; }
   .btn-ghost { background: transparent; color: var(--fg2); margin-top: 8px; font-size: 14px; border: 1px solid var(--bdr); }
   .auth-switch { text-align: center; margin-top: 14px; color: var(--fg2); font-size: 13px; }
-  .auth-switch span { color: var(--lime); cursor: pointer; font-weight: 700; }
+  .auth-switch span { color: var(--amber); cursor: pointer; font-weight: 700; }
   .err-msg { color: var(--red); font-size: 12px; margin-bottom: 12px; display: none; }
-  .ref-note { background: var(--lime-light); border: 1px solid var(--lime-d); border-radius: 8px; padding: 10px 12px; font-size: 13px; color: #3a5a0a; margin-bottom: 14px; display: none; }
+  .ref-note { background: var(--lime-light); border: 1px solid var(--lime-d); border-radius: 8px; padding: 10px 12px; font-size: 13px; color: #a8e040; margin-bottom: 14px; display: none; }
 
   /* ── MAIN APP ── */
   #app { display: none; flex-direction: column; height: 100svh; height: 100dvh; max-width: 480px; margin: 0 auto; position: relative; }
-  .top-bar { background: var(--surf); border-bottom: 1px solid var(--bdr); padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+  .top-bar { background: linear-gradient(135deg,#c47200 0%,#F5A623 60%,#f8c060 100%); border-bottom: none; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; box-shadow: 0 2px 12px rgba(0,0,0,.35); }
   .top-bar-left { display: flex; align-items: center; gap: 10px; }
-  .top-logo { width: 34px; height: 34px; border-radius: 10px; overflow: hidden; flex-shrink: 0; }
+  .top-logo { width: 34px; height: 34px; border-radius: 10px; overflow: hidden; flex-shrink: 0; box-shadow: 0 2px 8px rgba(0,0,0,.25); }
   .top-logo img { width: 100%; height: 100%; object-fit: cover; }
-  .top-title { font-weight: 900; font-size: 17px; color: var(--fg); letter-spacing: -.3px; }
-  .top-title span { color: var(--lime); }
-  .avatar-btn { width: 34px; height: 34px; border-radius: 50%; background: var(--surf2); border: 1px solid var(--bdr); display: flex; align-items: center; justify-content: center; font-size: 16px; cursor: pointer; }
+  .top-title { font-weight: 900; font-size: 17px; color: #fff; letter-spacing: -.3px; text-shadow: 0 1px 3px rgba(0,0,0,.2); }
+  .top-title span { color: rgba(255,255,255,.85); }
+  .avatar-btn { width: 34px; height: 34px; border-radius: 50%; background: rgba(255,255,255,.25); border: 1.5px solid rgba(255,255,255,.4); display: flex; align-items: center; justify-content: center; font-size: 16px; cursor: pointer; }
   .content { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 
   /* ── BOTTOM NAV ── */
-  .bottom-nav { background: var(--surf); border-top: 1px solid var(--bdr); display: flex; flex-shrink: 0; padding: 4px max(6px,env(safe-area-inset-right,0px)) max(10px,calc(4px + env(safe-area-inset-bottom,0px))) max(6px,env(safe-area-inset-left,0px)); justify-content: space-around; }
+  .bottom-nav { background: #111E2D; border-top: 1px solid #1E3048; display: flex; flex-shrink: 0; padding: 4px max(6px,env(safe-area-inset-right,0px)) max(10px,calc(4px + env(safe-area-inset-bottom,0px))) max(6px,env(safe-area-inset-left,0px)); justify-content: space-around; }
   .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 4px; cursor: pointer; border: none; background: transparent; color: var(--fg3); font-size: 10px; font-weight: 700; letter-spacing: .02em; border-radius: 10px; transition: background .15s, color .15s; font-family: inherit; }
   .nav-item .nav-icon { font-size: 20px; line-height: 1; }
-  .nav-item.active { color: var(--lime); }
+  .nav-item.active { color: var(--amber); }
   .nav-badge { background: var(--red); color: #fff; font-size: 10px; font-weight: 700; border-radius: 10px; padding: 1px 5px; position: absolute; margin-top: -4px; margin-left: 12px; }
 
   /* ── PAGES ── */
@@ -97,8 +99,8 @@
   .shop-info { flex: 1; min-width: 0; }
   .shop-name { font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .shop-meta { font-size: 12px; color: var(--fg2); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .shop-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; background: var(--lime-d); color: #3a5a0a; margin-top: 4px; display: inline-block; }
-  .shop-badge.home { background: var(--lime-mid); }
+  .shop-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; background: var(--lime-d); color: #a8e040; margin-top: 4px; display: inline-block; }
+  .shop-badge.home { background: var(--lime-mid); color: #c5f06a; }
   .shop-badge.no-orders { background: var(--surf2); color: var(--fg3); }
   .shop-order-btn { background: var(--lime); color: #fff; border: none; border-radius: 9px; padding: 8px 14px; font-size: 13px; font-weight: 700; cursor: pointer; flex-shrink: 0; font-family: inherit; }
   .shop-order-btn:disabled { background: var(--surf2); color: var(--fg3); cursor: default; }
@@ -122,7 +124,7 @@
   .product-emoji { font-size: 26px; flex-shrink: 0; }
   .product-info { flex: 1; min-width: 0; }
   .product-name { font-weight: 600; font-size: 14px; }
-  .product-price { color: #3a5a0a; font-size: 14px; font-weight: 700; margin-top: 2px; }
+  .product-price { color: #8DC41A; font-size: 14px; font-weight: 700; margin-top: 2px; }
   .product-stock { font-size: 12px; color: var(--fg2); }
   .qty-ctrl { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
   .qty-btn { width: 30px; height: 30px; border-radius: 50%; background: var(--surf2); border: 1px solid var(--bdr); color: var(--fg); font-size: 18px; display: flex; align-items: center; justify-content: center; cursor: pointer; line-height: 1; }
@@ -136,13 +138,13 @@
   .checkout-row select:focus, .checkout-row .co-val:focus { border-color: var(--lime); }
   .checkout-total { padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--bdr); }
   .checkout-total span { font-size: 13px; color: var(--fg2); }
-  .checkout-total strong { font-size: 20px; font-weight: 900; color: #3a5a0a; }
+  .checkout-total strong { font-size: 20px; font-weight: 900; color: #8DC41A; }
   .notes-row { padding: 12px 20px 16px; }
   .notes-row textarea { width: 100%; background: var(--surf); border: 1px solid var(--bdr); border-radius: 10px; padding: 10px 12px; color: var(--fg); font-size: 14px; font-family: inherit; outline: none; resize: none; }
   .notes-row textarea:focus { border-color: var(--lime); }
   .co-item-row { display: flex; align-items: center; padding: 12px 20px; border-bottom: 1px solid var(--bdr); gap: 10px; }
   .co-item-row .co-item-label { flex: 1; font-size: 14px; }
-  .co-item-row .co-item-price { font-size: 14px; font-weight: 600; color: #3a5a0a; flex-shrink: 0; }
+  .co-item-row .co-item-price { font-size: 14px; font-weight: 600; color: #8DC41A; flex-shrink: 0; }
   .co-del-btn { background: none; border: none; font-size: 18px; cursor: pointer; padding: 2px 6px; border-radius: 6px; color: var(--fg3); flex-shrink: 0; }
   .co-del-btn:active { background: var(--surf2); }
   .sheet-back-btn { background: none; border: none; font-size: 14px; color: var(--fg2); cursor: pointer; padding: 4px 8px 4px 0; font-weight: 600; display: flex; align-items: center; gap: 4px; font-family: inherit; }
@@ -163,7 +165,7 @@
   .order-item-row { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 0; color: var(--fg2); }
   .order-item-row strong { color: var(--fg); }
   .order-foot { padding: 10px 16px 13px; display: flex; align-items: center; justify-content: space-between; }
-  .order-total { font-size: 15px; font-weight: 800; color: #3a5a0a; }
+  .order-total { font-size: 15px; font-weight: 800; color: #8DC41A; }
   .order-cancel-btn { background: transparent; border: 1px solid var(--bdr); border-radius: 8px; color: var(--fg2); font-size: 12px; padding: 5px 12px; cursor: pointer; font-family: inherit; }
 
   /* ── PROFILE SHEET ── */
@@ -280,7 +282,7 @@
   <div class="top-bar">
     <div class="top-bar-left">
       <div class="top-logo"><img src="/happa-customer-logo.jpg" alt="Happa"></div>
-      <span class="top-title">ha<span>ppa</span></span>
+      <span class="top-title">happa</span>
     </div>
     <div class="avatar-btn" onclick="openProfile()">👤</div>
   </div>
@@ -319,10 +321,20 @@
           <div class="hub-tile-label">Goals</div>
           <div class="hub-tile-sub">Track your wins</div>
         </div>
+        <div class="hub-tile" onclick="switchTab('goals');loadGoals()">
+          <div class="hub-tile-icon">🎯</div>
+          <div class="hub-tile-label">Goals</div>
+          <div class="hub-tile-sub">Track your wins</div>
+        </div>
         <div class="hub-tile" onclick="switchTab('games')">
           <div class="hub-tile-icon">🎮</div>
           <div class="hub-tile-label">Games</div>
           <div class="hub-tile-sub">Play & earn points</div>
+        </div>
+        <div class="hub-tile" onclick="switchTab('loyalty');loadPoints()">
+          <div class="hub-tile-icon">⭐</div>
+          <div class="hub-tile-label">My Points</div>
+          <div class="hub-tile-sub">Loyalty & rewards</div>
         </div>
       </div>
     </div>
@@ -369,6 +381,15 @@
         <span class="page-header-title">My Goals</span>
       </div>
       <div id="goals-content"><div class="loading-row"><div class="spinner"></div></div></div>
+    </div>
+
+    <!-- LOYALTY / POINTS -->
+    <div class="page" id="page-loyalty">
+      <div class="page-header-bar">
+        <button class="page-back-btn" onclick="switchTab('home')">‹</button>
+        <span class="page-header-title">My Points</span>
+      </div>
+      <div id="loyalty-content"><div class="loading-row"><div class="spinner"></div></div></div>
     </div>
 
     <!-- GAMES -->
@@ -424,8 +445,8 @@
     <button class="nav-item" id="nav-family" onclick="switchTab('family');loadFamily()">
       <span class="nav-icon">👨‍👩‍👧</span>Family
     </button>
-    <button class="nav-item" id="nav-goals" onclick="switchTab('goals');loadGoals()">
-      <span class="nav-icon">🎯</span>Goals
+    <button class="nav-item" id="nav-loyalty" onclick="switchTab('loyalty');loadPoints()">
+      <span class="nav-icon">⭐</span>Points
     </button>
   </nav>
 </div>
@@ -560,15 +581,16 @@
 <div class="sheet" id="change-pin-sheet">
   <div class="sheet-handle"></div>
   <div class="sheet-head"><h3>Change PIN</h3></div>
-  <div class="sheet-body">
-    <div class="form-group"><label>Current PIN</label><input type="password" inputmode="numeric" maxlength="4" id="cp-old" placeholder="Current 4-digit PIN"></div>
-    <div class="form-group"><label>New PIN</label><input type="password" inputmode="numeric" maxlength="4" id="cp-new" placeholder="New 4-digit PIN"></div>
-    <div class="form-group"><label>Confirm New PIN</label><input type="password" inputmode="numeric" maxlength="4" id="cp-new2" placeholder="Repeat new PIN"></div>
-    <p id="cp-err" style="color:#dc2626;font-size:13px;display:none"></p>
-  </div>
-  <div class="sheet-footer">
-    <button class="btn btn-primary" onclick="doChangePin()">Update PIN</button>
-    <button class="btn btn-ghost" onclick="closeSheet('change-pin')" style="margin-top:8px">Cancel</button>
+  <div class="sheet-body" style="overflow-y:auto;padding:16px 20px 20px">
+    <label class="fi-lbl">Current PIN</label>
+    <input class="fi" type="password" inputmode="numeric" maxlength="4" id="cp-old" placeholder="Current 4-digit PIN">
+    <label class="fi-lbl">New PIN</label>
+    <input class="fi" type="password" inputmode="numeric" maxlength="4" id="cp-new" placeholder="New 4-digit PIN">
+    <label class="fi-lbl">Confirm New PIN</label>
+    <input class="fi" type="password" inputmode="numeric" maxlength="4" id="cp-new2" placeholder="Repeat new PIN">
+    <p id="cp-err" style="color:#ef4444;font-size:13px;display:none;margin-top:8px"></p>
+    <button class="btn btn-primary" style="margin-top:20px" onclick="doChangePin()">Update PIN</button>
+    <button class="btn btn-ghost" onclick="closeSheet('change-pin')" style="margin-top:10px">Cancel</button>
   </div>
 </div>
 
@@ -577,15 +599,15 @@
 <div class="sheet" id="change-phone-sheet">
   <div class="sheet-handle"></div>
   <div class="sheet-head"><h3>Change Phone Number</h3></div>
-  <div class="sheet-body">
+  <div class="sheet-body" style="overflow-y:auto;padding:16px 20px 20px">
     <p style="font-size:13px;color:var(--fg2);margin-bottom:16px">Enter your PIN to confirm this change.</p>
-    <div class="form-group"><label>New Phone Number</label><input type="tel" id="chph-new" placeholder="e.g. 0712345678"></div>
-    <div class="form-group"><label>Your PIN</label><input type="password" inputmode="numeric" maxlength="4" id="chph-pin" placeholder="4-digit PIN"></div>
-    <p id="chph-err" style="color:#dc2626;font-size:13px;display:none"></p>
-  </div>
-  <div class="sheet-footer">
-    <button class="btn btn-primary" onclick="doChangePhone()">Update Phone</button>
-    <button class="btn btn-ghost" onclick="closeSheet('change-phone')" style="margin-top:8px">Cancel</button>
+    <label class="fi-lbl">New Phone Number</label>
+    <input class="fi" type="tel" id="chph-new" placeholder="e.g. 0712345678">
+    <label class="fi-lbl">Your PIN</label>
+    <input class="fi" type="password" inputmode="numeric" maxlength="4" id="chph-pin" placeholder="4-digit PIN">
+    <p id="chph-err" style="color:#ef4444;font-size:13px;display:none;margin-top:8px"></p>
+    <button class="btn btn-primary" style="margin-top:20px" onclick="doChangePhone()">Update Phone</button>
+    <button class="btn btn-ghost" onclick="closeSheet('change-phone')" style="margin-top:10px">Cancel</button>
   </div>
 </div>
 
@@ -751,7 +773,7 @@ async function loadAdsOnly() {
 
 // ── TABS ──
 // Map tab names to nav item ids (community/merchants share the merchants nav dot)
-const NAV_MAP = { home:'home', merchants:'merchants', community:'merchants', orders:'orders', family:'family', goals:'goals', games:'home' };
+const NAV_MAP = { home:'home', merchants:'merchants', community:'merchants', orders:'orders', family:'family', goals:'home', loyalty:'loyalty', games:'home' };
 
 function switchTab(name) {
   _tab = name;
@@ -1944,7 +1966,7 @@ function launchGame(type) {
       <div style="padding:4px 0">
         <div style="font-size:11px;font-weight:700;color:var(--fg3);letter-spacing:.05em;text-transform:uppercase;margin-bottom:6px">Route 2027 · Mombasa → Kisumu</div>
         <div style="position:relative;border-radius:14px;overflow:hidden;background:#87CEEB;border:2px solid var(--bdr)">
-          <canvas id="r27-canvas" width="360" height="160" style="display:block;width:100%;touch-action:none"></canvas>
+          <canvas id="r27-canvas" width="360" height="210" style="display:block;width:100%;touch-action:none"></canvas>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
           <div>
@@ -1966,8 +1988,8 @@ function launchGame(type) {
 
     const canvas = document.getElementById('r27-canvas');
     const ctx = canvas.getContext('2d');
-    const W = 360, H = 160;
-    const GROUND = H - 30;
+    const W = 360, H = 210;
+    const GROUND = H - 38;
 
     // Best score from localStorage
     const bestKey = 'r27_best';
@@ -1976,7 +1998,8 @@ function launchGame(type) {
 
     // Game state
     let gRunning = false, gOver = false;
-    let car = { x: 60, y: GROUND - 20, w: 40, h: 20, vy: 0, onGround: true };
+    // car.y is bottom of car body; wheels at car.y, radius 7 — set so wheel bottom = GROUND
+    let car = { x: 60, y: GROUND - 7, w: 44, h: 22, vy: 0, onGround: true };
     let obstacles = [];
     let clouds = [];
     let frameId = null;
@@ -2023,20 +2046,25 @@ function launchGame(type) {
         ctx.fillRect(x, GROUND+8, 30, 3);
       }
 
-      // Car (matatu-ish silhouette)
+      // Car (matatu-ish silhouette) — car.y is wheel-centre line
       const cx = car.x, cy = car.y;
+      const WR = 7; // wheel radius
+      // Body sits above wheels
       ctx.fillStyle = '#8DC41A';
-      ctx.beginPath(); ctx.roundRect(cx-car.w/2, cy-car.h, car.w, car.h, 4); ctx.fill();
+      ctx.beginPath(); ctx.roundRect(cx-car.w/2, cy-car.h-WR, car.w, car.h, 5); ctx.fill();
       // Windscreen
       ctx.fillStyle = '#b8e5f7';
-      ctx.beginPath(); ctx.roundRect(cx+2, cy-car.h+3, car.w/2-4, car.h*0.45, 2); ctx.fill();
+      ctx.beginPath(); ctx.roundRect(cx+3, cy-car.h-WR+4, car.w/2-6, car.h*0.42, 2); ctx.fill();
+      // Rear window
+      ctx.fillStyle = '#b8e5f7';
+      ctx.beginPath(); ctx.roundRect(cx-car.w/2+3, cy-car.h-WR+4, car.w/3-4, car.h*0.42, 2); ctx.fill();
       // Wheels
-      ctx.fillStyle = '#222';
-      ctx.beginPath(); ctx.arc(cx-car.w/2+8, cy, 6, 0, Math.PI*2); ctx.fill();
-      ctx.beginPath(); ctx.arc(cx+car.w/2-8, cy, 6, 0, Math.PI*2); ctx.fill();
-      ctx.fillStyle = '#666';
-      ctx.beginPath(); ctx.arc(cx-car.w/2+8, cy, 3, 0, Math.PI*2); ctx.fill();
-      ctx.beginPath(); ctx.arc(cx+car.w/2-8, cy, 3, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#1a1a1a';
+      ctx.beginPath(); ctx.arc(cx-car.w/2+10, cy, WR, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(cx+car.w/2-10, cy, WR, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#555';
+      ctx.beginPath(); ctx.arc(cx-car.w/2+10, cy, WR-3, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(cx+car.w/2-10, cy, WR-3, 0, Math.PI*2); ctx.fill();
 
       // Obstacles
       obstacles.forEach(o => {
@@ -2087,14 +2115,16 @@ function launchGame(type) {
     }
 
     function collides(a, o) {
-      const ax1=a.x-a.w/2+6, ax2=a.x+a.w/2-6, ay1=a.y-a.h+4, ay2=a.y-4;
+      const WR = 7;
+      // car bounding box: body top to wheel bottom, shrunk a bit for fairness
+      const ax1=a.x-a.w/2+8, ax2=a.x+a.w/2-8, ay1=a.y-a.h-WR+4, ay2=a.y+WR-2;
       let ox1,ox2,oy1,oy2;
-      if (o.type==='pothole') { ox1=o.x-o.w/2; ox2=o.x+o.w/2; oy1=GROUND-2; oy2=GROUND+4; }
-      else { ox1=o.x-o.w/2+4; ox2=o.x+o.w/2-4; oy1=o.y-o.h+4; oy2=o.y-2; }
+      if (o.type==='pothole') { ox1=o.x-o.w/2; ox2=o.x+o.w/2; oy1=GROUND-2; oy2=GROUND+6; }
+      else { ox1=o.x-o.w/2+4; ox2=o.x+o.w/2-4; oy1=o.y-o.h+4; oy2=o.y+2; }
       return ax1<ox2 && ax2>ox1 && ay1<oy2 && ay2>oy1;
     }
 
-    const GRAVITY = 0.7, JUMP_V = -11;
+    const GRAVITY = 0.65, JUMP_V = -13;
 
     function jump() {
       if (!gRunning) { r27Start(); return; }
@@ -2119,10 +2149,10 @@ function launchGame(type) {
       }
       document.getElementById('r27-dist').textContent = Math.round(distKm) + ' km';
 
-      // Gravity
+      // Gravity — car.y is wheel-centre, ground = GROUND - 7 (wheel bottom = GROUND)
       car.vy += GRAVITY;
       car.y += car.vy;
-      if (car.y >= GROUND - 20) { car.y = GROUND - 20; car.vy = 0; car.onGround = true; }
+      if (car.y >= GROUND - 7) { car.y = GROUND - 7; car.vy = 0; car.onGround = true; }
 
       // Clouds
       clouds.forEach(c => c.x -= 0.5);
@@ -2174,7 +2204,7 @@ function launchGame(type) {
 
     window.r27Start = function() {
       // Reset state
-      car = { x: 60, y: GROUND-20, w: 40, h: 20, vy: 0, onGround: true };
+      car = { x: 60, y: GROUND-7, w: 44, h: 22, vy: 0, onGround: true };
       obstacles = []; clouds = [];
       tick = 0; distKm = 0; speed = 3; pointsEarned = 0; lastPointsTick = 0; cityIdx = 0;
       gRunning = true; gOver = false;
@@ -2209,6 +2239,52 @@ async function savePoints(amount, reason) {
   } catch(e) {
     // Silent fail — points will be retried next game
     console.warn('Points save failed:', e.message);
+  }
+}
+
+// ── LOAD POINTS / LOYALTY TAB ──
+async function loadPoints() {
+  const el = document.getElementById('loyalty-content');
+  el.innerHTML = '<div class="loading-row"><div class="spinner"></div></div>';
+  try {
+    const r = await familyApi({ action: 'my_family' });
+    const pts = r.points || [];
+    const totalPts = pts.reduce((s, p) => s + Number(p.amount || 0), 0);
+    const SUPA_URL = 'https://zxucpsdfcokkjtcgygna.supabase.co';
+    const ANON_KEY2 = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp4dWNwc2RmY29ra2p0Y2d5Z25hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI3NDc0NzUsImV4cCI6MjEwODMyMzQ3NX0.6JH4kLkge4D-8SCYLIGh7zmAvX0exJILThhOQ79BusA';
+    // Also fetch raw ledger for this user
+    let ledger = [];
+    try {
+      const lr = await fetch(`${SUPA_URL}/rest/v1/happa_points_ledger?user_id=eq.${_user.id}&order=created_at.desc&limit=50`, {
+        headers: { 'apikey': ANON_KEY2, 'Authorization': `Bearer ${ANON_KEY2}` }
+      });
+      if (lr.ok) ledger = await lr.json();
+    } catch(_) {}
+    const total = ledger.reduce((s, p) => s + Number(p.amount || 0), 0);
+    const rows = ledger.map(p => {
+      const d = new Date(p.created_at);
+      const dateStr = d.toLocaleDateString('en-KE', { day:'numeric', month:'short' });
+      const label = (p.reason || '').replace('route27:', 'Route 2027 · ').replace('quiz:', 'Quiz · ').replace(':', ' · ');
+      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:13px 16px;border-bottom:1px solid var(--bdr)">
+        <div>
+          <div style="font-size:14px;font-weight:600;color:var(--fg)">${esc(label || 'Points')}</div>
+          <div style="font-size:11px;color:var(--fg3);margin-top:2px">${dateStr}</div>
+        </div>
+        <div style="font-size:16px;font-weight:800;color:${p.amount > 0 ? '#8DC41A' : '#ef4444'}">${p.amount > 0 ? '+' : ''}${p.amount} pts</div>
+      </div>`;
+    }).join('');
+    el.innerHTML = `
+      <div style="padding:20px 16px 12px">
+        <div style="background:linear-gradient(135deg,#c47200,#F5A623);border-radius:18px;padding:22px 20px;color:#fff;margin-bottom:20px">
+          <div style="font-size:12px;font-weight:700;opacity:.8;letter-spacing:.08em;text-transform:uppercase">Total happa Points</div>
+          <div style="font-size:48px;font-weight:900;line-height:1.1;margin-top:4px">${total.toLocaleString('en-KE')}</div>
+          <div style="font-size:13px;opacity:.75;margin-top:6px">⭐ ${_user.name || 'You'} · happa member</div>
+        </div>
+        <div style="font-size:12px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--fg3);padding:0 0 10px">Points History</div>
+      </div>
+      <div>${rows || '<div class="empty-state"><div class="es-icon">⭐</div><h3>No points yet</h3><p>Play games, complete quizzes and shop to earn points!</p></div>'}</div>`;
+  } catch(e) {
+    el.innerHTML = `<div class="empty-state"><div class="es-icon">⭐</div><h3>Points</h3><p style="color:#ef4444">${esc(e.message)}</p><button class="btn btn-primary" style="margin-top:16px;max-width:200px" onclick="loadPoints()">Retry</button></div>`;
   }
 }
 
