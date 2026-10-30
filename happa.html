@@ -18,7 +18,7 @@
     --red: #EF4444;
     --red-d: rgba(239,68,68,.15);
     --amber: #F5A623;
-    --accent: #F5A623;
+    --accent: #8DC41A;
     /* Dark navy palette */
     --bg: #0F1923;
     --surf: #1A2535;
@@ -52,20 +52,20 @@
   .fl { display: block; font-size: 11px; font-weight: 700; color: var(--fg2); margin-bottom: 6px; letter-spacing: .03em; }
   .fg-field { margin-bottom: 14px; }
   .fi { width: 100%; background: var(--surf2); border: 1px solid var(--bdr); border-radius: var(--radius-sm); padding: 12px 14px; color: var(--fg); font-size: 15px; font-family: inherit; outline: none; transition: border-color .15s; }
-  .fi:focus { border-color: var(--amber); }
+  .fi:focus { border-color: var(--lime); }
   .fi::placeholder { color: var(--fg3); }
   .btn { width: 100%; padding: 13px; border-radius: var(--radius-sm); font-size: 15px; font-weight: 800; cursor: pointer; border: none; transition: opacity .15s; font-family: inherit; }
   .btn:active { opacity: .8; }
-  .btn-primary { background: var(--amber); color: #fff; }
+  .btn-primary { background: var(--lime); color: #fff; }
   .btn-ghost { background: transparent; color: var(--fg2); margin-top: 8px; font-size: 14px; border: 1px solid var(--bdr); }
   .auth-switch { text-align: center; margin-top: 14px; color: var(--fg2); font-size: 13px; }
-  .auth-switch span { color: var(--amber); cursor: pointer; font-weight: 700; }
+  .auth-switch span { color: var(--lime); cursor: pointer; font-weight: 700; }
   .err-msg { color: var(--red); font-size: 12px; margin-bottom: 12px; display: none; }
   .ref-note { background: var(--lime-light); border: 1px solid var(--lime-d); border-radius: 8px; padding: 10px 12px; font-size: 13px; color: #a8e040; margin-bottom: 14px; display: none; }
 
   /* ── MAIN APP ── */
   #app { display: none; flex-direction: column; height: 100svh; height: 100dvh; max-width: 480px; margin: 0 auto; position: relative; }
-  .top-bar { background: linear-gradient(135deg,#c47200 0%,#F5A623 60%,#f8c060 100%); border-bottom: none; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; box-shadow: 0 2px 12px rgba(0,0,0,.35); }
+  .top-bar { background: linear-gradient(135deg,#5a7e10 0%,#8DC41A 60%,#aee040 100%); border-bottom: none; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; box-shadow: 0 2px 12px rgba(0,0,0,.35); }
   .top-bar-left { display: flex; align-items: center; gap: 10px; }
   .top-logo { width: 34px; height: 34px; border-radius: 10px; overflow: hidden; flex-shrink: 0; box-shadow: 0 2px 8px rgba(0,0,0,.25); }
   .top-logo img { width: 100%; height: 100%; object-fit: cover; }
@@ -78,7 +78,7 @@
   .bottom-nav { background: #111E2D; border-top: 1px solid #1E3048; display: flex; flex-shrink: 0; padding: 4px max(6px,env(safe-area-inset-right,0px)) max(10px,calc(4px + env(safe-area-inset-bottom,0px))) max(6px,env(safe-area-inset-left,0px)); justify-content: space-around; }
   .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 4px; cursor: pointer; border: none; background: transparent; color: var(--fg3); font-size: 10px; font-weight: 700; letter-spacing: .02em; border-radius: 10px; transition: background .15s, color .15s; font-family: inherit; }
   .nav-item .nav-icon { font-size: 20px; line-height: 1; }
-  .nav-item.active { color: var(--amber); }
+  .nav-item.active { color: var(--lime); }
   .nav-badge { background: var(--red); color: #fff; font-size: 10px; font-weight: 700; border-radius: 10px; padding: 1px 5px; position: absolute; margin-top: -4px; margin-left: 12px; }
 
   /* ── PAGES ── */
@@ -284,7 +284,7 @@
   <div class="top-bar">
     <div class="top-bar-left">
       <div class="top-logo"><img src="/happa-customer-logo.jpg" alt="Happa"></div>
-      <span class="top-title">happa</span>
+      <span class="top-title" id="top-user-name">happa</span>
     </div>
     <div class="avatar-btn" onclick="openProfile()">👤</div>
   </div>
@@ -775,6 +775,13 @@ function launchApp() {
   document.getElementById('auth-wrap').style.display = 'none';
   document.getElementById('app').style.display = 'flex';
   setGreeting(_user?.name || '');
+  // Update top bar: show user name + happa ID
+  const topName = document.getElementById('top-user-name');
+  if (topName && _user) {
+    const displayName = _user.name ? _user.name.split(' ')[0] : _user.phone;
+    const happaId = _user.id ? String(_user.id).padStart(4,'0') : '';
+    topName.innerHTML = `${displayName}<span style="font-weight:400;font-size:12px;opacity:.8;margin-left:4px">#${happaId}</span>`;
+  }
   // Pre-fetch ads/featured merchants for the home banner (silent)
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(
@@ -1813,21 +1820,25 @@ async function confirmDeleteAccount() {
 
 // ── GAMES ──
 let _gameTimer = null;
+let _gameActive = false;
 function launchGame(type) {
   const area = document.getElementById('game-area');
   if (_gameTimer) { clearInterval(_gameTimer); _gameTimer = null; }
+  _gameActive = false;
   if (type === 'tap') {
     let count = 0, timeLeft = 10;
     area.innerHTML = `
       <div style="text-align:center;padding:20px 0">
         <div style="font-size:14px;font-weight:700;color:var(--fg2);margin-bottom:8px">TAP RUSH — tap as fast as you can!</div>
-        <div id="tap-timer" style="font-size:48px;font-weight:900;color:var(--accent)">${timeLeft}s</div>
+        <div id="tap-timer" style="font-size:48px;font-weight:900;color:var(--lime)">${timeLeft}s</div>
         <div id="tap-count" style="font-size:64px;font-weight:900;line-height:1">0</div>
-        <button id="tap-btn" style="width:140px;height:140px;border-radius:50%;border:none;background:var(--accent);color:#fff;font-size:18px;font-weight:800;cursor:pointer;margin-top:16px;box-shadow:0 4px 20px rgba(0,0,0,.2);active:transform:scale(.95)"
+        <button id="tap-btn" style="width:140px;height:140px;border-radius:50%;border:none;background:var(--lime);color:#fff;font-size:18px;font-weight:800;cursor:pointer;margin-top:16px;box-shadow:0 4px 20px rgba(141,196,26,.35)"
           ontouchstart="event.preventDefault();tapIt()" onclick="tapIt()">TAP!</button>
         <div id="tap-result" style="margin-top:12px;font-size:13px;color:var(--fg2)"></div>
       </div>`;
+    _gameActive = true;
     window.tapIt = function() {
+      if (!_gameActive) return;  // stop counting when timer ends
       count++;
       document.getElementById('tap-count').textContent = count;
     };
@@ -1837,11 +1848,12 @@ function launchGame(type) {
       if (timerEl) timerEl.textContent = timeLeft + 's';
       if (timeLeft <= 0) {
         clearInterval(_gameTimer); _gameTimer = null;
+        _gameActive = false;  // lock out further taps
         const btn = document.getElementById('tap-btn');
-        if (btn) btn.disabled = true;
+        if (btn) { btn.disabled = true; btn.style.background = 'var(--fg3)'; btn.textContent = '⏱'; }
         const pts = Math.floor(count * 1.5);
         const res = document.getElementById('tap-result');
-        if (res) res.innerHTML = `<span style="font-size:16px;font-weight:800;color:var(--accent)">🎉 ${count} taps! You earned ${pts} points!</span>`;
+        if (res) res.innerHTML = `<span style="font-size:16px;font-weight:800;color:var(--lime)">🎉 ${count} taps! You earned ${pts} points!</span>`;
       }
     }, 1000);
   } else if (type === 'memory') {
@@ -2395,20 +2407,15 @@ async function loadPoints() {
       if (lr.ok) ledger = await lr.json();
     } catch(_) {}
 
-    // Also try family points from happa-family
-    let familyPts = 0;
-    try {
-      const fr = await familyApi({ action: 'my_family' });
-      familyPts = (fr.points || []).reduce((s, p) => s + Number(p.amount || 0), 0);
-    } catch(_) {}
-
     // Categorize ledger entries
-    const gaming = ledger.filter(p => /route27|quiz|game/i.test(p.reason || ''));
-    const family  = ledger.filter(p => /family|task/i.test(p.reason || ''));
-    const loyalty = ledger.filter(p => !/route27|quiz|game|family|task/i.test(p.reason || ''));
+    const gaming  = ledger.filter(p => /route27|quiz|game/i.test(p.reason || ''));
+    // Family pts = ONLY task-completion entries (not gaming, not general loyalty)
+    const family  = ledger.filter(p => /\btask\b/i.test(p.reason || ''));
+    const loyalty = ledger.filter(p => !/route27|quiz|game|\btask\b/i.test(p.reason || ''));
 
     const sumPts = arr => arr.reduce((s, p) => s + Number(p.amount || 0), 0);
     const gamingTotal  = sumPts(gaming);
+    const familyPts    = sumPts(family);   // computed from task entries only
     const loyaltyTotal = sumPts(loyalty);
     const grandTotal   = sumPts(ledger);
 
@@ -2422,16 +2429,22 @@ async function loadPoints() {
       </div>`;
     };
 
-    const section = (icon, title, color, total, rows) => `
+    // Show only last 3 rows per section to reduce clutter
+    const section = (icon, title, color, total, rows) => {
+      const recent = rows.slice(0, 3);
+      const hasMore = rows.length > 3;
+      return `
       <div style="margin:0 16px 20px">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
           <div style="font-weight:800;font-size:14px;color:var(--fg)">${icon} ${title}</div>
           <div style="font-size:20px;font-weight:900;color:${color}">${total.toLocaleString('en-KE')} pts</div>
         </div>
         <div style="background:var(--surf);border-radius:14px;border:1px solid var(--bdr);overflow:hidden">
-          ${rows.length ? rows.map(renderRow).join('') : `<div style="padding:16px;text-align:center;font-size:13px;color:var(--fg3)">No ${title.toLowerCase()} yet</div>`}
+          ${recent.length ? recent.map(renderRow).join('') : `<div style="padding:16px;text-align:center;font-size:13px;color:var(--fg3)">No ${title.toLowerCase()} yet</div>`}
+          ${hasMore ? `<div style="padding:10px 16px;text-align:center;font-size:12px;color:var(--fg3)">+${rows.length - 3} more transactions</div>` : ''}
         </div>
       </div>`;
+    };
 
     el.innerHTML = `
       <div style="padding:20px 16px 12px">
@@ -2456,7 +2469,7 @@ async function loadPoints() {
         </div>
       </div>
       ${section('🎮', 'Gaming Points', 'var(--lime)', gamingTotal, gaming)}
-      ${section('👨‍👩‍👧', 'Family Points', '#F5A623', familyPts, family)}
+      ${section('👨‍👩‍👧', 'Family Points', 'var(--lime)', familyPts, family)}
       ${section('⭐', 'Loyalty Points', '#60a5fa', loyaltyTotal, loyalty)}`;
   } catch(e) {
     el.innerHTML = `<div class="empty-state"><div class="es-icon">⭐</div><h3>Points</h3><p style="color:#ef4444">${esc(e.message)}</p><button class="btn btn-primary" style="margin-top:16px;max-width:200px" onclick="loadPoints()">Retry</button></div>`;
