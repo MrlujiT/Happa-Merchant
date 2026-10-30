@@ -131,6 +131,31 @@ select.fi{cursor:pointer}
 .prod-row-meta{font-size:11px;color:var(--txt2);margin-top:2px}
 .prod-row-price{font-size:15px;font-weight:800;color:var(--acc)}
 
+/* ORDERS */
+.order-card{background:var(--surf);border:1px solid var(--bdr);border-radius:12px;padding:14px;margin-bottom:10px}
+.order-card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px}
+.order-card-meta{font-size:11px;color:var(--txt2);display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px}
+.order-items{font-size:12px;color:var(--txt2);line-height:1.8;margin-bottom:6px}
+.order-status-row{display:flex;align-items:center;gap:6px;margin-top:10px;flex-wrap:wrap}
+.chip-p{background:rgba(245,166,35,.15);color:var(--acc)}
+.chip-r{background:var(--grn-d);color:var(--grn)}
+.chip-b{background:rgba(147,51,234,.15);color:#a855f7}
+.chip-c{background:var(--red-d);color:var(--red)}
+.chip-grey{background:rgba(75,94,122,.2);color:var(--txt2)}
+.act-btn-sm{padding:5px 12px;border-radius:8px;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;border:1px solid;transition:opacity .15s}
+.act-btn-sm:hover{opacity:.8}
+.act-approve{background:var(--acc-d);border-color:var(--acc);color:var(--acc)}
+.act-ready{background:var(--grn-d);border-color:var(--grn);color:var(--grn)}
+.act-collect{background:rgba(147,51,234,.12);border-color:rgba(147,51,234,.4);color:#a855f7}
+.act-cancel{background:var(--red-d);border-color:var(--red);color:var(--red)}
+.tab-badge{background:var(--red);color:#fff;font-size:9px;font-weight:800;border-radius:99px;padding:1px 5px;margin-left:4px;vertical-align:middle;display:inline-block}
+.orders-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.toggle-ordering{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--txt2)}
+.toggle-pill{width:40px;height:22px;border-radius:11px;border:none;cursor:pointer;position:relative;transition:background .2s;flex-shrink:0;background:var(--bdr)}
+.toggle-pill::after{content:'';position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left .2s}
+.toggle-pill.on{background:var(--grn)}
+.toggle-pill.on::after{left:21px}
+
 /* receipt state */
 .receipt-card{background:var(--surf);border:1px solid var(--grn-d);border-radius:14px;padding:20px;text-align:center;margin-bottom:16px}
 .receipt-icon{font-size:36px;margin-bottom:8px}
@@ -189,6 +214,7 @@ select.fi{cursor:pointer}
     <button class="tab on" onclick="switchTab('sale',this)">New Sale</button>
     <button class="tab" onclick="switchTab('today',this)">Today</button>
     <button class="tab" onclick="switchTab('products',this)">Products</button>
+    <button class="tab" onclick="switchTab('orders',this)" id="tab-orders">📦 Orders<span class="tab-badge" id="orders-badge" style="display:none">0</span></button>
   </div>
 
   <div class="body">
@@ -286,6 +312,18 @@ select.fi{cursor:pointer}
       <div class="prod-list" id="prod-list"></div>
     </div>
 
+    <!-- ORDERS -->
+    <div class="page" id="page-orders">
+      <div class="orders-hdr">
+        <div class="page-ttl" style="margin-bottom:0">Orders</div>
+        <div class="toggle-ordering">
+          <span>Accepting</span>
+          <button class="toggle-pill" id="ordering-toggle" onclick="toggleOrdering()" title="Toggle online ordering"></button>
+        </div>
+      </div>
+      <div id="orders-list"></div>
+    </div>
+
   </div>
 </div>
 
@@ -323,6 +361,7 @@ async function doLogin() {
 }
 
 function doLogout() {
+  if (_ordersInterval) { clearInterval(_ordersInterval); _ordersInterval = null; }
   try { localStorage.removeItem('happa_merchant'); } catch(_){}
   _shop = null; _products = []; _cart = [];
   document.getElementById('portal').style.display = 'none';
@@ -335,9 +374,19 @@ function showPortal() {
   document.getElementById('portal').style.display = 'flex';
   document.getElementById('hdr-name').textContent = _shop.name;
   document.getElementById('hdr-sub').textContent = cap(_shop.business_type || '') + (_shop.location ? ` · ${_shop.location}` : '');
+  // Sync ordering toggle
+  _orderingEnabled = !!_shop.ordering_enabled;
+  const togBtn = document.getElementById('ordering-toggle');
+  if (togBtn) togBtn.classList.toggle('on', _orderingEnabled);
   renderCatalog();
   renderProducts();
   loadToday();
+  loadOrders();
+  // Poll for new orders every 30 s
+  if (_ordersInterval) clearInterval(_ordersInterval);
+  _ordersInterval = setInterval(loadOrders, 30000);
+  // Request push permission for order alerts
+  requestPushPermission();
 }
 
 /* ── CATALOG ── */
@@ -582,6 +631,139 @@ function renderProducts() {
     </div>`).join('');
 }
 
+/* ── ORDERS ── */
+let _ordersInterval = null;
+let _orderingEnabled = false;
+
+async function loadOrders() {
+  if (!_shop) return;
+  try {
+    const res = await fetch(FN('happa-orders'), {
+      method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${ANON_KEY}`},
+      body: JSON.stringify({ action:'shop_orders', shop_id:_shop.id, phone:_creds.phone, pin:_creds.pin })
+    });
+    const data = await res.json();
+    if (!data.error) renderOrders(data.orders || []);
+  } catch(_) {}
+}
+
+function orderStatusChip(s) {
+  const map = {
+    pending:   ['chip chip-p','⏳ Pending'],
+    approved:  ['chip chip-r','✅ Approved'],
+    ready:     ['chip chip-b','📦 Ready'],
+    collected: ['chip chip-grey','🏁 Collected'],
+    cancelled: ['chip chip-c','✕ Cancelled'],
+  };
+  const [cls, label] = map[s] || ['chip chip-grey', s];
+  return `<span class="${cls}">${label}</span>`;
+}
+
+function orderActions(order) {
+  if (['collected','cancelled'].includes(order.status)) return '';
+  const btns = [];
+  if (order.status === 'pending')  btns.push(`<button class="act-btn-sm act-approve" onclick="doOrderStatus('${order.id}','approved')">✅ Approve</button>`);
+  if (order.status === 'approved') btns.push(`<button class="act-btn-sm act-ready" onclick="doOrderStatus('${order.id}','ready')">📦 Ready</button>`);
+  if (order.status === 'ready')    btns.push(`<button class="act-btn-sm act-collect" onclick="doOrderStatus('${order.id}','collected')">🏁 Collected</button>`);
+  btns.push(`<button class="act-btn-sm act-cancel" onclick="doOrderStatus('${order.id}','cancelled')">✕ Cancel</button>`);
+  return `<div class="order-status-row">${btns.join('')}</div>`;
+}
+
+function renderOrders(orders) {
+  const pending = orders.filter(o => o.status === 'pending').length;
+  const badge = document.getElementById('orders-badge');
+  if (badge) { badge.textContent = pending; badge.style.display = pending ? '' : 'none'; }
+
+  const list = document.getElementById('orders-list');
+  if (!list) return;
+  if (!orders.length) {
+    list.innerHTML = '<div class="empty"><div class="empty-icon">📦</div><div class="empty-text">No orders yet.<br>Enable ordering so customers can find and order from you.</div></div>';
+    return;
+  }
+  list.innerHTML = orders.map(o => {
+    const user  = o.happa_users || {};
+    const items = o.happa_order_items || [];
+    const t     = new Date(o.created_at).toLocaleString('en-KE', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
+    const summary = items.map(i => `${i.product_emoji||'📦'} ${esc(i.product_name)} ×${i.quantity}`).join('  ·  ');
+    return `<div class="order-card">
+      <div class="order-card-top">
+        <div>
+          <div class="sale-card-name">${esc(user.name || user.phone || 'Customer')}</div>
+          <div class="order-card-meta">
+            <span>🕐 ${t}</span>
+            <span>${o.order_type === 'delivery' ? '🚚 Delivery' : '🏪 Pickup'}</span>
+            <span>${o.payment_method === 'mpesa' ? '📱 M-Pesa' : '💵 Cash'}</span>
+          </div>
+        </div>
+        <div style="text-align:right">
+          <div class="sale-card-total">KES ${fmt(o.total_amount)}</div>
+          ${orderStatusChip(o.status)}
+        </div>
+      </div>
+      <div class="order-items">${esc(summary)}</div>
+      ${o.notes ? `<div style="font-size:11px;color:var(--txt2);margin-bottom:4px">📝 ${esc(o.notes)}</div>` : ''}
+      ${orderActions(o)}
+    </div>`;
+  }).join('');
+}
+
+async function doOrderStatus(orderId, status) {
+  try {
+    const res = await fetch(FN('happa-orders'), {
+      method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${ANON_KEY}`},
+      body: JSON.stringify({ action:'update_status', shop_id:_shop.id, order_id:orderId, status, phone:_creds.phone, pin:_creds.pin })
+    });
+    const data = await res.json();
+    if (data.ok) { toast('Order updated'); loadOrders(); }
+    else toast(data.error || 'Update failed');
+  } catch(_) { toast('Network error'); }
+}
+
+async function toggleOrdering() {
+  _orderingEnabled = !_orderingEnabled;
+  const btn = document.getElementById('ordering-toggle');
+  if (btn) btn.classList.toggle('on', _orderingEnabled);
+  try {
+    await fetch(FN('happa-orders'), {
+      method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${ANON_KEY}`},
+      body: JSON.stringify({ action:'toggle_ordering', shop_id:_shop.id, enabled:_orderingEnabled, phone:_creds.phone, pin:_creds.pin })
+    });
+    toast(_orderingEnabled ? 'Ordering enabled ✅' : 'Ordering paused');
+  } catch(_) { toast('Network error'); }
+}
+
+/* ── PUSH NOTIFICATIONS ── */
+const VAPID_PUBLIC_KEY = 'BMidbDdDZQtjWoSN5X8qoKFBHVbkeqWAgFyheGa8M5YGX_ccYYiuKX4Y_c9Q9kDDwYrjjn5J_N8JiR_qbMMV0fk';
+
+function b64ToUint8(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64  = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw     = atob(base64);
+  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+}
+
+async function requestPushPermission() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  try {
+    const perm = await Notification.requestPermission();
+    if (perm === 'granted') await subscribeToPush();
+  } catch(_) {}
+}
+
+async function subscribeToPush() {
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({ userVisibleOnly:true, applicationServerKey: b64ToUint8(VAPID_PUBLIC_KEY) });
+    }
+    await fetch(FN('send-notification'), {
+      method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${ANON_KEY}`},
+      body: JSON.stringify({ action:'save_subscription', user_type:'merchant', user_id:_shop.id, subscription: sub.toJSON() })
+    });
+  } catch(e) { console.warn('Push error:', e); }
+}
+
 /* ── NAV ── */
 function switchTab(name, el) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('on'));
@@ -589,6 +771,7 @@ function switchTab(name, el) {
   document.getElementById(`page-${name}`)?.classList.add('on');
   if (el) el.classList.add('on');
   if (name === 'today') loadToday();
+  if (name === 'orders') loadOrders();
 }
 
 /* ── HELPERS ── */

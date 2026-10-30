@@ -1,8 +1,9 @@
-const CACHE = 'happa-v55';
+const CACHE = 'happa-v56';
 const SHELL = [
   '/',
   '/index.html',
   '/happa-logo.jpg',
+  '/happa-customer-logo.jpg',
   '/manifest.json',
 ];
 // Never cache these — always fetch fresh
