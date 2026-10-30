@@ -260,6 +260,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
         <option value="mixed">Mixed (restaurant / cafe)</option>
         <option value="airbnb">🏠 Airbnb / Short-term Rental</option>
         <option value="fit">🏋️ Gym / Fitness Studio</option>
+        <option value="leisure">🎯 Leisure & Activities</option>
       </select></div>
     <div class="fg"><label class="fl">Location (optional)</label>
       <input class="fi" id="inv-location" type="text" placeholder="e.g. Ngara, Nairobi"></div>
@@ -913,7 +914,7 @@ async function renderShops() {
       const nameEsc = (s.name||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');
       return `<tr id="row-${s.id}" style="cursor:pointer" onclick="toggleShopDetail('${s.id}')">
         <td><strong>${s.name}</strong>${pauseLabel}<br><span style="font-size:11px;color:var(--txt3)">${s.location||''}${s.agents?.name ? ` · 🤝 ${s.agents.name}` : ''}</span></td>
-        <td><span class="chip ${s.business_type==='goods'?'chip-g':s.business_type==='services'?'chip-b':s.business_type==='airbnb'?'chip-p':'chip-a'}">${s.business_type==='airbnb'?'🏠 airbnb':s.business_type}</span></td>
+        <td><span class="chip ${s.business_type==='goods'?'chip-g':s.business_type==='services'?'chip-b':s.business_type==='airbnb'?'chip-p':s.business_type==='leisure'?'chip-o':'chip-a'}">${s.business_type==='airbnb'?'🏠 airbnb':s.business_type==='leisure'?'🎯 leisure':s.business_type}</span></td>
         <td>${s.shop_members?.[0]?.count||0} member${(s.shop_members?.[0]?.count||0)!==1?'s':''}</td>
         <td><span class="chip ${subChip}">${subLabel}</span></td>
         <td onclick="event.stopPropagation()">

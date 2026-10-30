@@ -793,8 +793,9 @@ async function loadUserContext() {
   document.getElementById('hdr-role-badge').textContent = roleBadge[S.member.role] || '🧾 Staff';
 
   // Business type flags
-  S.isAirbnb = S.shop.business_type === 'airbnb';
-  S.isFit    = S.shop.business_type === 'fit';
+  S.isAirbnb  = S.shop.business_type === 'airbnb';
+  S.isFit     = S.shop.business_type === 'fit';
+  S.isLeisure = S.shop.business_type === 'leisure';
   const role = S.member.role;
   const isHousekeeper = S.isAirbnb && role === 'housekeeper';
   const isCoHost = S.isAirbnb && role === 'co-host';
@@ -831,6 +832,13 @@ async function loadUserContext() {
       <button class="ni" data-tab="units"><span class="ni-ico">🛏️</span><span class="ni-lbl">Units</span></button>
       <button class="ni" data-tab="supplies"><span class="ni-ico">🧻</span><span class="ni-lbl">Supplies</span></button>
       <button class="ni" data-tab="more"><span class="ni-ico">☰</span><span class="ni-lbl">More</span></button>`;
+  } else if (S.isLeisure) {
+    document.getElementById('bottom-nav').innerHTML = `
+      <button class="ni on" data-tab="home"><span class="ni-ico">🏠</span><span class="ni-lbl">Home</span></button>
+      <button class="ni" data-tab="bookings"><span class="ni-ico">📅</span><span class="ni-lbl">Bookings</span></button>
+      <button class="ni" data-tab="sales"><span class="ni-ico">💰</span><span class="ni-lbl">Sales</span></button>
+      <button class="ni" data-tab="customers"><span class="ni-ico">👥</span><span class="ni-lbl">Guests</span></button>
+      <button class="ni" data-tab="more"><span class="ni-ico">☰</span><span class="ni-lbl">More</span></button>`;
   } else if (role === 'cashier') {
     document.getElementById('bottom-nav').innerHTML = `
       <button class="ni on" data-tab="home"><span class="ni-ico">🏠</span><span class="ni-lbl">Home</span></button>
@@ -841,6 +849,8 @@ async function loadUserContext() {
     await Promise.all([loadUnits(), loadHosts(), loadLoyalty()]);
   } else if (S.isFit) {
     await Promise.all([loadFitServices(), loadFitClients(), loadFitMemberships()]);
+  } else if (S.isLeisure) {
+    await Promise.all([loadCustomers(), loadLoyalty()]);
   } else {
     await Promise.all([loadProducts(), loadCustomers(), loadSuppliers(), loadLoyalty()]);
   }
@@ -848,7 +858,8 @@ async function loadUserContext() {
   setupNav();
   showTab('home');
   subscribeMerchantPush();
-  if (!S.isAirbnb && !S.isFit) setTimeout(refreshOrdersBadge, 2000);
+  if (!S.isAirbnb && !S.isFit && !S.isLeisure) setTimeout(refreshOrdersBadge, 2000);
+  if (S.isLeisure) setTimeout(refreshOrdersBadge, 2000);
 }
 
 /* ── Merchant Push Subscriptions ── */
@@ -3659,7 +3670,7 @@ function showTab(tab) {
 async function renderTab(tab) {
   const el = document.getElementById('main-content');
   el.innerHTML = '<div class="loader"><div class="spin"></div></div>';
-  if (tab === 'home')               await (S.isFit ? renderFitHome(el) : S.isAirbnb && S.member.role === 'housekeeper' ? renderHousekeeperHome(el) : S.isAirbnb ? renderAirbnbHome(el) : renderHome(el));
+  if (tab === 'home')               await (S.isFit ? renderFitHome(el) : S.isAirbnb && S.member.role === 'housekeeper' ? renderHousekeeperHome(el) : S.isAirbnb ? renderAirbnbHome(el) : S.isLeisure ? renderLeisureHome(el) : renderHome(el));
   else if (tab === 'fit-sessions')  await renderFitSessions(el);
   else if (tab === 'fit-services')  await renderFitServices(el);
   else if (tab === 'fit-clients')   await renderFitClients(el);
@@ -3675,6 +3686,50 @@ async function renderTab(tab) {
 /* ═══════════════════════════════
    HOME TAB
 ═══════════════════════════════ */
+async function renderLeisureHome(el) {
+  const todayISO = todayStart();
+  const todayDateStr = new Date().toLocaleDateString('en-CA', {timeZone:'Africa/Nairobi'});
+  const sevenDaysAgoDate = (() => { const d = new Date(); d.setDate(d.getDate()-6); return d.toLocaleDateString('en-CA', {timeZone:'Africa/Nairobi'}); })();
+
+  const [todaySales, weekBk, pendingOrders] = await Promise.all([
+    apiGet(`sales?shop_id=eq.${S.shop.id}&recorded_at=gte.${todayISO}&select=total,profit,payment_method`),
+    apiGet(`bookings?shop_id=eq.${S.shop.id}&check_in=gte.${sevenDaysAgoDate}&check_in=lte.${todayDateStr}&select=total,check_in,guest_name,status`),
+    apiGet(`orders?shop_id=eq.${S.shop.id}&status=eq.pending&select=id`),
+  ]);
+
+  const todayRev = (todaySales||[]).reduce((s,r)=>s+(Number(r.total)||0),0);
+  const weekBkRev = (weekBk||[]).filter(b=>b.status!=='cancelled').reduce((s,b)=>s+(Number(b.total)||0),0);
+  const todayBk = (weekBk||[]).filter(b=>b.check_in===todayDateStr);
+  const pendingCnt = (pendingOrders||[]).length;
+
+  el.innerHTML = `
+    <div style="padding:14px max(16px,env(safe-area-inset-right,0px)) 80px">
+      <div style="font-size:13px;font-weight:700;color:var(--txt2);margin-bottom:10px">${new Date().toLocaleDateString('en-KE',{weekday:'long',day:'numeric',month:'short'})}</div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
+        <div class="scard"><div class="scard-lbl">Today Revenue</div><div class="scard-val">${kshort(todayRev)}</div><div class="scard-sub">KES</div></div>
+        <div class="scard"><div class="scard-lbl">Today Bookings</div><div class="scard-val">${todayBk.length}</div><div class="scard-sub">activities</div></div>
+        <div class="scard"><div class="scard-lbl">Week Bookings</div><div class="scard-val">${kshort(weekBkRev)}</div><div class="scard-sub">KES rev</div></div>
+        <div class="scard" onclick="showOnlineOrders()" style="cursor:pointer"><div class="scard-lbl">Online Orders</div><div class="scard-val">${pendingCnt||'—'}</div>${pendingCnt?`<span class="bdg bdg-r">${pendingCnt} new</span>`:`<div class="scard-sub">pending</div>`}</div>
+      </div>
+
+      ${todayBk.length ? `
+      <div class="sec-ttl" style="margin-bottom:8px">Today's Bookings</div>
+      <div class="clist" style="margin-bottom:14px">
+        ${todayBk.slice(0,5).map(b=>`
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px">
+          <div><div style="font-weight:600;font-size:13px">${b.guest_name||'Guest'}</div><div style="font-size:11px;color:var(--txt3)">${b.status||'confirmed'}</div></div>
+          <div style="font-weight:700;color:var(--grn)">${kes(b.total||0)}</div>
+        </div>`).join('')}
+      </div>` : `<div class="empty" style="padding:40px 0"><div class="empty-ico">🎯</div><p>No bookings today.<br>Take a walk-in booking below.</p></div>`}
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <button class="btn-acc" onclick="showRecordSaleSheet()">💰 Record Sale</button>
+        <button class="btn-acc" style="background:var(--surf2);color:var(--txt);border:1px solid var(--bdr)" onclick="showTab('bookings')">📅 Bookings</button>
+      </div>
+    </div>`;
+}
+
 async function renderHome(el) {
   const todayISO = todayStart();
   const todayDateStr = new Date().toLocaleDateString('en-CA', {timeZone:'Africa/Nairobi'}); // YYYY-MM-DD
@@ -4878,7 +4933,7 @@ function renderMore(el) {
   el.innerHTML = `
     <div style="padding:14px max(16px,env(safe-area-inset-right,0px)) 0">
       <div style="background:var(--surf);border:1px solid var(--bdr);border-radius:16px;padding:20px;text-align:center;margin-bottom:14px">
-        <div style="font-size:36px;margin-bottom:8px">${S.isFit?'🏋️':S.isAirbnb?'🏠':'🏪'}</div>
+        <div style="font-size:36px;margin-bottom:8px">${S.isFit?'🏋️':S.isAirbnb?'🏠':S.isLeisure?'🎯':'🏪'}</div>
         <div style="font-size:17px;font-weight:700">${S.shop.name}</div>
         <div style="font-size:12px;color:var(--txt2);margin-top:4px">${S.shop.location||''}</div>
         ${S.shop.mpesa_till?`<div style="font-size:11px;color:var(--txt3);margin-top:3px">M-Pesa Till: ${S.shop.mpesa_till}</div>`:''}
@@ -4974,7 +5029,44 @@ function renderMore(el) {
         <div class="more-item" onclick="showOnlineOrders()">
           <div class="more-ico" style="background:#f9731622">🛍️</div>
           <div class="more-inf"><div class="more-nm">Online Orders & Bookings</div><div class="more-mt">Customer bookings — approve & manage</div></div>
-          <span style="color:var(--txt3)">›</span></div>` : ''} `:`
+          <span style="color:var(--txt3)">›</span></div>` : ''} ` : S.isLeisure ? `
+        <div class="more-item" onclick="showTab('bookings')">
+          <div class="more-ico" style="background:var(--acc-d)">📅</div>
+          <div class="more-inf"><div class="more-nm">Bookings</div><div class="more-mt">View and manage activity bookings</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showOnlineOrders()">
+          <div class="more-ico" style="background:#f9731622">🛍️</div>
+          <div class="more-inf"><div class="more-nm">Online Bookings<span id="orders-more-badge" style="display:none;margin-left:6px;background:#ef4444;color:#fff;font-size:11px;font-weight:700;padding:1px 6px;border-radius:10px;vertical-align:middle">0</span></div><div class="more-mt">Approve & manage online activity bookings</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showAddProductSheet()">
+          <div class="more-ico" style="background:var(--acc-d)">🎟️</div>
+          <div class="more-inf"><div class="more-nm">Activity Tickets</div><div class="more-mt">Add tickets and activity packages to sell</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showCustomers()">
+          <div class="more-ico" style="background:#7c3aed22">👥</div>
+          <div class="more-inf"><div class="more-nm">Guests</div><div class="more-mt">Manage guest contacts</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showTopClients()">
+          <div class="more-ico" style="background:#d9770622">🏆</div>
+          <div class="more-inf"><div class="more-nm">Top Guests</div><div class="more-mt">Your highest-spending guests</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showExpenses()">
+          <div class="more-ico" style="background:#7c3aed22">💸</div>
+          <div class="more-inf"><div class="more-nm">Expenses</div><div class="more-mt">Track venue, staff & operating costs</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showCreatePromotion()">
+          <div class="more-ico" style="background:#f59e0b22">🎉</div>
+          <div class="more-inf"><div class="more-nm">Create Promotion</div><div class="more-mt">Special offers & discounts via WhatsApp</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showWhatsAppBroadcast()">
+          <div class="more-ico" style="background:#25D36622">💬</div>
+          <div class="more-inf"><div class="more-nm">Send WhatsApp</div><div class="more-mt">Custom message to all guests</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showBusinessHealth()">
+          <div class="more-ico" style="background:#16a34a22">💰</div>
+          <div class="more-inf"><div class="more-nm">Business Health</div><div class="more-mt">Revenue minus expenses — profitability view</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+        `:`
         <div class="more-item" onclick="showOnlineOrders()">
           <div class="more-ico" style="background:#f9731622">🛍️</div>
           <div class="more-inf"><div class="more-nm">Online Orders<span id="orders-more-badge" style="display:none;margin-left:6px;background:#ef4444;color:#fff;font-size:11px;font-weight:700;padding:1px 6px;border-radius:10px;vertical-align:middle">0</span></div><div class="more-mt">Customer orders — approve, prepare & collect</div></div>
