@@ -268,16 +268,36 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
           <input class="fi" id="ref-bizname" type="text" placeholder="e.g. Mama Njeri's Boutique"></div>
         <div class="fg"><label class="fl">Phone Number *</label>
           <input class="fi" id="ref-phone" type="tel" placeholder="+254 7XX XXX XXX"></div>
-        <div class="fg"><label class="fl">Email Address</label>
+        <div class="fg"><label class="fl">Email Address *</label>
           <input class="fi" id="ref-email" type="email" placeholder="you@example.com" autocomplete="email"></div>
         <div class="fg"><label class="fl">Business Type</label>
-          <select class="fi" id="ref-biztype">
-            <option value="goods">Shop / Supermarket (Sells goods)</option>
-            <option value="services">Services (Salon, Barber, Repairs…)</option>
-            <option value="mixed">Restaurant / Cafe (Mixed)</option>
-            <option value="airbnb">🏠 Airbnb / Short-term Rental</option>
-            <option value="fit">🏋️ Gym / Fitness Studio</option>
-          </select></div>
+          <div id="ref-biztype-list" style="display:flex;flex-direction:column;gap:0;border:1.5px solid var(--bdr);border-radius:14px;overflow:hidden">
+            <label class="bt-opt" style="display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;border-bottom:1px solid var(--bdr);background:var(--surf)">
+              <input type="radio" name="ref-biztype" value="goods" checked style="accent-color:var(--acc);width:18px;height:18px;flex:none">
+              <span><strong>🛒 Trade</strong> <span style="font-size:12px;color:var(--txt2)">— Shops, groceries, minimarts, butcheries, bookshops…</span></span>
+            </label>
+            <label class="bt-opt" style="display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;border-bottom:1px solid var(--bdr);background:var(--surf)">
+              <input type="radio" name="ref-biztype" value="airbnb" style="accent-color:var(--acc);width:18px;height:18px;flex:none">
+              <span><strong>🏠 Airbnb</strong> <span style="font-size:12px;color:var(--txt2)">— Short-term rentals, BnBs, guest houses…</span></span>
+            </label>
+            <label class="bt-opt" style="display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;border-bottom:1px solid var(--bdr);background:var(--surf)">
+              <input type="radio" name="ref-biztype" value="fit" style="accent-color:var(--acc);width:18px;height:18px;flex:none">
+              <span><strong>🏋️ Fit</strong> <span style="font-size:12px;color:var(--txt2)">— Gym, yoga, meditation, dance, boxing…</span></span>
+            </label>
+            <label class="bt-opt" style="display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;border-bottom:1px solid var(--bdr);background:var(--surf)">
+              <input type="radio" name="ref-biztype" value="hospitality" style="accent-color:var(--acc);width:18px;height:18px;flex:none">
+              <span><strong>🍽️ Hospitality</strong> <span style="font-size:12px;color:var(--txt2)">— Hotels, bars, restaurants, cafes…</span></span>
+            </label>
+            <label class="bt-opt" style="display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;border-bottom:1px solid var(--bdr);background:var(--surf)">
+              <input type="radio" name="ref-biztype" value="services" style="accent-color:var(--acc);width:18px;height:18px;flex:none">
+              <span><strong>✂️ Services</strong> <span style="font-size:12px;color:var(--txt2)">— Salon, barber, massage, repairs…</span></span>
+            </label>
+            <label class="bt-opt" style="display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;background:var(--surf);opacity:.7">
+              <input type="radio" name="ref-biztype" value="coming_soon" disabled style="width:18px;height:18px;flex:none">
+              <span style="color:var(--txt3)"><strong>⏳ More segments coming soon</strong></span>
+            </label>
+          </div>
+        </div>
         <div class="fg"><label class="fl">Location</label>
           <input class="fi" id="ref-location" type="text" placeholder="e.g. Ngara, Nairobi"></div>
         <div class="err-msg" id="ref-err"></div>
@@ -561,7 +581,8 @@ async function submitReferralLead() {
   const bizname = document.getElementById('ref-bizname').value.trim();
   const phone   = document.getElementById('ref-phone').value.trim();
   const email   = document.getElementById('ref-email').value.trim();
-  const btype   = document.getElementById('ref-biztype').value;
+  const btypeEl = document.querySelector('input[name="ref-biztype"]:checked');
+  const btype   = btypeEl ? btypeEl.value : 'goods';
   const loc     = document.getElementById('ref-location').value.trim();
   const err     = document.getElementById('ref-err');
   const btn     = document.getElementById('ref-btn');
@@ -569,6 +590,7 @@ async function submitReferralLead() {
   if (!name)    { err.textContent = 'Your name is required'; return; }
   if (!bizname) { err.textContent = 'Business name is required'; return; }
   if (!phone)   { err.textContent = 'Phone number is required'; return; }
+  if (!email)   { err.textContent = 'Email address is required'; return; }
 
   btn.disabled = true; btn.textContent = 'Submitting…';
   err.textContent = '';
