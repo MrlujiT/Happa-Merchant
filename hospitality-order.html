@@ -1,0 +1,563 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Table Order</title>
+<style>
+:root {
+  --bg:#ffffff; --surf:#f8f9fa; --surf2:#f1f3f4; --bdr:#e8eaed;
+  --txt:#1a1a1a; --txt2:#5f6368; --txt3:#9aa0a6;
+  --acc:#1a73e8; --acc-light:#e8f0fe; --grn:#34a853; --red:#ea4335;
+  --shadow:0 1px 6px rgba(0,0,0,.1);
+}
+@media(prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#121212; --surf:#1e1e1e; --surf2:#2a2a2a; --bdr:#3a3a3a;
+    --txt:#e8eaed; --txt2:#9aa0a6; --txt3:#5f6368;
+    --acc:#8ab4f8; --acc-light:#1a2a42; --grn:#81c995; --red:#f28b82;
+    color-scheme:dark;
+  }
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  padding-bottom:env(safe-area-inset-bottom,0px);min-height:100vh}
+.page{display:none;min-height:100vh;flex-direction:column}
+.page.active{display:flex}
+/* Header */
+.hdr{background:var(--bg);padding:16px max(16px,env(safe-area-inset-right,0px));
+  border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:12px;
+  position:sticky;top:0;z-index:10}
+.hdr-back{background:none;border:none;font-size:22px;cursor:pointer;color:var(--txt);padding:4px;border-radius:8px}
+.hdr-title{font-size:18px;font-weight:700;flex:1}
+.hdr-badge{background:var(--red);color:#fff;border-radius:20px;font-size:12px;
+  font-weight:700;padding:2px 8px;min-width:22px;text-align:center}
+/* Category pills */
+.cat-strip{display:flex;gap:8px;padding:12px max(16px,env(safe-area-inset-right,0px));
+  overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--bdr);
+  position:sticky;top:57px;background:var(--bg);z-index:9}
+.cat-strip::-webkit-scrollbar{display:none}
+.cat-pill{flex:none;padding:6px 14px;background:var(--surf2);border-radius:20px;
+  font-size:13px;font-weight:600;cursor:pointer;border:2px solid transparent;color:var(--txt2);
+  white-space:nowrap;transition:all .2s}
+.cat-pill.on{background:var(--acc-light);border-color:var(--acc);color:var(--acc)}
+/* Menu items */
+.menu-section{padding:0 max(16px,env(safe-area-inset-right,0px))}
+.menu-section-title{font-size:13px;font-weight:700;color:var(--txt2);
+  padding:16px 0 8px;text-transform:uppercase;letter-spacing:.5px}
+.menu-item{display:flex;align-items:center;gap:12px;padding:14px 0;
+  border-bottom:1px solid var(--bdr);cursor:pointer}
+.menu-item-ico{width:48px;height:48px;border-radius:12px;background:var(--surf2);
+  display:flex;align-items:center;justify-content:center;font-size:22px;flex:none}
+.menu-item-info{flex:1;min-width:0}
+.menu-item-name{font-size:15px;font-weight:600;margin-bottom:2px}
+.menu-item-desc{font-size:12px;color:var(--txt2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.menu-item-price{font-size:15px;font-weight:700;color:var(--acc);white-space:nowrap}
+/* Cart FAB */
+.cart-fab{position:fixed;bottom:max(20px,env(safe-area-inset-bottom,20px));
+  left:max(16px,env(safe-area-inset-left,16px));right:max(16px,env(safe-area-inset-right,16px));
+  background:var(--acc);color:#fff;border:none;border-radius:16px;padding:16px;
+  font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;
+  justify-content:space-between;box-shadow:0 4px 20px rgba(26,115,232,.4);transition:transform .2s}
+.cart-fab:active{transform:scale(.97)}
+/* Cart sheet */
+.sheet{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;
+  display:none;align-items:flex-end}
+.sheet.open{display:flex}
+.sheet-inner{background:var(--bg);border-radius:24px 24px 0 0;
+  width:100%;max-height:90vh;overflow:auto;padding:20px max(16px,env(safe-area-inset-right,16px)) max(20px,env(safe-area-inset-bottom,20px))}
+.sheet-handle{width:36px;height:4px;background:var(--bdr);border-radius:2px;margin:0 auto 16px}
+/* Cart item */
+.cart-item{display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--bdr)}
+.cart-item-name{flex:1;font-size:14px;font-weight:600}
+.qty-ctrl{display:flex;align-items:center;gap:8px}
+.qty-btn{width:28px;height:28px;border-radius:8px;background:var(--surf2);border:1.5px solid var(--bdr);
+  font-size:16px;font-weight:700;cursor:pointer;color:var(--txt);display:flex;align-items:center;justify-content:center}
+.qty-num{font-size:14px;font-weight:700;min-width:20px;text-align:center}
+/* Welcome screen */
+.welcome{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:40px 24px;text-align:center}
+.welcome-logo{font-size:64px;margin-bottom:16px}
+.welcome-place{font-size:22px;font-weight:800;margin-bottom:6px}
+.welcome-sub{font-size:15px;color:var(--txt2);margin-bottom:32px}
+.btn-primary{background:var(--acc);color:#fff;border:none;border-radius:14px;
+  padding:16px 32px;font-size:16px;font-weight:700;cursor:pointer;width:100%;max-width:320px}
+.btn-secondary{background:var(--surf2);color:var(--txt);border:1.5px solid var(--bdr);border-radius:14px;
+  padding:14px 32px;font-size:15px;font-weight:600;cursor:pointer;width:100%;max-width:320px;margin-top:10px}
+/* Notes input */
+.notes-input{width:100%;padding:12px;background:var(--surf2);border:1.5px solid var(--bdr);
+  border-radius:12px;font-size:14px;color:var(--txt);resize:none;font-family:inherit}
+/* Toast */
+.toast{position:fixed;bottom:max(90px,calc(env(safe-area-inset-bottom,0px)+70px));
+  left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;
+  padding:10px 20px;border-radius:20px;font-size:14px;font-weight:600;
+  z-index:200;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap}
+.toast.show{opacity:1}
+/* Review */
+.stars{display:flex;gap:6px}
+.star{font-size:32px;cursor:pointer;opacity:.3;transition:opacity .2s}
+.star.on{opacity:1}
+/* Loading / empty */
+.loader{display:flex;align-items:center;justify-content:center;flex:1;padding:60px}
+.spin{width:36px;height:36px;border:3px solid var(--bdr);border-top-color:var(--acc);
+  border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:60px 24px;text-align:center;color:var(--txt2)}
+.empty-ico{font-size:48px;margin-bottom:12px}
+/* Order confirmation */
+.confirm-card{background:var(--surf2);border-radius:16px;padding:20px;margin-bottom:16px}
+.status-pill{display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700}
+</style>
+</head>
+<body>
+
+<!-- WELCOME PAGE -->
+<div class="page active" id="pg-welcome">
+  <div class="loader" id="welcome-loader"><div class="spin"></div></div>
+  <div class="welcome" id="welcome-content" style="display:none">
+    <div class="welcome-logo" id="w-logo">🍽️</div>
+    <div class="welcome-place" id="w-place">Loading…</div>
+    <div class="welcome-sub" id="w-sub"></div>
+    <button class="btn-primary" id="btn-request-waiter">🙋 Request Waiter</button>
+    <button class="btn-secondary" onclick="goToMenu()">📋 View Menu & Order</button>
+  </div>
+  <div class="empty" id="welcome-error" style="display:none">
+    <div class="empty-ico">😕</div>
+    <p>Invalid table QR code.<br>Please ask staff for help.</p>
+  </div>
+</div>
+
+<!-- MENU PAGE -->
+<div class="page" id="pg-menu">
+  <div class="hdr">
+    <button class="hdr-back" onclick="showPage('welcome')">‹</button>
+    <span class="hdr-title" id="menu-title">Menu</span>
+    <div class="hdr-badge" id="cart-count" style="display:none">0</div>
+  </div>
+  <div class="cat-strip" id="cat-strip"></div>
+  <div id="menu-list" style="padding-bottom:100px"></div>
+  <button class="cart-fab" id="cart-fab" style="display:none" onclick="openCart()">
+    <span id="fab-count">0 items</span>
+    <span>View Cart · <span id="fab-total">KES 0</span></span>
+  </button>
+</div>
+
+<!-- ORDER TRACKING PAGE -->
+<div class="page" id="pg-tracking">
+  <div class="hdr">
+    <button class="hdr-back" onclick="showPage('menu')">‹</button>
+    <span class="hdr-title">My Order</span>
+  </div>
+  <div style="padding:20px max(16px,env(safe-area-inset-right,16px))">
+    <div class="confirm-card" id="tracking-status">
+      <div class="loader"><div class="spin"></div></div>
+    </div>
+    <div id="tracking-items"></div>
+    <div id="tracking-pay" style="display:none;margin-top:16px">
+      <h3 style="margin-bottom:12px">Pay Bill</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <button onclick="submitPayment('mpesa')" style="padding:16px;background:var(--grn);border:none;border-radius:14px;color:#fff;font-size:16px;font-weight:700;cursor:pointer">📱 M-Pesa</button>
+        <button onclick="submitPayment('cash')" style="padding:16px;background:var(--acc);border:none;border-radius:14px;color:#fff;font-size:16px;font-weight:700;cursor:pointer">💵 Cash</button>
+      </div>
+    </div>
+    <div id="tracking-review" style="display:none;margin-top:16px">
+      <h3 style="margin-bottom:16px">How was your experience?</h3>
+      <div style="margin-bottom:14px">
+        <div style="font-size:14px;font-weight:600;margin-bottom:8px">🏠 The Place</div>
+        <div class="stars" id="stars-place" data-val="0">
+          <span class="star" data-v="1">⭐</span><span class="star" data-v="2">⭐</span>
+          <span class="star" data-v="3">⭐</span><span class="star" data-v="4">⭐</span><span class="star" data-v="5">⭐</span>
+        </div>
+      </div>
+      <div style="margin-bottom:14px">
+        <div style="font-size:14px;font-weight:600;margin-bottom:8px">🍽️ The Food</div>
+        <div class="stars" id="stars-food" data-val="0">
+          <span class="star" data-v="1">⭐</span><span class="star" data-v="2">⭐</span>
+          <span class="star" data-v="3">⭐</span><span class="star" data-v="4">⭐</span><span class="star" data-v="5">⭐</span>
+        </div>
+      </div>
+      <div style="margin-bottom:16px">
+        <div style="font-size:14px;font-weight:600;margin-bottom:8px">👤 The Staff</div>
+        <div class="stars" id="stars-staff" data-val="0">
+          <span class="star" data-v="1">⭐</span><span class="star" data-v="2">⭐</span>
+          <span class="star" data-v="3">⭐</span><span class="star" data-v="4">⭐</span><span class="star" data-v="5">⭐</span>
+        </div>
+      </div>
+      <textarea class="notes-input" id="review-comment" rows="3" placeholder="Tell us more (optional)…"></textarea>
+      <button class="btn-primary" style="margin-top:12px" onclick="submitReview()">Submit Review</button>
+    </div>
+  </div>
+</div>
+
+<!-- CART SHEET -->
+<div class="sheet" id="cart-sheet" onclick="if(event.target===this)closeCart()">
+  <div class="sheet-inner">
+    <div class="sheet-handle"></div>
+    <h2 style="margin-bottom:16px">Your Order</h2>
+    <div id="cart-items-list"></div>
+    <div style="margin-top:8px">
+      <textarea class="notes-input" id="order-notes" rows="2" placeholder="Any special requests? (e.g. no chilli, extra sauce…)"></textarea>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-top:1px solid var(--bdr);margin-top:12px">
+      <span style="font-size:16px;font-weight:700">Total</span>
+      <span style="font-size:20px;font-weight:800;color:var(--acc)" id="cart-total-display">KES 0</span>
+    </div>
+    <button class="btn-primary" style="margin-top:4px" onclick="placeOrder()">Place Order</button>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+const SUPA_URL = 'https://zxucpsdfcokkjtcgygna.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp4dWNwc2RmY29ra2p0Y2d5Z25hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI3NDc0NzUsImV4cCI6MjEwODMyMzQ3NX0.6JH4kLkge4D-8SCYLIGh7zmAvX0exJILThhOQ79BusA';
+const headers = { 'apikey': SUPA_KEY, 'Authorization': `Bearer ${SUPA_KEY}`, 'Accept': 'application/json' };
+
+let TABLE = null;  // { id, shop_id, qr_token, table_number, section_id }
+let SHOP  = null;  // { id, name, … }
+let MENU  = [];    // hospitality_menu_items
+let CART  = [];    // { item, qty, notes }
+let ORDER_ID = null;
+let _pollTimer = null;
+
+async function get(path) {
+  const r = await fetch(`${SUPA_URL}/rest/v1/${path}`, { headers });
+  if (!r.ok) return null;
+  return r.json().catch(() => null);
+}
+async function post(table, body) {
+  const r = await fetch(`${SUPA_URL}/rest/v1/${table}`, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+    body: JSON.stringify(body)
+  });
+  const d = await r.json().catch(() => null);
+  return r.ok ? (Array.isArray(d) ? d[0] : d) : null;
+}
+async function patch(table, filter, body) {
+  const r = await fetch(`${SUPA_URL}/rest/v1/${table}?${filter}`, {
+    method: 'PATCH',
+    headers: { ...headers, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+    body: JSON.stringify(body)
+  });
+  return r.ok;
+}
+
+function kes(n) { return 'KES ' + Number(n||0).toLocaleString(); }
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function showToast(msg, err) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.background = err ? '#ea4335' : '#1a1a1a';
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('pg-' + name)?.classList.add('active');
+}
+
+// ── Bootstrap ─────────────────────────────────────────────
+async function init() {
+  const qrToken = new URLSearchParams(location.search).get('t');
+  if (!qrToken) { showError(); return; }
+
+  // Load table + shop
+  const tables = await get(`hospitality_tables?qr_token=eq.${encodeURIComponent(qrToken)}&select=*`);
+  if (!tables?.length) { showError(); return; }
+  TABLE = tables[0];
+
+  const shops = await get(`shops?id=eq.${TABLE.shop_id}&select=id,name,location`);
+  if (!shops?.length) { showError(); return; }
+  SHOP = shops[0];
+
+  // Show welcome
+  document.getElementById('welcome-loader').style.display = 'none';
+  document.getElementById('welcome-content').style.display = 'flex';
+  document.getElementById('welcome-content').style.flexDirection = 'column';
+  document.getElementById('welcome-content').style.alignItems = 'center';
+  document.getElementById('w-place').textContent = SHOP.name;
+  document.getElementById('w-sub').textContent = `Welcome to ${TABLE.table_number}${SHOP.location ? ' · ' + SHOP.location : ''}`;
+  document.getElementById('btn-request-waiter').onclick = requestWaiter;
+
+  // Load menu in background
+  MENU = await get(`hospitality_menu_items?shop_id=eq.${TABLE.shop_id}&available=eq.true&order=category,sort_order`) || [];
+}
+
+function showError() {
+  document.getElementById('welcome-loader').style.display = 'none';
+  document.getElementById('welcome-error').style.display = 'flex';
+}
+
+async function requestWaiter() {
+  const btn = document.getElementById('btn-request-waiter');
+  btn.disabled = true;
+  btn.textContent = 'Requesting…';
+  // Create a minimal "waiter request" order so staff get notified
+  const order = await post('hospitality_orders', {
+    shop_id: TABLE.shop_id,
+    table_id: TABLE.id,
+    section_id: TABLE.section_id,
+    status: 'pending',
+    payment_status: 'unpaid',
+    total_amount: 0,
+    guest_name: 'Guest',
+    notes: 'WAITER REQUESTED'
+  });
+  if (order) {
+    ORDER_ID = order.id;
+    showToast('✅ Waiter notified! They\'ll be with you shortly.');
+    btn.textContent = '✓ Waiter on the way';
+    setTimeout(() => goToMenu(), 2000);
+  } else {
+    btn.disabled = false;
+    btn.textContent = '🙋 Request Waiter';
+    showToast('Could not send request. Try again.', true);
+  }
+}
+
+// ── Menu ──────────────────────────────────────────────────
+function goToMenu() {
+  showPage('menu');
+  document.getElementById('menu-title').textContent = `${SHOP?.name || ''} Menu`;
+  renderMenu();
+}
+
+const CAT_ICON = { food:'🍽️', drink:'🥤', cocktail:'🍹', dessert:'🍰', special:'⭐' };
+
+function renderMenu(filterCat) {
+  const byCategory = {};
+  MENU.forEach(i => { const c = i.category||'food'; if (!filterCat || c===filterCat) (byCategory[c]=byCategory[c]||[]).push(i); });
+
+  // Category pills
+  const cats = [...new Set(MENU.map(i => i.category||'food'))];
+  document.getElementById('cat-strip').innerHTML =
+    `<div class="cat-pill ${!filterCat?'on':''}" onclick="renderMenu()">All</div>` +
+    cats.map(c => `<div class="cat-pill ${filterCat===c?'on':''}" onclick="renderMenu('${c}')">${CAT_ICON[c]||'🍽️'} ${c.charAt(0).toUpperCase()+c.slice(1)}</div>`).join('');
+
+  let h = '';
+  Object.keys(byCategory).forEach(cat => {
+    h += `<div class="menu-section">
+      <div class="menu-section-title">${CAT_ICON[cat]||'🍽️'} ${cat.charAt(0).toUpperCase()+cat.slice(1)}</div>`;
+    byCategory[cat].forEach(item => {
+      h += `<div class="menu-item" onclick="addToCart('${item.id}')">
+        <div class="menu-item-ico">${CAT_ICON[item.category]||'🍽️'}</div>
+        <div class="menu-item-info">
+          <div class="menu-item-name">${esc(item.name)}</div>
+          ${item.description ? `<div class="menu-item-desc">${esc(item.description)}</div>` : ''}
+        </div>
+        <div class="menu-item-price">${kes(item.price)}</div>
+      </div>`;
+    });
+    h += `</div>`;
+  });
+  document.getElementById('menu-list').innerHTML = h || `<div class="empty"><div class="empty-ico">😕</div><p>No items available right now.</p></div>`;
+  updateCartUI();
+}
+
+function addToCart(itemId) {
+  const item = MENU.find(i => i.id === itemId);
+  if (!item) return;
+  const existing = CART.find(c => c.item.id === itemId);
+  if (existing) { existing.qty++; }
+  else { CART.push({ item, qty: 1 }); }
+  showToast(`+ ${item.name}`);
+  updateCartUI();
+}
+
+function updateCartUI() {
+  const total = CART.reduce((s, c) => s + c.item.price * c.qty, 0);
+  const count = CART.reduce((s, c) => s + c.qty, 0);
+  const fab = document.getElementById('cart-fab');
+  const badge = document.getElementById('cart-count');
+  if (CART.length) {
+    fab.style.display = 'flex';
+    badge.style.display = 'block';
+    badge.textContent = count;
+    document.getElementById('fab-count').textContent = `${count} item${count!==1?'s':''}`;
+    document.getElementById('fab-total').textContent = kes(total);
+  } else {
+    fab.style.display = 'none';
+    badge.style.display = 'none';
+  }
+}
+
+// ── Cart ──────────────────────────────────────────────────
+function openCart() {
+  const total = CART.reduce((s, c) => s + c.item.price * c.qty, 0);
+  document.getElementById('cart-total-display').textContent = kes(total);
+  document.getElementById('cart-items-list').innerHTML = CART.map((c, idx) => `
+    <div class="cart-item">
+      <div class="cart-item-name">${esc(c.item.name)}<br><span style="font-size:12px;color:var(--txt2)">${kes(c.item.price)} each</span></div>
+      <div class="qty-ctrl">
+        <button class="qty-btn" onclick="changeQty(${idx},-1)">−</button>
+        <span class="qty-num">${c.qty}</span>
+        <button class="qty-btn" onclick="changeQty(${idx},1)">+</button>
+      </div>
+      <div style="font-weight:700;min-width:70px;text-align:right">${kes(c.item.price * c.qty)}</div>
+    </div>`).join('');
+  document.getElementById('cart-sheet').classList.add('open');
+}
+function closeCart() { document.getElementById('cart-sheet').classList.remove('open'); }
+function changeQty(idx, delta) {
+  CART[idx].qty += delta;
+  if (CART[idx].qty <= 0) CART.splice(idx, 1);
+  updateCartUI();
+  if (!CART.length) { closeCart(); return; }
+  openCart();
+}
+
+async function placeOrder() {
+  if (!CART.length) return;
+  const notes = document.getElementById('order-notes')?.value.trim() || null;
+  const total = CART.reduce((s, c) => s + c.item.price * c.qty, 0);
+
+  let orderId = ORDER_ID; // may exist from waiter request
+  if (!orderId) {
+    const order = await post('hospitality_orders', {
+      shop_id: TABLE.shop_id,
+      table_id: TABLE.id,
+      section_id: TABLE.section_id,
+      status: 'pending',
+      payment_status: 'unpaid',
+      total_amount: total,
+      notes,
+      guest_name: 'Guest',
+    });
+    if (!order) { showToast('Failed to place order. Try again.', true); return; }
+    orderId = order.id;
+    ORDER_ID = orderId;
+  } else {
+    // Update existing order (waiter request)
+    await patch('hospitality_orders', `id=eq.${orderId}`, { total_amount: total, notes, status: 'pending', notes: notes||'ORDER PLACED' });
+  }
+
+  // Insert order items
+  const items = CART.map(c => ({
+    order_id: orderId,
+    menu_item_id: c.item.id,
+    name: c.item.name,
+    price: c.item.price,
+    cost_price: c.item.cost_price || 0,
+    quantity: c.qty,
+  }));
+  await fetch(`${SUPA_URL}/rest/v1/hospitality_order_items`, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+    body: JSON.stringify(items)
+  });
+
+  CART = [];
+  closeCart();
+  updateCartUI();
+  showToast('✅ Order placed! Kitchen is on it.');
+  showPage('tracking');
+  startTracking(orderId);
+}
+
+// ── Order tracking ─────────────────────────────────────────
+async function startTracking(orderId) {
+  ORDER_ID = orderId;
+  await refreshTracking();
+  if (_pollTimer) clearInterval(_pollTimer);
+  _pollTimer = setInterval(refreshTracking, 15000); // refresh every 15s
+}
+
+const STATUS_STEPS = {
+  pending:   { label: 'Order Received', ico: '⏳', color: '#3b82f6', msg: 'Your order has been received. A waiter will confirm shortly.' },
+  confirmed: { label: 'Confirmed',      ico: '✔️',  color: '#8b5cf6', msg: 'Order confirmed! The kitchen is now preparing your food.' },
+  preparing: { label: 'Being Prepared', ico: '👨‍🍳', color: '#f59e0b', msg: 'Your food is being prepared. Won\'t be long!' },
+  ready:     { label: 'Ready!',         ico: '✅',  color: '#22c55e', msg: 'Food is ready! Your waiter is bringing it over.' },
+  served:    { label: 'Served',         ico: '🍽️',  color: '#16a34a', msg: 'Enjoy your meal! Pay when you\'re ready.' },
+  paid:      { label: 'Paid',           ico: '💚',  color: '#16a34a', msg: 'Thank you! We hope you enjoyed your time with us.' },
+};
+
+async function refreshTracking() {
+  const order = await get(`hospitality_orders?id=eq.${ORDER_ID}&select=*`).then(r => r?.[0]);
+  const items  = await get(`hospitality_order_items?order_id=eq.${ORDER_ID}&select=*`) || [];
+  const el = document.getElementById('tracking-status');
+  if (!el || !order) return;
+
+  const st = STATUS_STEPS[order.status] || STATUS_STEPS.pending;
+  const mins = Math.floor((Date.now() - new Date(order.created_at).getTime()) / 60000);
+
+  el.innerHTML = `
+    <div style="font-size:48px;margin-bottom:12px">${st.ico}</div>
+    <div style="font-size:18px;font-weight:800;margin-bottom:6px">${st.label}</div>
+    <p style="font-size:14px;color:var(--txt2);margin-bottom:12px">${st.msg}</p>
+    <span class="status-pill" style="background:${st.color}22;color:${st.color}">${mins}m · ${order.payment_status}</span>`;
+
+  document.getElementById('tracking-items').innerHTML = `
+    <h3 style="margin:16px 0 10px">Your Items</h3>
+    <div style="background:var(--surf2);border-radius:12px;overflow:hidden">
+      ${items.map(i => `<div style="display:flex;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--bdr)">
+        <span style="font-size:14px;font-weight:600">${esc(i.name)} ×${i.quantity}</span>
+        <span style="font-weight:700">${kes(i.price*i.quantity)}</span>
+      </div>`).join('')}
+      <div style="display:flex;justify-content:space-between;padding:12px 14px;font-size:16px;font-weight:800">
+        <span>Total</span><span style="color:var(--acc)">${kes(order.total_amount)}</span>
+      </div>
+    </div>`;
+
+  // Show pay button when served & unpaid
+  const payEl = document.getElementById('tracking-pay');
+  payEl.style.display = (order.status === 'served' && order.payment_status === 'unpaid') ? 'block' : 'none';
+
+  // Show review when paid
+  const revEl = document.getElementById('tracking-review');
+  revEl.style.display = (order.status === 'paid' && order.payment_status === 'paid') ? 'block' : 'none';
+  if (order.status === 'paid') { if (_pollTimer) clearInterval(_pollTimer); }
+}
+
+async function submitPayment(method) {
+  await patch('hospitality_orders', `id=eq.${ORDER_ID}`, {
+    payment_status: 'pending_confirmation',
+    payment_method: method,
+    notes: `Customer paying via ${method}`,
+  });
+  showToast(`Staff will confirm your ${method} payment.`);
+  await refreshTracking();
+}
+
+// ── Review ───────────────────────────────────────────────
+document.querySelectorAll('.stars').forEach(group => {
+  group.querySelectorAll('.star').forEach(star => {
+    star.onclick = () => {
+      const val = parseInt(star.dataset.v);
+      group.dataset.val = val;
+      group.querySelectorAll('.star').forEach(s => s.classList.toggle('on', parseInt(s.dataset.v) <= val));
+    };
+  });
+});
+
+async function submitReview() {
+  const placeRating = parseInt(document.getElementById('stars-place').dataset.val) || null;
+  const foodRating  = parseInt(document.getElementById('stars-food').dataset.val) || null;
+  const staffRating = parseInt(document.getElementById('stars-staff').dataset.val) || null;
+  const comment = document.getElementById('review-comment')?.value.trim() || null;
+  if (!placeRating && !foodRating && !staffRating) { showToast('Tap stars to rate', true); return; }
+  await post('hospitality_reviews', {
+    shop_id: TABLE.shop_id,
+    order_id: ORDER_ID,
+    table_id: TABLE.id,
+    place_rating: placeRating,
+    food_rating: foodRating,
+    staff_rating: staffRating,
+    comment,
+  });
+  document.getElementById('tracking-review').innerHTML = `
+    <div style="text-align:center;padding:24px">
+      <div style="font-size:48px;margin-bottom:12px">🙏</div>
+      <h3 style="margin-bottom:8px">Thank you!</h3>
+      <p style="color:var(--txt2);font-size:14px">Your review helps us improve. Come back soon!</p>
+    </div>`;
+  showToast('⭐ Review submitted!');
+}
+
+init();
+</script>
+</body>
+</html>

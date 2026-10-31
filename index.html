@@ -793,9 +793,10 @@ async function loadUserContext() {
   document.getElementById('hdr-role-badge').textContent = roleBadge[S.member.role] || '🧾 Staff';
 
   // Business type flags
-  S.isAirbnb  = S.shop.business_type === 'airbnb';
-  S.isFit     = S.shop.business_type === 'fit';
-  S.isLeisure = S.shop.business_type === 'leisure';
+  S.isAirbnb      = S.shop.business_type === 'airbnb';
+  S.isFit         = S.shop.business_type === 'fit';
+  S.isLeisure     = S.shop.business_type === 'leisure';
+  S.isHospitality = S.shop.business_type === 'hospitality';
   const role = S.member.role;
   const isHousekeeper = S.isAirbnb && role === 'housekeeper';
   const isCoHost = S.isAirbnb && role === 'co-host';
@@ -839,6 +840,13 @@ async function loadUserContext() {
       <button class="ni" data-tab="sales"><span class="ni-ico">💰</span><span class="ni-lbl">Sales</span></button>
       <button class="ni" data-tab="customers"><span class="ni-ico">👥</span><span class="ni-lbl">Guests</span></button>
       <button class="ni" data-tab="more"><span class="ni-ico">☰</span><span class="ni-lbl">More</span></button>`;
+  } else if (S.isHospitality) {
+    document.getElementById('bottom-nav').innerHTML = `
+      <button class="ni on" data-tab="home"><span class="ni-ico">🏠</span><span class="ni-lbl">Home</span></button>
+      <button class="ni" data-tab="hosp-orders"><span class="ni-ico">🍽️</span><span class="ni-lbl">Orders</span></button>
+      <button class="ni" data-tab="hosp-menu"><span class="ni-ico">📋</span><span class="ni-lbl">Menu</span></button>
+      <button class="ni" data-tab="customers"><span class="ni-ico">👥</span><span class="ni-lbl">Guests</span></button>
+      <button class="ni" data-tab="more"><span class="ni-ico">☰</span><span class="ni-lbl">More</span></button>`;
   } else if (role === 'cashier') {
     document.getElementById('bottom-nav').innerHTML = `
       <button class="ni on" data-tab="home"><span class="ni-ico">🏠</span><span class="ni-lbl">Home</span></button>
@@ -851,6 +859,8 @@ async function loadUserContext() {
     await Promise.all([loadFitServices(), loadFitClients(), loadFitMemberships()]);
   } else if (S.isLeisure) {
     await Promise.all([loadCustomers(), loadLoyalty()]);
+  } else if (S.isHospitality) {
+    await Promise.all([loadCustomers(), loadLoyalty()]);
   } else {
     await Promise.all([loadProducts(), loadCustomers(), loadSuppliers(), loadLoyalty()]);
   }
@@ -858,8 +868,8 @@ async function loadUserContext() {
   setupNav();
   showTab('home');
   subscribeMerchantPush();
-  if (!S.isAirbnb && !S.isFit && !S.isLeisure) setTimeout(refreshOrdersBadge, 2000);
-  if (S.isLeisure) setTimeout(refreshOrdersBadge, 2000);
+  if (!S.isAirbnb && !S.isFit && !S.isLeisure && !S.isHospitality) setTimeout(refreshOrdersBadge, 2000);
+  if (S.isLeisure || S.isHospitality) setTimeout(refreshOrdersBadge, 2000);
 }
 
 /* ── Merchant Push Subscriptions ── */
@@ -3670,7 +3680,7 @@ function showTab(tab) {
 async function renderTab(tab) {
   const el = document.getElementById('main-content');
   el.innerHTML = '<div class="loader"><div class="spin"></div></div>';
-  if (tab === 'home')               await (S.isFit ? renderFitHome(el) : S.isAirbnb && S.member.role === 'housekeeper' ? renderHousekeeperHome(el) : S.isAirbnb ? renderAirbnbHome(el) : S.isLeisure ? renderLeisureHome(el) : renderHome(el));
+  if (tab === 'home')               await (S.isFit ? renderFitHome(el) : S.isAirbnb && S.member.role === 'housekeeper' ? renderHousekeeperHome(el) : S.isAirbnb ? renderAirbnbHome(el) : S.isLeisure ? renderLeisureHome(el) : S.isHospitality ? renderHospHome(el) : renderHome(el));
   else if (tab === 'fit-sessions')  await renderFitSessions(el);
   else if (tab === 'fit-services')  await renderFitServices(el);
   else if (tab === 'fit-clients')   await renderFitClients(el);
@@ -3680,6 +3690,8 @@ async function renderTab(tab) {
   else if (tab === 'bookings')      await renderBookings(el);
   else if (tab === 'units')         await renderUnits(el);
   else if (tab === 'supplies')      await renderSupplies(el);
+  else if (tab === 'hosp-orders')   await renderHospOrders(el);
+  else if (tab === 'hosp-menu')     await renderHospMenu(el);
   else if (tab === 'more')          renderMore(el);
 }
 
@@ -4933,7 +4945,7 @@ function renderMore(el) {
   el.innerHTML = `
     <div style="padding:14px max(16px,env(safe-area-inset-right,0px)) 0">
       <div style="background:var(--surf);border:1px solid var(--bdr);border-radius:16px;padding:20px;text-align:center;margin-bottom:14px">
-        <div style="font-size:36px;margin-bottom:8px">${S.isFit?'🏋️':S.isAirbnb?'🏠':S.isLeisure?'🎯':'🏪'}</div>
+        <div style="font-size:36px;margin-bottom:8px">${S.isFit?'🏋️':S.isAirbnb?'🏠':S.isLeisure?'🎯':S.isHospitality?'🍽️':'🏪'}</div>
         <div style="font-size:17px;font-weight:700">${S.shop.name}</div>
         <div style="font-size:12px;color:var(--txt2);margin-top:4px">${S.shop.location||''}</div>
         ${S.shop.mpesa_till?`<div style="font-size:11px;color:var(--txt3);margin-top:3px">M-Pesa Till: ${S.shop.mpesa_till}</div>`:''}
@@ -4943,7 +4955,36 @@ function renderMore(el) {
 
       ${canManage?`<div class="sec-ttl" style="margin-bottom:10px">Business Tools</div>
       <div class="clist">
-        ${S.isFit?`
+        ${S.isHospitality?`
+        <div class="more-item" onclick="openHospSections()">
+          <div class="more-ico" style="background:#0891b222">🗂️</div>
+          <div class="more-inf"><div class="more-nm">Sections & Tables</div><div class="more-mt">Manage bar, garden, dining areas & QR codes</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showTab('hosp-menu')">
+          <div class="more-ico" style="background:#f59e0b22">📋</div>
+          <div class="more-inf"><div class="more-nm">Menu</div><div class="more-mt">Add, edit & price your food & drinks</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showTab('hosp-orders')">
+          <div class="more-ico" style="background:#ef444422">🍽️</div>
+          <div class="more-inf"><div class="more-nm">Live Orders</div><div class="more-mt">Active table orders & kitchen queue</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="openHospShifts()">
+          <div class="more-ico" style="background:#7c3aed22">📅</div>
+          <div class="more-inf"><div class="more-nm">Staff Schedule</div><div class="more-mt">Set shifts, roles & duties by day</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="openHospDashboard()">
+          <div class="more-ico" style="background:#16a34a22">📊</div>
+          <div class="more-inf"><div class="more-nm">Reports</div><div class="more-mt">Revenue, profit, table times & staff leaderboard</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showExpenses()">
+          <div class="more-ico" style="background:#7c3aed22">💸</div>
+          <div class="more-inf"><div class="more-nm">Expenses</div><div class="more-mt">Track business costs & utilities</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showBusinessHealth()">
+          <div class="more-ico" style="background:#16a34a22">💰</div>
+          <div class="more-inf"><div class="more-nm">Business Health</div><div class="more-mt">Revenue minus expenses — profitability view</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+        `:S.isFit?`
         <div class="more-item" onclick="renderFitWorkoutPlans(document.getElementById('main-content'))">
           <div class="more-ico" style="background:#7c3aed22">📋</div>
           <div class="more-inf"><div class="more-nm">Workout Plans</div><div class="more-mt">Create plans for clients with goal tracking</div></div>
@@ -7476,6 +7517,585 @@ function removeFab() { _fab?.remove(); _fab = null; }
 
 /* ─── esc helper ─── */
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+/* ═══════════════════════════════
+   HAPPA HOSPITALITY
+   Bars · Restaurants · Hotels
+═══════════════════════════════ */
+
+// ── Home dashboard ──────────────────────────────────────────
+async function renderHospHome(el) {
+  const today = todayStart();
+  const [ordersRaw, reviewsRaw] = await Promise.all([
+    apiGet(`hospitality_orders?shop_id=eq.${S.shop.id}&created_at=gte.${today}&select=*`),
+    apiGet(`hospitality_reviews?shop_id=eq.${S.shop.id}&created_at=gte.${today}&select=*`),
+  ]);
+  const orders = ordersRaw || [];
+  const reviews = reviewsRaw || [];
+  const active  = orders.filter(o => !['paid','cancelled'].includes(o.status));
+  const revenue = orders.filter(o => o.payment_status === 'paid').reduce((s,o) => s + Number(o.total_amount||0), 0);
+  const avgRating = reviews.length
+    ? ((reviews.reduce((s,r) => s + ((r.place_rating||0)+(r.food_rating||0)+(r.staff_rating||0))/3, 0)) / reviews.length).toFixed(1)
+    : '—';
+
+  el.innerHTML = `
+  <div class="tab-content">
+    <div style="padding:16px max(16px,env(safe-area-inset-right,0px)) 0">
+      <div class="sec-ttl" style="margin-bottom:10px">Today — ${S.shop.name}</div>
+      <div class="stats">
+        <div class="scard" onclick="showTab('hosp-orders')" style="cursor:pointer">
+          <div class="scard-lbl">Active Orders</div>
+          <div class="scard-val">${active.length}</div>
+          ${active.length ? `<span class="bdg bdg-r">${active.length} live</span>` : `<div class="scard-sub">tables</div>`}
+        </div>
+        <div class="scard">
+          <div class="scard-lbl">Revenue</div>
+          <div class="scard-val">${kshort(revenue)}</div>
+          <div class="scard-sub">KES today</div>
+        </div>
+        <div class="scard">
+          <div class="scard-lbl">Avg Rating</div>
+          <div class="scard-val">${avgRating}</div>
+          <div class="scard-sub">/ 5 stars</div>
+        </div>
+      </div>
+
+      ${active.length ? `
+      <div class="sec-ttl" style="margin:16px 0 10px">🟢 Live Tables</div>
+      <div class="clist">
+        ${active.map(o => {
+          const mins = Math.floor((Date.now() - new Date(o.confirmed_at||o.created_at).getTime()) / 60000);
+          const statusCol = o.status === 'preparing' ? '#f59e0b' : o.status === 'ready' ? '#22c55e' : '#3b82f6';
+          return `<div class="dbi" onclick="openHospOrderDetail('${o.id}')">
+            <div class="db-av" style="background:${statusCol}22;font-size:18px">${o.status==='preparing'?'👨‍🍳':o.status==='ready'?'✅':'⏳'}</div>
+            <div class="db-inf">
+              <div class="db-nm">Table ${esc(o.table_id ? '' : '—')} · ${esc(o.guest_name||'Guest')}</div>
+              <div class="db-mt">${o.status} · ${mins}m ago · ${kes(o.total_amount||0)}</div>
+            </div>
+            <span style="color:${statusCol};font-weight:700;text-transform:capitalize">${o.status}</span>
+          </div>`;
+        }).join('')}
+      </div>` : `<div class="empty" style="padding:40px 0"><div class="empty-ico">🍽️</div><p>No active orders right now</p></div>`}
+
+      ${(S.member.role === 'owner' || S.member.role === 'manager') ? `
+      <div class="sec-ttl" style="margin:16px 0 10px">Quick Actions</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px">
+        <button onclick="openHospSections()" style="padding:14px;background:var(--surf2);border:1.5px solid var(--bdr);border-radius:14px;color:var(--txt);font-size:13px;font-weight:600;cursor:pointer;text-align:left">
+          🗂️ Sections & Tables
+        </button>
+        <button onclick="showTab('hosp-menu')" style="padding:14px;background:var(--surf2);border:1.5px solid var(--bdr);border-radius:14px;color:var(--txt);font-size:13px;font-weight:600;cursor:pointer;text-align:left">
+          📋 Manage Menu
+        </button>
+        <button onclick="openHospShifts()" style="padding:14px;background:var(--surf2);border:1.5px solid var(--bdr);border-radius:14px;color:var(--txt);font-size:13px;font-weight:600;cursor:pointer;text-align:left">
+          📅 Staff Schedule
+        </button>
+        <button onclick="openHospDashboard()" style="padding:14px;background:var(--surf2);border:1.5px solid var(--bdr);border-radius:14px;color:var(--txt);font-size:13px;font-weight:600;cursor:pointer;text-align:left">
+          📊 Reports
+        </button>
+      </div>` : ''}
+    </div>
+  </div>`;
+}
+
+// ── Sections management ──────────────────────────────────────
+async function openHospSections() {
+  pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>🗂️ Sections & Tables</h2></div>
+    <div class="sh-body" id="hosp-sec-body"><div class="loader"><div class="spin"></div></div></div>`);
+  await _loadHospSections();
+}
+async function _loadHospSections() {
+  const el = document.getElementById('hosp-sec-body');
+  if (!el) return;
+  const sections = await apiGet(`hospitality_sections?shop_id=eq.${S.shop.id}&select=*,hospitality_tables(id)&order=sort_order`);
+  if (!sections?.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-ico">🗂️</div><p>No sections yet.<br>Add your first area (Bar, Garden, etc.)</p></div>`;
+  } else {
+    el.innerHTML = `<p style="font-size:13px;color:var(--txt2);margin:0 0 14px">Tap a section to manage its tables & QR codes.</p>
+      <div class="clist">${sections.map(s => `
+        <div class="dbi" onclick="openHospTables('${s.id}','${esc(s.name)}')">
+          <div class="db-av" style="background:var(--acc-d);font-size:18px">${s.section_type==='bar'?'🍺':s.section_type==='accommodation'?'🛏️':'🪑'}</div>
+          <div class="db-inf">
+            <div class="db-nm">${esc(s.name)}</div>
+            <div class="db-mt">${(s.hospitality_tables||[]).length} tables · ${s.section_type}</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button onclick="event.stopPropagation();editHospSection(${JSON.stringify(s).replace(/"/g,'&quot;')})" style="background:none;border:none;font-size:18px;cursor:pointer">✏️</button>
+            <button onclick="event.stopPropagation();deleteHospSection('${s.id}')" style="background:none;border:none;font-size:18px;cursor:pointer">🗑</button>
+          </div>
+        </div>`).join('')}
+      </div>`;
+  }
+  addFab('+ Add Section', () => editHospSection(null));
+}
+async function editHospSection(s) {
+  pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>${s?'Edit':'Add'} Section</h2></div>
+    <div class="sh-body">
+      <div class="fg-s"><label class="fl">Section Name</label><input id="hs-name" class="fi" placeholder="e.g. Bar One, Garden Counter" value="${s?esc(s.name):''}"></div>
+      <div class="fg-s"><label class="fl">Type</label><select id="hs-type" class="fi">
+        <option value="dining" ${(!s||s.section_type==='dining')?'selected':''}>🪑 Dining</option>
+        <option value="bar" ${s?.section_type==='bar'?'selected':''}>🍺 Bar</option>
+        <option value="accommodation" ${s?.section_type==='accommodation'?'selected':''}>🛏️ Accommodation</option>
+        <option value="other" ${s?.section_type==='other'?'selected':''}>📦 Other</option>
+      </select></div>
+      <button class="btn-p" style="width:100%;margin-top:8px" onclick="saveHospSection(${s?`'${s.id}'`:null})">${s?'Save Changes':'Add Section'}</button>
+    </div>`);
+}
+async function saveHospSection(existingId) {
+  const name = document.getElementById('hs-name')?.value.trim();
+  const section_type = document.getElementById('hs-type')?.value;
+  if (!name) { showToast('Enter a section name', true); return; }
+  const body = { shop_id: S.shop.id, name, section_type };
+  let ok;
+  if (existingId) {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/hospitality_sections?id=eq.${existingId}`, {
+      method:'PATCH', headers:{...apiHeaders(),'Content-Type':'application/json','Prefer':'return=minimal'}, body:JSON.stringify({name,section_type})});
+    ok = r.ok;
+  } else {
+    const r = await apiPost('hospitality_sections', body);
+    ok = !r.error;
+  }
+  if (!ok) { showToast('Save failed', true); return; }
+  showToast(existingId ? '✅ Updated' : '✅ Section added');
+  popSheet(); popSheet();
+  await openHospSections();
+}
+async function deleteHospSection(id) {
+  if (!confirm('Delete this section and all its tables?')) return;
+  await fetch(`${SUPABASE_URL}/rest/v1/hospitality_sections?id=eq.${id}`, {method:'DELETE',headers:apiHeaders()});
+  showToast('🗑 Deleted');
+  const el = document.getElementById('hosp-sec-body');
+  if (el) await _loadHospSections();
+}
+
+// ── Tables & QR codes ────────────────────────────────────────
+async function openHospTables(sectionId, sectionName) {
+  pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>🪑 ${esc(sectionName)}</h2></div>
+    <div class="sh-body" id="hosp-tbl-body-${sectionId}"><div class="loader"><div class="spin"></div></div></div>`);
+  await _loadHospTables(sectionId);
+}
+async function _loadHospTables(sectionId) {
+  const el = document.getElementById(`hosp-tbl-body-${sectionId}`);
+  if (!el) return;
+  const tables = await apiGet(`hospitality_tables?section_id=eq.${sectionId}&order=table_number&select=*`);
+  if (!tables?.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-ico">🪑</div><p>No tables yet in this section.</p></div>`;
+  } else {
+    el.innerHTML = `<p style="font-size:13px;color:var(--txt2);margin:0 0 14px">Tap a table to view its QR code.</p>
+      <div class="clist">${tables.map(t => `
+        <div class="dbi" onclick="showHospQR('${t.id}','${esc(t.table_number)}','${t.qr_token}')">
+          <div class="db-av" style="background:var(--acc-d)">🪑</div>
+          <div class="db-inf">
+            <div class="db-nm">${esc(t.table_number)}</div>
+            <div class="db-mt">Capacity: ${t.capacity} · QR: ${t.qr_token.slice(0,8)}…</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button onclick="event.stopPropagation();deleteHospTable('${t.id}','${sectionId}')" style="background:none;border:none;font-size:18px;cursor:pointer">🗑</button>
+          </div>
+        </div>`).join('')}
+      </div>`;
+  }
+  addFab('+ Add Table', () => addHospTablesSheet(sectionId));
+}
+async function addHospTablesSheet(sectionId) {
+  pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>Add Tables</h2></div>
+    <div class="sh-body">
+      <p style="font-size:13px;color:var(--txt2);margin:0 0 16px">Enter how many tables to add — QR codes are auto-generated for each.</p>
+      <div class="fg-s"><label class="fl">Starting Number / Name</label><input id="ht-start" class="fi" placeholder="e.g. Table 1 or T1" value="Table 1"></div>
+      <div class="fg-s"><label class="fl">How many tables?</label><input id="ht-count" class="fi" type="number" min="1" max="50" value="1"></div>
+      <div class="fg-s"><label class="fl">Capacity (seats per table)</label><input id="ht-cap" class="fi" type="number" min="1" max="20" value="4"></div>
+      <button class="btn-p" style="width:100%;margin-top:8px" onclick="saveHospTables('${sectionId}')">Generate Tables & QR Codes</button>
+    </div>`);
+}
+async function saveHospTables(sectionId) {
+  const start = document.getElementById('ht-start')?.value.trim() || 'Table 1';
+  const count = parseInt(document.getElementById('ht-count')?.value) || 1;
+  const capacity = parseInt(document.getElementById('ht-cap')?.value) || 4;
+  const toInsert = [];
+  // Parse starting number
+  const numMatch = start.match(/(\d+)$/);
+  const prefix = numMatch ? start.slice(0, start.length - numMatch[1].length) : start + ' ';
+  const startNum = numMatch ? parseInt(numMatch[1]) : 1;
+  for (let i = 0; i < count; i++) {
+    toInsert.push({
+      shop_id: S.shop.id, section_id: sectionId,
+      table_number: numMatch ? `${prefix}${startNum+i}` : (count===1 ? start : `${prefix}${startNum+i}`),
+      capacity
+    });
+  }
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/hospitality_tables`, {
+    method:'POST', headers:{...apiHeaders(),'Content-Type':'application/json','Prefer':'return=minimal'},
+    body: JSON.stringify(toInsert)
+  });
+  if (!r.ok) { showToast('Failed to add tables', true); return; }
+  showToast(`✅ ${count} table${count>1?'s':''} added with QR codes`);
+  popSheet(); popSheet();
+  await openHospTables(sectionId, '');
+}
+async function deleteHospTable(id, sectionId) {
+  if (!confirm('Delete this table and its QR code?')) return;
+  await fetch(`${SUPABASE_URL}/rest/v1/hospitality_tables?id=eq.${id}`, {method:'DELETE',headers:apiHeaders()});
+  showToast('🗑 Table deleted');
+  await _loadHospTables(sectionId);
+}
+function showHospQR(tableId, tableName, qrToken) {
+  const orderUrl = `${location.origin}/hospitality-order.html?t=${qrToken}`;
+  pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>QR — ${esc(tableName)}</h2></div>
+    <div class="sh-body" style="text-align:center">
+      <div id="hosp-qr-container" style="display:inline-block;background:#fff;padding:16px;border-radius:16px;margin:16px 0"></div>
+      <p style="font-size:13px;color:var(--txt2);margin:0 0 16px">Customers scan this at the table to see the menu & order.</p>
+      <p style="font-size:11px;color:var(--txt3);word-break:break-all;margin:0 0 16px">${esc(orderUrl)}</p>
+      <button class="btn-p" onclick="navigator.clipboard?.writeText('${esc(orderUrl)}').then(()=>showToast('Link copied ✓'))" style="width:100%;margin-bottom:10px">📋 Copy Table Link</button>
+      <button onclick="window.open('${esc(orderUrl)}','_blank')" style="width:100%;padding:12px;background:var(--surf2);border:1.5px solid var(--bdr);border-radius:12px;color:var(--txt);font-size:14px;font-weight:600;cursor:pointer">🔗 Open in Browser</button>
+    </div>`);
+  // Load QR library and render
+  _loadScript('https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js', () => {
+    const c = document.getElementById('hosp-qr-container');
+    if (c) new QRCode(c, { text: orderUrl, width: 200, height: 200, correctLevel: QRCode.CorrectLevel.H });
+  });
+}
+function _loadScript(src, cb) {
+  if (document.querySelector(`script[src="${src}"]`)) { cb(); return; }
+  const s = document.createElement('script');
+  s.src = src; s.onload = cb;
+  document.head.appendChild(s);
+}
+
+// ── Menu management ──────────────────────────────────────────
+async function renderHospMenu(el) {
+  el.innerHTML = '<div class="loader"><div class="spin"></div></div>';
+  const items = await apiGet(`hospitality_menu_items?shop_id=eq.${S.shop.id}&order=category,sort_order,name`);
+  const byCategory = {};
+  (items||[]).forEach(i => { (byCategory[i.category||'food'] = byCategory[i.category||'food']||[]).push(i); });
+  const catIcon = { food:'🍽️', drink:'🥤', cocktail:'🍹', dessert:'🍰', special:'⭐' };
+  const isOwner = S.member.role === 'owner' || S.member.role === 'manager';
+  let h = `<div class="tab-content"><div style="padding:16px max(16px,env(safe-area-inset-right,0px)) 0">`;
+  if (!Object.keys(byCategory).length) {
+    h += `<div class="empty"><div class="empty-ico">📋</div><p>No menu items yet.</p></div>`;
+  } else {
+    Object.keys(byCategory).forEach(cat => {
+      h += `<div class="sec-ttl" style="margin:14px 0 8px">${catIcon[cat]||'🍽️'} ${cat.charAt(0).toUpperCase()+cat.slice(1)}</div><div class="clist">`;
+      byCategory[cat].forEach(item => {
+        const profit = item.cost_price > 0 ? kes(item.price - item.cost_price) : null;
+        h += `<div class="dbi" ${isOwner?`onclick="editHospMenuItem(${JSON.stringify(item).replace(/"/g,'&quot;')})"`:''}>
+          <div class="db-av" style="background:var(--surf2);font-size:22px">${catIcon[item.category]||'🍽️'}</div>
+          <div class="db-inf">
+            <div class="db-nm">${esc(item.name)} ${item.available?'':'<span style="color:var(--txt3);font-size:11px">[unavailable]</span>'}</div>
+            <div class="db-mt">${kes(item.price)}${profit?` · profit ${profit}`:''}${item.description?` · ${esc(item.description.slice(0,40))}`:''}</div>
+          </div>
+          ${isOwner?`<span style="color:var(--txt3)">›</span>`:''}
+        </div>`;
+      });
+      h += `</div>`;
+    });
+  }
+  if (isOwner) h += `<div style="padding:16px 0"><button class="btn-p" style="width:100%" onclick="editHospMenuItem(null)">+ Add Menu Item</button></div>`;
+  h += `</div></div>`;
+  el.innerHTML = h;
+}
+function editHospMenuItem(item) {
+  pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>${item?'Edit Item':'Add Menu Item'}</h2></div>
+    <div class="sh-body">
+      <div class="fg-s"><label class="fl">Item Name</label><input id="hm-name" class="fi" placeholder="e.g. Grilled Tilapia" value="${item?esc(item.name):''}"></div>
+      <div class="fg-s"><label class="fl">Category</label><select id="hm-cat" class="fi">
+        <option value="food"    ${(!item||item.category==='food')?'selected':''}>🍽️ Food</option>
+        <option value="drink"   ${item?.category==='drink'?'selected':''}>🥤 Drink</option>
+        <option value="cocktail"${item?.category==='cocktail'?'selected':''}>🍹 Cocktail</option>
+        <option value="dessert" ${item?.category==='dessert'?'selected':''}>🍰 Dessert</option>
+        <option value="special" ${item?.category==='special'?'selected':''}>⭐ Special</option>
+      </select></div>
+      <div class="fg-s"><label class="fl">Description (optional)</label><input id="hm-desc" class="fi" placeholder="Short description" value="${item?esc(item.description||''):''}"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="fg-s"><label class="fl">Selling Price (KES)</label><input id="hm-price" class="fi" type="number" min="0" placeholder="350" value="${item?item.price:''}"></div>
+        <div class="fg-s"><label class="fl">Cost Price (KES)</label><input id="hm-cost" class="fi" type="number" min="0" placeholder="180" value="${item?item.cost_price:''}" title="What it costs you to make/buy"></div>
+      </div>
+      <p style="font-size:12px;color:var(--txt3);margin:-6px 0 12px">Cost price is private — used to calculate your profit margin.</p>
+      <label style="display:flex;align-items:center;gap:10px;padding:12px;background:var(--surf2);border-radius:10px;margin-bottom:16px;cursor:pointer">
+        <input type="checkbox" id="hm-avail" ${!item||item.available?'checked':''}>
+        <span style="font-size:14px">Item is available (shows on customer menu)</span>
+      </label>
+      <div style="display:flex;gap:10px">
+        ${item?`<button onclick="deleteHospMenuItem('${item.id}')" style="flex:0 0 auto;padding:12px 16px;background:#ef444410;border:1.5px solid #ef4444;border-radius:12px;color:#ef4444;font-weight:600;cursor:pointer">🗑</button>`:''}
+        <button class="btn-p" style="flex:1" onclick="saveHospMenuItem(${item?`'${item.id}'`:null})">${item?'Save':'Add Item'}</button>
+      </div>
+    </div>`);
+}
+async function saveHospMenuItem(existingId) {
+  const name  = document.getElementById('hm-name')?.value.trim();
+  const category = document.getElementById('hm-cat')?.value;
+  const description = document.getElementById('hm-desc')?.value.trim()||null;
+  const price = parseFloat(document.getElementById('hm-price')?.value)||0;
+  const cost_price = parseFloat(document.getElementById('hm-cost')?.value)||0;
+  const available = document.getElementById('hm-avail')?.checked ?? true;
+  if (!name) { showToast('Enter item name', true); return; }
+  const body = { shop_id: S.shop.id, name, category, description, price, cost_price, available };
+  let ok;
+  if (existingId) {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/hospitality_menu_items?id=eq.${existingId}`,
+      {method:'PATCH',headers:{...apiHeaders(),'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify({name,category,description,price,cost_price,available})});
+    ok = r.ok;
+  } else {
+    const r = await apiPost('hospitality_menu_items', body);
+    ok = !r.error;
+  }
+  if (!ok) { showToast('Save failed', true); return; }
+  showToast(existingId ? '✅ Updated' : '✅ Item added');
+  popSheet();
+  await renderHospMenu(document.getElementById('main-content'));
+}
+async function deleteHospMenuItem(id) {
+  if (!confirm('Delete this menu item?')) return;
+  await fetch(`${SUPABASE_URL}/rest/v1/hospitality_menu_items?id=eq.${id}`,{method:'DELETE',headers:apiHeaders()});
+  showToast('🗑 Deleted');
+  popSheet();
+  await renderHospMenu(document.getElementById('main-content'));
+}
+
+// ── Live orders dashboard (owner/waiter view) ────────────────
+async function renderHospOrders(el) {
+  el.innerHTML = '<div class="loader"><div class="spin"></div></div>';
+  const orders = await apiGet(
+    `hospitality_orders?shop_id=eq.${S.shop.id}&status=not.in.(paid,cancelled)&select=*,hospitality_order_items(*)&order=created_at`
+  );
+  const byStatus = { pending:[], confirmed:[], preparing:[], ready:[], served:[] };
+  (orders||[]).forEach(o => { (byStatus[o.status] = byStatus[o.status]||[]).push(o); });
+  const statusLabel = { pending:'⏳ Waiting', confirmed:'✔️ Confirmed', preparing:'👨‍🍳 Preparing', ready:'✅ Ready', served:'🍽️ Served' };
+  const statusCol = { pending:'#3b82f6', confirmed:'#8b5cf6', preparing:'#f59e0b', ready:'#22c55e', served:'#6b7280' };
+  let h = `<div class="tab-content"><div style="padding:16px max(16px,env(safe-area-inset-right,0px)) 0">`;
+  let hasAny = false;
+  ['pending','confirmed','preparing','ready','served'].forEach(st => {
+    const grp = byStatus[st] || [];
+    if (!grp.length) return;
+    hasAny = true;
+    h += `<div class="sec-ttl" style="margin:0 0 8px;color:${statusCol[st]}">${statusLabel[st]} (${grp.length})</div><div class="clist">`;
+    grp.forEach(o => {
+      const mins = Math.floor((Date.now() - new Date(o.confirmed_at||o.created_at).getTime())/60000);
+      const items = (o.hospitality_order_items||[]);
+      h += `<div class="dbi" onclick="openHospOrderDetail('${o.id}')">
+        <div class="db-av" style="background:${statusCol[st]}22;font-weight:700;font-size:13px;color:${statusCol[st]}">${mins}m</div>
+        <div class="db-inf">
+          <div class="db-nm">${esc(o.guest_name||'Guest')} · ${kes(o.total_amount||0)}</div>
+          <div class="db-mt">${items.length} item${items.length!==1?'s':''} · ${o.payment_status}</div>
+        </div>
+        <span style="color:var(--txt3)">›</span>
+      </div>`;
+    });
+    h += `</div>`;
+  });
+  if (!hasAny) h += `<div class="empty"><div class="empty-ico">🍽️</div><p>No active orders right now</p></div>`;
+  h += `</div></div>`;
+  el.innerHTML = h;
+}
+async function openHospOrderDetail(orderId) {
+  pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>Order Details</h2></div>
+    <div class="sh-body" id="hosp-ord-body-${orderId}"><div class="loader"><div class="spin"></div></div></div>`);
+  const [order, items] = await Promise.all([
+    apiGet(`hospitality_orders?id=eq.${orderId}&select=*`).then(r => r?.[0]),
+    apiGet(`hospitality_order_items?order_id=eq.${orderId}&select=*`),
+  ]);
+  const el = document.getElementById(`hosp-ord-body-${orderId}`);
+  if (!el || !order) return;
+  const statusFlow = ['pending','confirmed','preparing','ready','served','paid'];
+  const cur = statusFlow.indexOf(order.status);
+  const nextStatus = cur < statusFlow.length-1 ? statusFlow[cur+1] : null;
+  const nextLabel  = { confirmed:'Confirm Order', preparing:'Send to Kitchen', ready:'Mark Ready', served:'Mark Served', paid:'Mark Paid' };
+  const mins = Math.floor((Date.now() - new Date(order.confirmed_at||order.created_at).getTime())/60000);
+  el.innerHTML = `
+    <div style="background:var(--surf2);border-radius:12px;padding:14px;margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+        <span style="font-size:13px;color:var(--txt2)">Status</span>
+        <span style="font-weight:700;text-transform:capitalize">${order.status}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+        <span style="font-size:13px;color:var(--txt2)">Timer</span>
+        <span style="font-weight:600">${mins}m</span>
+      </div>
+      <div style="display:flex;justify-content:space-between">
+        <span style="font-size:13px;color:var(--txt2)">Payment</span>
+        <span style="font-weight:600;color:${order.payment_status==='paid'?'var(--grn)':'var(--red)'}">${order.payment_status}</span>
+      </div>
+    </div>
+    <div class="clist" style="margin-bottom:16px">
+      ${(items||[]).map(i => `<div class="dbi">
+        <div class="db-av" style="font-weight:700;font-size:14px">${i.quantity}×</div>
+        <div class="db-inf"><div class="db-nm">${esc(i.name)}</div>${i.notes?`<div class="db-mt">${esc(i.notes)}</div>`:''}</div>
+        <div style="font-weight:700">${kes(i.price*i.quantity)}</div>
+      </div>`).join('')}
+    </div>
+    <div style="border-top:1px solid var(--bdr);padding-top:12px;margin-bottom:16px;text-align:right">
+      <span style="font-size:18px;font-weight:700">Total: ${kes(order.total_amount||0)}</span>
+    </div>
+    ${nextStatus && nextStatus !== 'paid' ? `<button class="btn-p" style="width:100%;margin-bottom:10px" onclick="advanceHospOrder('${orderId}','${nextStatus}')">${nextLabel[nextStatus]}</button>` : ''}
+    ${order.status === 'served' && order.payment_status === 'unpaid' ? `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <button onclick="markHospPaid('${orderId}','mpesa')" style="padding:12px;background:#22c55e;border:none;border-radius:12px;color:#fff;font-weight:700;cursor:pointer">M-Pesa</button>
+        <button onclick="markHospPaid('${orderId}','cash')" style="padding:12px;background:#3b82f6;border:none;border-radius:12px;color:#fff;font-weight:700;cursor:pointer">Cash</button>
+      </div>` : ''}
+    <button onclick="cancelHospOrder('${orderId}')" style="width:100%;padding:12px;background:#ef444410;border:1.5px solid #ef4444;border-radius:12px;color:#ef4444;font-weight:600;cursor:pointer">Cancel Order</button>`;
+}
+async function advanceHospOrder(orderId, newStatus) {
+  const extra = newStatus === 'confirmed' ? { confirmed_at: new Date().toISOString() }
+    : newStatus === 'preparing' ? { kitchen_start_at: new Date().toISOString() }
+    : newStatus === 'ready'     ? { ready_at: new Date().toISOString() }
+    : newStatus === 'served'    ? { served_at: new Date().toISOString() }
+    : {};
+  await fetch(`${SUPABASE_URL}/rest/v1/hospitality_orders?id=eq.${orderId}`,
+    {method:'PATCH',headers:{...apiHeaders(),'Content-Type':'application/json','Prefer':'return=minimal'},
+    body:JSON.stringify({status:newStatus,...extra})});
+  showToast('✅ Updated');
+  popSheet();
+  await renderHospOrders(document.getElementById('main-content'));
+}
+async function markHospPaid(orderId, method) {
+  await fetch(`${SUPABASE_URL}/rest/v1/hospitality_orders?id=eq.${orderId}`,
+    {method:'PATCH',headers:{...apiHeaders(),'Content-Type':'application/json','Prefer':'return=minimal'},
+    body:JSON.stringify({status:'paid',payment_status:'paid',payment_method:method,paid_at:new Date().toISOString()})});
+  showToast(`✅ Paid via ${method}`);
+  popSheet();
+  await renderHospOrders(document.getElementById('main-content'));
+}
+async function cancelHospOrder(orderId) {
+  if (!confirm('Cancel this order?')) return;
+  await fetch(`${SUPABASE_URL}/rest/v1/hospitality_orders?id=eq.${orderId}`,
+    {method:'PATCH',headers:{...apiHeaders(),'Content-Type':'application/json','Prefer':'return=minimal'},
+    body:JSON.stringify({status:'cancelled'})});
+  showToast('Order cancelled');
+  popSheet();
+  await renderHospOrders(document.getElementById('main-content'));
+}
+
+// ── Staff shifts ─────────────────────────────────────────────
+async function openHospShifts() {
+  pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>📅 Staff Schedule</h2></div>
+    <div class="sh-body" id="hosp-shift-body"><div class="loader"><div class="spin"></div></div></div>`);
+  const [shifts, sections, members] = await Promise.all([
+    apiGet(`hospitality_shifts?shop_id=eq.${S.shop.id}&shift_date=gte.${todayStart().slice(0,10)}&order=shift_date,start_time&select=*`),
+    apiGet(`hospitality_sections?shop_id=eq.${S.shop.id}&order=sort_order`),
+    apiGet(`shop_members?shop_id=eq.${S.shop.id}&select=*,users:user_id(full_name,email)`),
+  ]);
+  const el = document.getElementById('hosp-shift-body');
+  if (!el) return;
+  const memberMap = {};
+  (members||[]).forEach(m => { memberMap[m.user_id] = m.users?.full_name || m.users?.email || 'Staff'; });
+  const byDate = {};
+  (shifts||[]).forEach(s => { (byDate[s.shift_date] = byDate[s.shift_date]||[]).push(s); });
+  const roleIco = { waiter:'🍽️', chef:'👨‍🍳', bartender:'🍺', receptionist:'🛎️', manager:'👔', 'cleaning crew':'🧹', gardener:'🌿', security:'🔒' };
+  let h = '';
+  if (!Object.keys(byDate).length) {
+    h = `<div class="empty"><div class="empty-ico">📅</div><p>No upcoming shifts scheduled.</p></div>`;
+  } else {
+    Object.keys(byDate).sort().forEach(date => {
+      h += `<div class="sec-ttl" style="margin:0 0 8px">${date}</div><div class="clist">`;
+      byDate[date].forEach(s => {
+        h += `<div class="dbi">
+          <div class="db-av" style="background:var(--surf2)">${roleIco[s.role]||'👤'}</div>
+          <div class="db-inf">
+            <div class="db-nm">${esc(memberMap[s.user_id]||'Unknown')}</div>
+            <div class="db-mt">${s.role} · ${s.start_time.slice(0,5)}–${s.end_time.slice(0,5)}</div>
+          </div>
+          <button onclick="deleteHospShift('${s.id}')" style="background:none;border:none;font-size:18px;cursor:pointer">🗑</button>
+        </div>`;
+      });
+      h += `</div>`;
+    });
+  }
+  el.innerHTML = h;
+  addFab('+ Add Shift', () => addHospShiftSheet(sections, members));
+}
+function addHospShiftSheet(sections, members) {
+  const today = new Date().toISOString().slice(0,10);
+  const roleIco = { waiter:'🍽️', chef:'👨‍🍳', bartender:'🍺', receptionist:'🛎️', manager:'👔', 'cleaning crew':'🧹', gardener:'🌿', security:'🔒' };
+  const roles = Object.keys(roleIco);
+  pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>Add Shift</h2></div>
+    <div class="sh-body">
+      <div class="fg-s"><label class="fl">Staff Member</label><select id="hsh-user" class="fi">
+        ${(members||[]).map(m=>`<option value="${m.user_id}">${esc(m.users?.full_name||m.users?.email||'Staff')}</option>`).join('')}
+      </select></div>
+      <div class="fg-s"><label class="fl">Role</label><select id="hsh-role" class="fi">
+        ${roles.map(r=>`<option value="${r}">${roleIco[r]} ${r.charAt(0).toUpperCase()+r.slice(1)}</option>`).join('')}
+      </select></div>
+      <div class="fg-s"><label class="fl">Date</label><input id="hsh-date" class="fi" type="date" value="${today}"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="fg-s"><label class="fl">Start</label><input id="hsh-start" class="fi" type="time" value="08:00"></div>
+        <div class="fg-s"><label class="fl">End</label><input id="hsh-end" class="fi" type="time" value="17:00"></div>
+      </div>
+      ${sections?.length ? `<div class="fg-s"><label class="fl">Section (optional)</label><select id="hsh-sec" class="fi">
+        <option value="">All / General</option>
+        ${sections.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('')}
+      </select></div>` : ''}
+      <button class="btn-p" style="width:100%;margin-top:8px" onclick="saveHospShift()">Add to Schedule</button>
+    </div>`);
+}
+async function saveHospShift() {
+  const body = {
+    shop_id: S.shop.id,
+    user_id: document.getElementById('hsh-user')?.value,
+    role: document.getElementById('hsh-role')?.value,
+    shift_date: document.getElementById('hsh-date')?.value,
+    start_time: document.getElementById('hsh-start')?.value,
+    end_time: document.getElementById('hsh-end')?.value,
+    section_id: document.getElementById('hsh-sec')?.value || null,
+  };
+  if (!body.user_id || !body.role || !body.shift_date) { showToast('Fill all required fields', true); return; }
+  const r = await apiPost('hospitality_shifts', body);
+  if (r.error) { showToast('Save failed: ' + r.error.message, true); return; }
+  showToast('✅ Shift added');
+  popSheet();
+  await openHospShifts();
+}
+async function deleteHospShift(id) {
+  if (!confirm('Remove this shift?')) return;
+  await fetch(`${SUPABASE_URL}/rest/v1/hospitality_shifts?id=eq.${id}`,{method:'DELETE',headers:apiHeaders()});
+  showToast('🗑 Removed');
+  await openHospShifts();
+}
+
+// ── Analytics dashboard ──────────────────────────────────────
+async function openHospDashboard() {
+  pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>📊 Reports</h2></div>
+    <div class="sh-body" id="hosp-dash-body"><div class="loader"><div class="spin"></div></div></div>`);
+  const weekAgo = new Date(Date.now()-7*86400000).toISOString();
+  const [orders, items, reviews] = await Promise.all([
+    apiGet(`hospitality_orders?shop_id=eq.${S.shop.id}&created_at=gte.${weekAgo}&payment_status=eq.paid&select=*`),
+    apiGet(`hospitality_order_items?order_id=in.(${
+      ((await apiGet(`hospitality_orders?shop_id=eq.${S.shop.id}&created_at=gte.${weekAgo}&payment_status=eq.paid&select=id`))||[]).map(o=>o.id).join(',') || 'null'
+    })&select=*`),
+    apiGet(`hospitality_reviews?shop_id=eq.${S.shop.id}&created_at=gte.${weekAgo}&select=*`),
+  ]);
+  const el = document.getElementById('hosp-dash-body');
+  if (!el) return;
+  const totalRev = (orders||[]).reduce((s,o)=>s+Number(o.total_amount||0),0);
+  const totalCOGS = (items||[]).reduce((s,i)=>s+Number(i.cost_price||0)*Number(i.quantity||1),0);
+  const grossProfit = totalRev - totalCOGS;
+  const avgPlace = reviews?.length ? (reviews.reduce((s,r)=>s+(r.place_rating||0),0)/reviews.length).toFixed(1) : '—';
+  const avgFood  = reviews?.length ? (reviews.reduce((s,r)=>s+(r.food_rating||0),0)/reviews.length).toFixed(1) : '—';
+  const avgStaff = reviews?.length ? (reviews.reduce((s,r)=>s+(r.staff_rating||0),0)/reviews.length).toFixed(1) : '—';
+  // Top items by quantity
+  const itemCounts = {};
+  (items||[]).forEach(i => { itemCounts[i.name] = (itemCounts[i.name]||0) + (i.quantity||1); });
+  const topItems = Object.entries(itemCounts).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  el.innerHTML = `
+    <div class="sec-ttl" style="margin:0 0 10px">Last 7 Days</div>
+    <div class="stats" style="margin-bottom:16px">
+      <div class="scard"><div class="scard-lbl">Revenue</div><div class="scard-val">${kshort(totalRev)}</div><div class="scard-sub">KES</div></div>
+      <div class="scard"><div class="scard-lbl">Gross Profit</div><div class="scard-val">${kshort(grossProfit)}</div><div class="scard-sub">${totalRev?Math.round(grossProfit/totalRev*100):0}% margin</div></div>
+      <div class="scard"><div class="scard-lbl">Orders</div><div class="scard-val">${(orders||[]).length}</div><div class="scard-sub">paid</div></div>
+    </div>
+    <div class="sec-ttl" style="margin:0 0 10px">⭐ Customer Ratings</div>
+    <div class="clist" style="margin-bottom:16px">
+      <div class="dbi"><div class="db-av">🏠</div><div class="db-inf"><div class="db-nm">Place</div></div><div style="font-weight:700">${avgPlace}/5</div></div>
+      <div class="dbi"><div class="db-av">🍽️</div><div class="db-inf"><div class="db-nm">Food</div></div><div style="font-weight:700">${avgFood}/5</div></div>
+      <div class="dbi"><div class="db-av">👤</div><div class="db-inf"><div class="db-nm">Staff</div></div><div style="font-weight:700">${avgStaff}/5</div></div>
+    </div>
+    ${topItems.length ? `<div class="sec-ttl" style="margin:0 0 10px">🔥 Top Items</div>
+    <div class="clist">
+      ${topItems.map(([name,count],i)=>`<div class="dbi">
+        <div class="db-av" style="font-weight:700;color:var(--acc)">${i+1}</div>
+        <div class="db-inf"><div class="db-nm">${esc(name)}</div></div>
+        <div style="font-weight:700">${count} sold</div>
+      </div>`).join('')}
+    </div>` : ''}`;
+}
+
 </script>
 </body>
 </html>
