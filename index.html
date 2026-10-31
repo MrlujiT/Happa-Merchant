@@ -5068,22 +5068,47 @@ async function saveCustomer() {
 async function openCustomerSheet(custId) {
   const cust = (S.customers || []).find(c => c.id === custId);
   if (!cust) return;
+  // Load loyalty account for this customer
+  const loyAccts = await apiGet(`loyalty_accounts?shop_id=eq.${S.shop.id}&phone=eq.${encodeURIComponent(cust.phone||'__none__')}&limit=1`) || [];
+  const loy = loyAccts[0] || null;
+  const loyEnabled = S.loyalty?.enabled;
   pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>${esc(cust.name)}</h2></div>
     <div class="sh-body">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">
         <div class="scard"><div class="scard-lbl">Total Spent</div><div class="scard-val">${kshort(cust.total_spent||0)}</div><div class="scard-sub">KES</div></div>
-        <div class="scard"><div class="scard-lbl">Owes</div><div class="scard-val">${kshort(cust.outstanding||0)}</div><div class="scard-sub">KES</div></div>
+        <div class="scard"><div class="scard-lbl">Owes</div><div class="scard-val">${kshort(cust.outstanding||0)}</div><div class="scard-sub">KES debt</div></div>
+        ${loyEnabled && loy ? `
+        <div class="scard"><div class="scard-lbl">Loyalty Points</div><div class="scard-val">${(loy.points_balance||0).toLocaleString()}</div><div class="scard-sub">pts</div></div>
+        <div class="scard"><div class="scard-lbl">Wallet</div><div class="scard-val">${kshort(loy.wallet_balance||0)}</div><div class="scard-sub">KES</div></div>
+        ` : ''}
       </div>
       ${cust.phone ? `<div style="margin-bottom:12px;font-size:14px;color:var(--txt2)">📞 <a href="tel:${esc(cust.phone)}" style="color:var(--acc)">${esc(cust.phone)}</a></div>` : ''}
       ${cust.notes ? `<div style="margin-bottom:16px;font-size:13px;color:var(--txt2);background:var(--surf2);padding:10px;border-radius:10px">${esc(cust.notes)}</div>` : ''}
       ${Number(cust.outstanding)>0 ? `
-        <div style="margin-bottom:16px">
-          <div style="font-size:13px;font-weight:700;margin-bottom:8px">Record Debt Payment</div>
+        <div style="margin-bottom:16px;background:var(--surf2);border-radius:12px;padding:12px">
+          <div style="font-size:13px;font-weight:700;margin-bottom:8px">💳 Record Debt Payment</div>
           <div style="display:flex;gap:8px">
             <input id="debt-pay-amt" class="fi" type="number" placeholder="Amount (KES)" style="flex:1">
             <button class="btn-p" onclick="payCustomerDebt('${cust.id}')">Pay</button>
           </div>
         </div>` : ''}
+      ${loyEnabled ? `
+        <div style="margin-bottom:16px;background:var(--surf2);border-radius:12px;padding:12px">
+          <div style="font-size:13px;font-weight:700;margin-bottom:8px">💰 Wallet Top-Up</div>
+          <div style="display:flex;gap:8px">
+            <input id="wallet-topup-amt" class="fi" type="number" placeholder="Amount (KES)" style="flex:1">
+            <button class="btn-p" onclick="topUpCustomerWallet('${cust.id}','${esc(cust.phone||'')}','${esc(cust.name)}')">Add</button>
+          </div>
+        </div>
+        ${loy ? `<div style="margin-bottom:16px;background:var(--surf2);border-radius:12px;padding:12px">
+          <div style="font-size:13px;font-weight:700;margin-bottom:8px">⭐ Redeem Points</div>
+          <div style="font-size:12px;color:var(--txt2);margin-bottom:8px">Balance: ${(loy.points_balance||0).toLocaleString()} pts · Value: ${kes((loy.points_balance||0)*(S.loyalty?.point_value||0))}</div>
+          <div style="display:flex;gap:8px">
+            <input id="redeem-pts-amt" class="fi" type="number" placeholder="Points to redeem" style="flex:1">
+            <button class="btn-p" onclick="redeemCustomerPoints('${loy.id}','${esc(cust.name)}')">Redeem</button>
+          </div>
+        </div>` : ''}
+      ` : ''}
       <button onclick="deleteCustomer('${cust.id}')" style="width:100%;padding:12px;background:none;border:1.5px solid var(--red);color:var(--red);border-radius:12px;font-size:14px;font-weight:600;cursor:pointer">🗑 Delete ${S.isHospitality?'Guest':'Customer'}</button>
     </div>`);
 }
@@ -5108,6 +5133,142 @@ async function deleteCustomer(custId) {
   showToast('🗑 Deleted');
   popSheet();
   await renderCustomers(document.getElementById('main-content'));
+}
+
+async function topUpCustomerWallet(custId, phone, name) {
+  const amt = parseFloat(document.getElementById('wallet-topup-amt')?.value);
+  if (!amt || amt <= 0) { showToast('Enter a valid amount', true); return; }
+  // Find or create loyalty account by phone
+  let loy = null;
+  if (phone) {
+    const existing = await apiGet(`loyalty_accounts?shop_id=eq.${S.shop.id}&phone=eq.${encodeURIComponent(phone)}&limit=1`);
+    loy = existing?.[0] || null;
+  }
+  if (loy) {
+    await fetch(`${SUPABASE_URL}/rest/v1/loyalty_accounts?id=eq.${loy.id}`, {
+      method:'PATCH', headers:{...apiHeaders(),'Content-Type':'application/json'},
+      body: JSON.stringify({
+        wallet_balance: (Number(loy.wallet_balance)||0) + amt,
+        wallet_total_deposited: (Number(loy.wallet_total_deposited)||0) + amt,
+      })
+    });
+  } else {
+    await fetch(`${SUPABASE_URL}/rest/v1/loyalty_accounts`, {
+      method:'POST', headers:{...apiHeaders(),'Content-Type':'application/json','Prefer':'return=minimal'},
+      body: JSON.stringify({ shop_id:S.shop.id, phone:phone||null, name, wallet_balance:amt, wallet_total_deposited:amt, points_balance:0, total_earned:0, total_redeemed:0 })
+    });
+  }
+  showToast(`✅ Wallet topped up KES ${amt.toLocaleString()}`);
+  popSheet();
+  await openCustomerSheet(custId);
+}
+
+async function redeemCustomerPoints(loyId, name) {
+  const pts = parseInt(document.getElementById('redeem-pts-amt')?.value);
+  if (!pts || pts <= 0) { showToast('Enter points to redeem', true); return; }
+  const loy = await apiGet(`loyalty_accounts?id=eq.${loyId}&limit=1`).then(r=>r?.[0]);
+  if (!loy) return;
+  if (pts > (loy.points_balance||0)) { showToast('Not enough points', true); return; }
+  const value = pts * (S.loyalty?.point_value || 0);
+  await fetch(`${SUPABASE_URL}/rest/v1/loyalty_accounts?id=eq.${loyId}`, {
+    method:'PATCH', headers:{...apiHeaders(),'Content-Type':'application/json'},
+    body: JSON.stringify({
+      points_balance: (loy.points_balance||0) - pts,
+      total_redeemed: (loy.total_redeemed||0) + pts,
+      wallet_balance: (Number(loy.wallet_balance)||0) + value,
+    })
+  });
+  showToast(`✅ ${pts} pts redeemed → KES ${value.toLocaleString()} added to wallet`);
+  popSheet();
+}
+
+/* ═══════════════════════════════
+   HOSPITALITY ONLINE ORDERING
+═══════════════════════════════ */
+async function showHospOnlineOrdering() {
+  pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>📲 Online Ordering</h2></div>
+    <div class="sh-body" id="hosp-online-body"><div class="loader"><div class="spin"></div></div></div>`);
+  await _refreshHospOnline();
+}
+async function _refreshHospOnline() {
+  const el = document.getElementById('hosp-online-body');
+  if (!el) return;
+  const [shopData, recentOrders] = await Promise.all([
+    fetch(`${SUPABASE_URL}/rest/v1/shops?id=eq.${S.shop.id}&select=ordering_enabled,allows_debt`, {headers:apiHeaders()}).then(r=>r.json()).catch(()=>[]),
+    apiGet(`hospitality_orders?shop_id=eq.${S.shop.id}&status=eq.pending&order=created_at.desc&limit=30&select=*`),
+  ]);
+  const isOn = shopData?.[0]?.ordering_enabled ?? false;
+  const debtOn = shopData?.[0]?.allows_debt ?? false;
+  const pending = (recentOrders||[]);
+  el.innerHTML = `
+    <div style="background:var(--surf2);border-radius:14px;padding:14px;margin-bottom:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <div>
+          <div style="font-size:14px;font-weight:700">QR Table Ordering</div>
+          <div style="font-size:12px;color:var(--txt2)">Guests scan table QR to self-order</div>
+        </div>
+        <label style="position:relative;display:inline-block;width:44px;height:24px">
+          <input type="checkbox" id="hosp-order-toggle" ${isOn?'checked':''} onchange="toggleHospOrdering(this.checked)" style="opacity:0;width:0;height:0">
+          <span style="position:absolute;cursor:pointer;inset:0;background:${isOn?'var(--grn)':'var(--bdr)'};border-radius:24px;transition:.3s">
+            <span style="position:absolute;height:18px;width:18px;left:${isOn?'23px':'3px'};bottom:3px;background:#fff;border-radius:50%;transition:.3s"></span>
+          </span>
+        </label>
+      </div>
+    </div>
+    <div style="background:var(--surf2);border-radius:14px;padding:14px;margin-bottom:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div style="font-size:14px;font-weight:700">Allow Debt / Pay Later</div>
+          <div style="font-size:12px;color:var(--txt2)">Guests can choose to pay later</div>
+        </div>
+        <label style="position:relative;display:inline-block;width:44px;height:24px">
+          <input type="checkbox" id="hosp-debt-toggle" ${debtOn?'checked':''} onchange="toggleHospDebt(this.checked)" style="opacity:0;width:0;height:0">
+          <span style="position:absolute;cursor:pointer;inset:0;background:${debtOn?'var(--grn)':'var(--bdr)'};border-radius:24px;transition:.3s">
+            <span style="position:absolute;height:18px;width:18px;left:${debtOn?'23px':'3px'};bottom:3px;background:#fff;border-radius:50%;transition:.3s"></span>
+          </span>
+        </label>
+      </div>
+    </div>
+    ${pending.length ? `
+    <div class="sec-ttl" style="margin-bottom:8px">⏳ Pending QR Orders (${pending.length})</div>
+    <div class="clist">
+      ${pending.map(o=>`
+      <div class="dbi" onclick="openHospOrderDetail('${o.id}')">
+        <div class="db-av" style="background:#f59e0b22">⏳</div>
+        <div class="db-inf">
+          <div class="db-nm">${esc(o.guest_name||'Guest')} · ${kes(o.total_amount||0)}</div>
+          <div class="db-mt">Notes: ${esc(o.notes||'—')} · ${new Date(o.created_at).toLocaleTimeString('en-KE',{hour:'2-digit',minute:'2-digit'})}</div>
+        </div>
+        <button class="btn-p" onclick="event.stopPropagation();confirmHospOrder('${o.id}')" style="padding:6px 12px;font-size:12px">Confirm</button>
+      </div>`).join('')}
+    </div>` : `<div class="empty" style="padding:40px 0"><div class="empty-ico">📲</div><p>${isOn?'No pending QR orders right now.':'Enable QR ordering above so guests can self-order by scanning table codes.'}</p></div>`}`;
+}
+
+async function toggleHospOrdering(enabled) {
+  await fetch(`${SUPABASE_URL}/rest/v1/shops?id=eq.${S.shop.id}`, {
+    method:'PATCH', headers:{...apiHeaders(),'Content-Type':'application/json'},
+    body: JSON.stringify({ ordering_enabled: enabled })
+  });
+  showToast(enabled ? '✅ QR ordering enabled' : '🔴 QR ordering disabled');
+  await _refreshHospOnline();
+}
+
+async function toggleHospDebt(enabled) {
+  await fetch(`${SUPABASE_URL}/rest/v1/shops?id=eq.${S.shop.id}`, {
+    method:'PATCH', headers:{...apiHeaders(),'Content-Type':'application/json'},
+    body: JSON.stringify({ allows_debt: enabled })
+  });
+  showToast(enabled ? '✅ Pay-later enabled' : '🔴 Pay-later disabled');
+  await _refreshHospOnline();
+}
+
+async function confirmHospOrder(orderId) {
+  await fetch(`${SUPABASE_URL}/rest/v1/hospitality_orders?id=eq.${orderId}`, {
+    method:'PATCH', headers:{...apiHeaders(),'Content-Type':'application/json'},
+    body: JSON.stringify({ status:'confirmed', confirmed_at: new Date().toISOString() })
+  });
+  showToast('✅ Order confirmed → Kitchen');
+  await _refreshHospOnline();
 }
 
 function renderMore(el) {
@@ -5149,6 +5310,18 @@ function renderMore(el) {
         <div class="more-item" onclick="openHospDashboard()">
           <div class="more-ico" style="background:#16a34a22">📊</div>
           <div class="more-inf"><div class="more-nm">Reports</div><div class="more-mt">Revenue, profit, table times & staff leaderboard</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showSuppliers()">
+          <div class="more-ico" style="background:#0f766e22">🚚</div>
+          <div class="more-inf"><div class="more-nm">Suppliers</div><div class="more-mt">Manage your food, beverage & supply vendors</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showPurchasesDashboard()">
+          <div class="more-ico" style="background:#16a34a22">📥</div>
+          <div class="more-inf"><div class="more-nm">Purchases</div><div class="more-mt">Supplier orders, debt & spend history</div></div>
+          <span style="color:var(--txt3)">›</span></div>
+        <div class="more-item" onclick="showHospOnlineOrdering()">
+          <div class="more-ico" style="background:#f59e0b22">📲</div>
+          <div class="more-inf"><div class="more-nm">Online Ordering</div><div class="more-mt">QR self-order — enable/disable & view incoming</div></div>
           <span style="color:var(--txt3)">›</span></div>
         <div class="more-item" onclick="showExpenses()">
           <div class="more-ico" style="background:#7c3aed22">💸</div>
@@ -7803,11 +7976,11 @@ async function _loadHospSections() {
   } else {
     el.innerHTML = `<p style="font-size:13px;color:var(--txt2);margin:0 0 14px">Tap a section to manage its tables & QR codes.</p>
       <div class="clist">${sections.map(s => `
-        <div class="dbi" onclick="openHospTables('${s.id}','${esc(s.name)}')">
+        <div class="dbi" onclick="openHospTables('${s.id}','${esc(s.name)}','${s.section_type||'table'}')">
           <div class="db-av" style="background:var(--acc-d);font-size:18px">${s.section_type==='bar'?'🍺':s.section_type==='accommodation'?'🛏️':'🪑'}</div>
           <div class="db-inf">
             <div class="db-nm">${esc(s.name)}</div>
-            <div class="db-mt">${(s.hospitality_tables||[]).length} tables · ${s.section_type}</div>
+            <div class="db-mt">${(s.hospitality_tables||[]).length} ${s.section_type==='accommodation'?'rooms':'tables'} · ${s.section_type}</div>
           </div>
           <div style="display:flex;gap:8px;align-items:center">
             <button onclick="event.stopPropagation();editHospSection(${JSON.stringify(s).replace(/"/g,'&quot;')})" style="background:none;border:none;font-size:18px;cursor:pointer">✏️</button>
