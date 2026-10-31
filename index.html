@@ -6574,27 +6574,73 @@ function showEditShopSheet() {
       <div class="fg-s"><label class="fl">Shop Name</label>
         <input type="text" id="edit-shop-name" class="fi" value="${esc(sh.name||'')}" placeholder="Shop name">
       </div>
-      <div class="fg-s"><label class="fl">Location</label>
-        <input type="text" id="edit-shop-location" class="fi" value="${esc(sh.location||'')}" placeholder="e.g. Nairobi CBD, Mombasa Rd">
+      <div class="fg-s"><label class="fl">Location (area / street)</label>
+        <input type="text" id="edit-shop-location" class="fi" value="${esc(sh.location||'')}" placeholder="e.g. Westlands, Nairobi">
       </div>
       <div class="fg-s"><label class="fl">M-Pesa Till / Paybill</label>
         <input type="text" id="edit-shop-mpesa" class="fi" value="${esc(sh.mpesa_till||'')}" placeholder="e.g. 123456">
       </div>
+
+      <div style="background:var(--surf2);border-radius:12px;padding:14px;margin-bottom:12px">
+        <div style="font-size:13px;font-weight:700;margin-bottom:4px">📍 GPS Pin — Happa Community</div>
+        <div style="font-size:12px;color:var(--txt2);margin-bottom:10px">Required for Happa users to discover you. Tap Detect to use your current location.</div>
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <input id="edit-shop-lat" class="fi" type="number" step="any" placeholder="Latitude" style="flex:1" value="${sh.latitude||''}">
+          <input id="edit-shop-lng" class="fi" type="number" step="any" placeholder="Longitude" style="flex:1" value="${sh.longitude||''}">
+        </div>
+        <button type="button" class="btn-g" style="width:100%;margin-bottom:0" onclick="detectShopLocation()">📡 Detect My Location</button>
+        <div id="loc-status" style="font-size:12px;color:var(--txt2);margin-top:6px;text-align:center">${sh.latitude?'📍 Location set: '+Number(sh.latitude).toFixed(5)+', '+Number(sh.longitude).toFixed(5):''}</div>
+      </div>
+
+      <div class="fg-s">
+        <label class="fl">Max Ordering Radius (km)</label>
+        <input type="number" id="edit-shop-radius" class="fi" min="0" max="500" value="${sh.ordering_radius??5}" placeholder="e.g. 10">
+        <div style="font-size:12px;color:var(--txt2);margin-top:4px">Happa app users beyond this distance won't see your shop. Set 0 for unlimited.</div>
+      </div>
+
       <button class="btn-p" onclick="saveShopDetails()">Save Changes</button>
       <button class="btn-g" onclick="popSheet()">Cancel</button>
     </div>`);
+}
+
+function detectShopLocation() {
+  const status = document.getElementById('loc-status');
+  if (!navigator.geolocation) { if(status) status.textContent = '❌ Geolocation not supported on this device'; return; }
+  if (status) status.textContent = '⏳ Detecting location…';
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      const lat = pos.coords.latitude.toFixed(7);
+      const lng = pos.coords.longitude.toFixed(7);
+      const latEl = document.getElementById('edit-shop-lat');
+      const lngEl = document.getElementById('edit-shop-lng');
+      if (latEl) latEl.value = lat;
+      if (lngEl) lngEl.value = lng;
+      if (status) status.textContent = `📍 Detected: ${lat}, ${lng} (accuracy ±${Math.round(pos.coords.accuracy)}m)`;
+    },
+    err => { if (status) status.textContent = '❌ ' + (err.message || 'Could not detect location'); },
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
 }
 
 async function saveShopDetails() {
   const name     = document.getElementById('edit-shop-name')?.value.trim();
   const location = document.getElementById('edit-shop-location')?.value.trim();
   const mpesa    = document.getElementById('edit-shop-mpesa')?.value.trim();
+  const latRaw   = document.getElementById('edit-shop-lat')?.value.trim();
+  const lngRaw   = document.getElementById('edit-shop-lng')?.value.trim();
+  const radius   = parseInt(document.getElementById('edit-shop-radius')?.value) || 0;
+  const latitude  = latRaw  ? parseFloat(latRaw)  : null;
+  const longitude = lngRaw  ? parseFloat(lngRaw)  : null;
   if (!name) { showToast('Shop name is required', true); return; }
+  if (latRaw && (latitude < -90 || latitude > 90))   { showToast('Latitude must be between -90 and 90', true); return; }
+  if (lngRaw && (longitude < -180 || longitude > 180)) { showToast('Longitude must be between -180 and 180', true); return; }
   const btn = document.querySelector('.sh-body .btn-p');
   if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
-  const { error } = await apiPatch('shops', `id=eq.${S.shop.id}`, { name, location: location||null, mpesa_till: mpesa||null });
+  const patch = { name, location: location||null, mpesa_till: mpesa||null,
+    latitude: latitude, longitude: longitude, ordering_radius: radius };
+  const { error } = await apiPatch('shops', `id=eq.${S.shop.id}`, patch);
   if (error) { showToast('Error: ' + error.message, true); if(btn){btn.disabled=false;btn.textContent='Save Changes';} return; }
-  S.shop.name = name; S.shop.location = location; S.shop.mpesa_till = mpesa;
+  Object.assign(S.shop, patch);
   const hdr = document.getElementById('hdr-shop-name');
   if (hdr) hdr.textContent = name;
   popSheet();
@@ -7992,34 +8038,106 @@ async function _loadHospSections() {
   addFab('+ Add Section', () => editHospSection(null));
 }
 async function editHospSection(s) {
+  const isShop = s?.section_type === 'shop';
   pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>${s?'Edit':'Add'} Section</h2></div>
     <div class="sh-body">
-      <div class="fg-s"><label class="fl">Section Name</label><input id="hs-name" class="fi" placeholder="e.g. Bar One, Garden Counter" value="${s?esc(s.name):''}"></div>
-      <div class="fg-s"><label class="fl">Type</label><select id="hs-type" class="fi">
-        <option value="dining" ${(!s||s.section_type==='dining')?'selected':''}>🪑 Dining</option>
-        <option value="bar" ${s?.section_type==='bar'?'selected':''}>🍺 Bar</option>
-        <option value="accommodation" ${s?.section_type==='accommodation'?'selected':''}>🛏️ Accommodation</option>
-        <option value="other" ${s?.section_type==='other'?'selected':''}>📦 Other</option>
-      </select></div>
+      <div class="fg-s"><label class="fl">Section Name</label>
+        <input id="hs-name" class="fi" placeholder="e.g. Bar One, Garden Counter" value="${s?esc(s.name):''}">
+      </div>
+      <div class="fg-s"><label class="fl">Type</label>
+        <select id="hs-type" class="fi" onchange="_hospSecTypeChange(this.value)">
+          <option value="dining"        ${(!s||s.section_type==='dining')?'selected':''}>🪑 Dining — tables &amp; ordering</option>
+          <option value="bar"           ${s?.section_type==='bar'?'selected':''}>🍺 Bar — drinks counter</option>
+          <option value="accommodation" ${s?.section_type==='accommodation'?'selected':''}>🛏️ Accommodation — rooms</option>
+          <option value="shop"          ${s?.section_type==='shop'?'selected':''}>🛒 Shop — retail &amp; stock counter</option>
+          <option value="other"         ${s?.section_type==='other'?'selected':''}>📦 Other</option>
+        </select>
+      </div>
+      <div id="hs-shop-note" style="display:${isShop?'block':'none'};background:#0f766e22;border-radius:10px;padding:10px 12px;font-size:13px;color:var(--txt2);margin-bottom:8px">
+        🛒 This section activates the <strong>Stock &amp; Inventory</strong> function automatically.
+      </div>
+      <div id="hs-tables-q" style="display:${(s?.section_type==='shop'||s?.section_type==='accommodation')?'none':'block'}">
+        <div class="fg-s" style="margin-bottom:6px"><label class="fl">Does this section need tables / seats?</label>
+          <div style="display:flex;gap:10px;margin-top:6px">
+            <button type="button" id="hs-tbl-yes" class="method-btn ${!s||s.section_type==='dining'?'on':''}" onclick="_hospTblToggle(true)"  style="flex:1">✅ Yes, add tables</button>
+            <button type="button" id="hs-tbl-no"  class="method-btn ${s?.section_type==='other'||s?.section_type==='bar'?'on':''}" onclick="_hospTblToggle(false)" style="flex:1">No tables needed</button>
+          </div>
+        </div>
+        <div id="hs-tbl-count-row" style="display:${(!s||s.section_type==='dining')?'block':'none'}">
+          <div class="fg-s"><label class="fl">How many tables to start with?</label>
+            <input id="hs-tbl-count" class="fi" type="number" min="1" max="100" placeholder="e.g. 10" value="">
+          </div>
+          <div class="fg-s"><label class="fl">Starting label</label>
+            <input id="hs-tbl-start" class="fi" placeholder="e.g. Table 1 or T1" value="Table 1">
+          </div>
+          <div class="fg-s"><label class="fl">Seats per table</label>
+            <input id="hs-tbl-cap" class="fi" type="number" min="1" max="30" value="4">
+          </div>
+        </div>
+      </div>
       <button class="btn-p" style="width:100%;margin-top:8px" onclick="saveHospSection(${s?`'${s.id}'`:null})">${s?'Save Changes':'Add Section'}</button>
     </div>`);
+}
+function _hospSecTypeChange(val) {
+  const shopNote = document.getElementById('hs-shop-note');
+  const tblQ = document.getElementById('hs-tables-q');
+  if (shopNote) shopNote.style.display = val === 'shop' ? 'block' : 'none';
+  if (tblQ) tblQ.style.display = (val === 'shop' || val === 'accommodation') ? 'none' : 'block';
+  if (val === 'dining') _hospTblToggle(true); else if (val === 'bar' || val === 'other') _hospTblToggle(false);
+}
+function _hospTblToggle(yes) {
+  const yesBtn = document.getElementById('hs-tbl-yes');
+  const noBtn  = document.getElementById('hs-tbl-no');
+  const row    = document.getElementById('hs-tbl-count-row');
+  if (yesBtn) { yesBtn.classList.toggle('on', yes); }
+  if (noBtn)  { noBtn.classList.toggle('on', !yes); }
+  if (row)    { row.style.display = yes ? 'block' : 'none'; }
 }
 async function saveHospSection(existingId) {
   const name = document.getElementById('hs-name')?.value.trim();
   const section_type = document.getElementById('hs-type')?.value;
   if (!name) { showToast('Enter a section name', true); return; }
   const body = { shop_id: S.shop.id, name, section_type };
+  let newSectionId = existingId;
   let ok;
   if (existingId) {
     const r = await fetch(`${SUPABASE_URL}/rest/v1/hospitality_sections?id=eq.${existingId}`, {
       method:'PATCH', headers:{...apiHeaders(),'Content-Type':'application/json','Prefer':'return=minimal'}, body:JSON.stringify({name,section_type})});
     ok = r.ok;
   } else {
-    const r = await apiPost('hospitality_sections', body);
-    ok = !r.error;
+    const result = await apiPost('hospitality_sections', body);
+    ok = !result?.error;
+    newSectionId = result?.data?.id;
   }
   if (!ok) { showToast('Save failed', true); return; }
-  showToast(existingId ? '✅ Updated' : '✅ Section added');
+  // Auto-enable stock for Shop sections
+  if (section_type === 'shop') {
+    await fetch(`${SUPABASE_URL}/rest/v1/shops?id=eq.${S.shop.id}`, {
+      method:'PATCH', headers:{...apiHeaders(),'Content-Type':'application/json'}, body:JSON.stringify({stock_enabled:true})});
+    S.shop.stock_enabled = true;
+    showToast('✅ Section added — Stock module activated!');
+  } else {
+    showToast(existingId ? '✅ Updated' : '✅ Section added');
+  }
+  // If tables were requested, auto-generate them
+  const wantTables = document.getElementById('hs-tbl-yes')?.classList.contains('on');
+  const countVal   = parseInt(document.getElementById('hs-tbl-count')?.value) || 0;
+  if (!existingId && wantTables && countVal > 0 && newSectionId && section_type !== 'accommodation') {
+    const startLabel = document.getElementById('hs-tbl-start')?.value.trim() || 'Table 1';
+    const cap = parseInt(document.getElementById('hs-tbl-cap')?.value) || 4;
+    const numMatch = startLabel.match(/(\d+)$/);
+    const prefix   = numMatch ? startLabel.slice(0, startLabel.length - numMatch[1].length) : startLabel + ' ';
+    const startNum = numMatch ? parseInt(numMatch[1]) : 1;
+    const rows = [];
+    for (let i = 0; i < countVal; i++) {
+      rows.push({ shop_id: S.shop.id, section_id: newSectionId,
+        table_number: numMatch ? `${prefix}${startNum+i}` : (countVal===1 ? startLabel : `${prefix}${startNum+i}`),
+        capacity: cap });
+    }
+    await fetch(`${SUPABASE_URL}/rest/v1/hospitality_tables`, {
+      method:'POST', headers:{...apiHeaders(),'Content-Type':'application/json','Prefer':'return=minimal'}, body:JSON.stringify(rows)});
+    showToast(`✅ Section + ${countVal} table${countVal>1?'s':''} created`);
+  }
   popSheet(); popSheet();
   await openHospSections();
 }
