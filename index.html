@@ -904,14 +904,14 @@ async function loadUserContext() {
       <button class="ni on" data-tab="home"><span class="ni-ico">🏠</span><span class="ni-lbl">Home</span></button>
       <button class="ni" data-tab="bookings"><span class="ni-ico">📅</span><span class="ni-lbl">Bookings</span></button>
       <button class="ni" data-tab="sales"><span class="ni-ico">💰</span><span class="ni-lbl">Sales</span></button>
-      <button class="ni" data-tab="customers"><span class="ni-ico">👥</span><span class="ni-lbl">Guests</span></button>
+      <button class="ni" data-tab="customers"><span class="ni-ico">👥</span><span class="ni-lbl">Customers</span></button>
       <button class="ni" data-tab="more"><span class="ni-ico">☰</span><span class="ni-lbl">More</span></button>`;
   } else if (S.isHospitality) {
     document.getElementById('bottom-nav').innerHTML = `
       <button class="ni on" data-tab="home"><span class="ni-ico">🏠</span><span class="ni-lbl">Home</span></button>
       <button class="ni" data-tab="hosp-orders"><span class="ni-ico">🍽️</span><span class="ni-lbl">Orders</span></button>
       <button class="ni" data-tab="hosp-menu"><span class="ni-ico">📋</span><span class="ni-lbl">Menu</span></button>
-      <button class="ni" data-tab="customers"><span class="ni-ico">👥</span><span class="ni-lbl">Guests</span></button>
+      <button class="ni" data-tab="customers"><span class="ni-ico">👥</span><span class="ni-lbl">Customers</span></button>
       <button class="ni" data-tab="more"><span class="ni-ico">☰</span><span class="ni-lbl">More</span></button>`;
   } else if (role === 'cashier') {
     document.getElementById('bottom-nav').innerHTML = `
@@ -5033,8 +5033,8 @@ async function renderCustomers(el) {
           </div>`).join('')}
         </div>
       ` : `<div class="empty" style="padding:60px 0"><div class="empty-ico">👥</div><p>No ${label.toLowerCase()}s yet.<br>Add a ${label.toLowerCase()} to start tracking loyalty &amp; debt.</p></div>`}
+      <button class="btn-p" style="width:100%;margin-top:12px" onclick="addCustomerSheet()">+ Add ${label}</button>
     </div>`;
-  addFab(`+ Add ${label}`, addCustomerSheet);
 }
 
 function addCustomerSheet() {
