@@ -3758,6 +3758,7 @@ async function renderTab(tab) {
   else if (tab === 'supplies')      await renderSupplies(el);
   else if (tab === 'hosp-orders')   await renderHospOrders(el);
   else if (tab === 'hosp-menu')     await renderHospMenu(el);
+  else if (tab === 'customers')     await renderCustomers(el);
   else if (tab === 'more')          renderMore(el);
 }
 
@@ -5002,6 +5003,113 @@ async function submitDeleteRequest() {
     </div>`);
 }
 
+/* ═══════════════════════════════
+   CUSTOMERS / GUESTS TAB
+═══════════════════════════════ */
+async function renderCustomers(el) {
+  // Refresh customer list
+  await loadCustomers();
+  const custs = S.customers || [];
+  const totalOwed = custs.reduce((s, c) => s + (Number(c.outstanding) || 0), 0);
+  const totalSpent = custs.reduce((s, c) => s + (Number(c.total_spent) || 0), 0);
+  const label = S.isHospitality ? 'Guest' : 'Customer';
+  el.innerHTML = `
+    <div style="padding:14px max(16px,env(safe-area-inset-right,0px)) 80px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">
+        <div class="scard"><div class="scard-lbl">${label}s</div><div class="scard-val">${custs.length}</div><div class="scard-sub">registered</div></div>
+        <div class="scard"><div class="scard-lbl">Total Owed</div><div class="scard-val">${kshort(totalOwed)}</div><div class="scard-sub">KES debt</div></div>
+      </div>
+      ${custs.length ? `
+        <div class="sec-ttl" style="margin-bottom:8px">All ${label}s</div>
+        <div class="clist">
+          ${custs.map(c => `
+          <div class="dbi" onclick="openCustomerSheet('${c.id}')">
+            <div class="db-av" style="background:var(--acc-d)">👤</div>
+            <div class="db-inf">
+              <div class="db-nm">${esc(c.name)}</div>
+              <div class="db-mt">${c.phone ? '📞 '+esc(c.phone) : 'No phone'} · Spent: ${kes(c.total_spent||0)}</div>
+            </div>
+            ${Number(c.outstanding)>0 ? `<span class="bdg bdg-r">Owes ${kes(c.outstanding)}</span>` : ''}
+          </div>`).join('')}
+        </div>
+      ` : `<div class="empty" style="padding:60px 0"><div class="empty-ico">👥</div><p>No ${label.toLowerCase()}s yet.<br>Add a ${label.toLowerCase()} to start tracking loyalty &amp; debt.</p></div>`}
+    </div>`;
+  addFab(`+ Add ${label}`, addCustomerSheet);
+}
+
+function addCustomerSheet() {
+  pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>Add ${S.isHospitality?'Guest':'Customer'}</h2></div>
+    <div class="sh-body">
+      <div class="fg-s"><label class="fl">Name *</label><input id="cust-name" class="fi" placeholder="Full name"></div>
+      <div class="fg-s"><label class="fl">Phone</label><input id="cust-phone" class="fi" type="tel" placeholder="e.g. 0712345678"></div>
+      <div class="fg-s"><label class="fl">Notes</label><input id="cust-notes" class="fi" placeholder="VIP, dietary needs, etc."></div>
+      <div id="cust-err" style="color:var(--red);font-size:13px;margin-bottom:8px"></div>
+      <button class="btn-p" style="width:100%" onclick="saveCustomer()">Save</button>
+    </div>`);
+}
+
+async function saveCustomer() {
+  const name = document.getElementById('cust-name')?.value.trim();
+  const err = document.getElementById('cust-err');
+  if (!name) { err.textContent = 'Name is required'; return; }
+  const phone = document.getElementById('cust-phone')?.value.trim();
+  const notes = document.getElementById('cust-notes')?.value.trim();
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/customers`, {
+    method: 'POST',
+    headers: {...apiHeaders(), 'Content-Type': 'application/json', 'Prefer': 'return=minimal'},
+    body: JSON.stringify({ shop_id: S.shop.id, name, phone: phone||null, notes: notes||null })
+  });
+  if (!r.ok) { err.textContent = 'Save failed — please try again'; return; }
+  showToast('✅ Customer added');
+  popSheet();
+  await renderCustomers(document.getElementById('main-content'));
+}
+
+async function openCustomerSheet(custId) {
+  const cust = (S.customers || []).find(c => c.id === custId);
+  if (!cust) return;
+  pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>${esc(cust.name)}</h2></div>
+    <div class="sh-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">
+        <div class="scard"><div class="scard-lbl">Total Spent</div><div class="scard-val">${kshort(cust.total_spent||0)}</div><div class="scard-sub">KES</div></div>
+        <div class="scard"><div class="scard-lbl">Owes</div><div class="scard-val">${kshort(cust.outstanding||0)}</div><div class="scard-sub">KES</div></div>
+      </div>
+      ${cust.phone ? `<div style="margin-bottom:12px;font-size:14px;color:var(--txt2)">📞 <a href="tel:${esc(cust.phone)}" style="color:var(--acc)">${esc(cust.phone)}</a></div>` : ''}
+      ${cust.notes ? `<div style="margin-bottom:16px;font-size:13px;color:var(--txt2);background:var(--surf2);padding:10px;border-radius:10px">${esc(cust.notes)}</div>` : ''}
+      ${Number(cust.outstanding)>0 ? `
+        <div style="margin-bottom:16px">
+          <div style="font-size:13px;font-weight:700;margin-bottom:8px">Record Debt Payment</div>
+          <div style="display:flex;gap:8px">
+            <input id="debt-pay-amt" class="fi" type="number" placeholder="Amount (KES)" style="flex:1">
+            <button class="btn-p" onclick="payCustomerDebt('${cust.id}')">Pay</button>
+          </div>
+        </div>` : ''}
+      <button onclick="deleteCustomer('${cust.id}')" style="width:100%;padding:12px;background:none;border:1.5px solid var(--red);color:var(--red);border-radius:12px;font-size:14px;font-weight:600;cursor:pointer">🗑 Delete ${S.isHospitality?'Guest':'Customer'}</button>
+    </div>`);
+}
+
+async function payCustomerDebt(custId) {
+  const amt = parseFloat(document.getElementById('debt-pay-amt')?.value);
+  if (!amt || amt <= 0) { showToast('Enter a valid amount', true); return; }
+  const cust = (S.customers||[]).find(c=>c.id===custId);
+  const newOutstanding = Math.max(0, (Number(cust.outstanding)||0) - amt);
+  await fetch(`${SUPABASE_URL}/rest/v1/customers?id=eq.${custId}`, {
+    method:'PATCH', headers:{...apiHeaders(),'Content-Type':'application/json'},
+    body: JSON.stringify({ outstanding: newOutstanding })
+  });
+  showToast(`✅ KES ${amt.toLocaleString()} recorded`);
+  popSheet();
+  await renderCustomers(document.getElementById('main-content'));
+}
+
+async function deleteCustomer(custId) {
+  if (!confirm('Delete this customer record?')) return;
+  await fetch(`${SUPABASE_URL}/rest/v1/customers?id=eq.${custId}`, {method:'DELETE',headers:apiHeaders()});
+  showToast('🗑 Deleted');
+  popSheet();
+  await renderCustomers(document.getElementById('main-content'));
+}
+
 function renderMore(el) {
   const isOwner      = S.member.role === 'owner';
   const isManager    = S.member.role === 'manager';
@@ -5870,6 +5978,17 @@ function showInviteSheet() {
           <option value="masseuse">💆 Masseuse — sessions &amp; clients</option>
           <option value="cashier">🧾 Cashier — record sales only</option>
           <option value="manager">🏷️ Manager — full access except billing</option>
+          ` : S.isHospitality ? `
+          <option value="waiter">🍽️ Waiter — serve tables &amp; orders</option>
+          <option value="chef">👨‍🍳 Chef — kitchen &amp; order prep</option>
+          <option value="bartender">🍺 Bartender — bar &amp; drinks</option>
+          <option value="receptionist">🛎️ Receptionist — front desk</option>
+          <option value="cleaning crew">🧹 Cleaning Crew — housekeeping</option>
+          <option value="gardener">🌿 Gardener — grounds</option>
+          <option value="security">🔒 Security — premises</option>
+          <option value="cashier">🧾 Cashier — billing &amp; payments</option>
+          <option value="manager">🏷️ Manager — full access except billing</option>
+          <option value="other">👤 Other</option>
           ` : `
           <option value="cashier">🧾 Cashier — record sales only</option>
           <option value="manager">🏷️ Manager — full access except billing</option>
@@ -7740,74 +7859,123 @@ async function deleteHospSection(id) {
 }
 
 // ── Tables & QR codes ────────────────────────────────────────
-async function openHospTables(sectionId, sectionName) {
-  pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>🪑 ${esc(sectionName)}</h2></div>
+async function openHospTables(sectionId, sectionName, sectionType) {
+  // Fetch section type if not provided
+  if (!sectionType) {
+    const sec = await apiGet(`hospitality_sections?id=eq.${sectionId}&select=section_type`);
+    sectionType = sec?.[0]?.section_type || 'table';
+  }
+  const isAccom = sectionType === 'accommodation';
+  const ico = isAccom ? '🛏️' : '🪑';
+  pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>${ico} ${esc(sectionName)}</h2></div>
     <div class="sh-body" id="hosp-tbl-body-${sectionId}"><div class="loader"><div class="spin"></div></div></div>`);
-  await _loadHospTables(sectionId);
+  await _loadHospTables(sectionId, sectionType);
 }
-async function _loadHospTables(sectionId) {
+async function _loadHospTables(sectionId, sectionType) {
   const el = document.getElementById(`hosp-tbl-body-${sectionId}`);
   if (!el) return;
+  const isAccom = sectionType === 'accommodation';
   const tables = await apiGet(`hospitality_tables?section_id=eq.${sectionId}&order=table_number&select=*`);
+  const ico = isAccom ? '🛏️' : '🪑';
+  const label = isAccom ? 'room' : 'table';
   if (!tables?.length) {
-    el.innerHTML = `<div class="empty"><div class="empty-ico">🪑</div><p>No tables yet in this section.</p></div>`;
+    el.innerHTML = `<div class="empty"><div class="empty-ico">${ico}</div><p>No ${label}s yet in this section.</p></div>`;
   } else {
-    el.innerHTML = `<p style="font-size:13px;color:var(--txt2);margin:0 0 14px">Tap a table to view its QR code.</p>
+    el.innerHTML = `<p style="font-size:13px;color:var(--txt2);margin:0 0 14px">${isAccom ? 'Tap a room to view its QR code.' : 'Tap a table to view its QR code.'}</p>
       <div class="clist">${tables.map(t => `
         <div class="dbi" onclick="showHospQR('${t.id}','${esc(t.table_number)}','${t.qr_token}')">
-          <div class="db-av" style="background:var(--acc-d)">🪑</div>
+          <div class="db-av" style="background:var(--acc-d)">${ico}</div>
           <div class="db-inf">
             <div class="db-nm">${esc(t.table_number)}</div>
-            <div class="db-mt">Capacity: ${t.capacity} · QR: ${t.qr_token.slice(0,8)}…</div>
+            <div class="db-mt">${isAccom ? (t.room_type||'Standard') + (t.price_per_night ? ' · KES '+Number(t.price_per_night).toLocaleString()+'/night' : '') : 'Capacity: '+t.capacity}</div>
           </div>
           <div style="display:flex;gap:8px;align-items:center">
-            <button onclick="event.stopPropagation();deleteHospTable('${t.id}','${sectionId}')" style="background:none;border:none;font-size:18px;cursor:pointer">🗑</button>
+            <button onclick="event.stopPropagation();deleteHospTable('${t.id}','${sectionId}','${sectionType}')" style="background:none;border:none;font-size:18px;cursor:pointer">🗑</button>
           </div>
         </div>`).join('')}
       </div>`;
   }
-  addFab('+ Add Table', () => addHospTablesSheet(sectionId));
+  addFab(isAccom ? '+ Add Rooms' : '+ Add Tables', () => addHospTablesSheet(sectionId, sectionType));
 }
-async function addHospTablesSheet(sectionId) {
-  pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>Add Tables</h2></div>
-    <div class="sh-body">
-      <p style="font-size:13px;color:var(--txt2);margin:0 0 16px">Enter how many tables to add — QR codes are auto-generated for each.</p>
-      <div class="fg-s"><label class="fl">Starting Number / Name</label><input id="ht-start" class="fi" placeholder="e.g. Table 1 or T1" value="Table 1"></div>
-      <div class="fg-s"><label class="fl">How many tables?</label><input id="ht-count" class="fi" type="number" min="1" max="50" value="1"></div>
-      <div class="fg-s"><label class="fl">Capacity (seats per table)</label><input id="ht-cap" class="fi" type="number" min="1" max="20" value="4"></div>
-      <button class="btn-p" style="width:100%;margin-top:8px" onclick="saveHospTables('${sectionId}')">Generate Tables & QR Codes</button>
-    </div>`);
+async function addHospTablesSheet(sectionId, sectionType) {
+  const isAccom = sectionType === 'accommodation';
+  if (isAccom) {
+    pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>Add Rooms</h2></div>
+      <div class="sh-body">
+        <p style="font-size:13px;color:var(--txt2);margin:0 0 16px">Rooms get auto-generated QR codes for guest self check-in.</p>
+        <div class="fg-s"><label class="fl">Room Type</label>
+          <select id="ht-roomtype" class="fi">
+            <option value="Studio">Studio</option>
+            <option value="1 Bedroom">1 Bedroom</option>
+            <option value="2 Bedroom">2 Bedroom</option>
+            <option value="3 Bedroom">3 Bedroom</option>
+            <option value="Suite">Suite</option>
+            <option value="Standard">Standard</option>
+            <option value="Deluxe">Deluxe</option>
+          </select></div>
+        <div class="fg-s"><label class="fl">Starting Room Number</label><input id="ht-start" class="fi" placeholder="e.g. 101" value="101"></div>
+        <div class="fg-s"><label class="fl">How many rooms?</label><input id="ht-count" class="fi" type="number" min="1" max="100" value="1"></div>
+        <div class="fg-s"><label class="fl">Price per Night (KES)</label><input id="ht-price" class="fi" type="number" min="0" placeholder="e.g. 5000"></div>
+        <button class="btn-p" style="width:100%;margin-top:8px" onclick="saveHospTables('${sectionId}','accommodation')">Generate Rooms & QR Codes</button>
+      </div>`);
+  } else {
+    pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>Add Tables</h2></div>
+      <div class="sh-body">
+        <p style="font-size:13px;color:var(--txt2);margin:0 0 16px">Enter how many tables to add — QR codes are auto-generated for each.</p>
+        <div class="fg-s"><label class="fl">Starting Number / Name</label><input id="ht-start" class="fi" placeholder="e.g. Table 1 or T1" value="Table 1"></div>
+        <div class="fg-s"><label class="fl">How many tables?</label><input id="ht-count" class="fi" type="number" min="1" max="50" value="1"></div>
+        <div class="fg-s"><label class="fl">Capacity (seats per table)</label><input id="ht-cap" class="fi" type="number" min="1" max="20" value="4"></div>
+        <button class="btn-p" style="width:100%;margin-top:8px" onclick="saveHospTables('${sectionId}','table')">Generate Tables & QR Codes</button>
+      </div>`);
+  }
 }
-async function saveHospTables(sectionId) {
-  const start = document.getElementById('ht-start')?.value.trim() || 'Table 1';
+async function saveHospTables(sectionId, sectionType) {
+  const isAccom = sectionType === 'accommodation';
+  const start = document.getElementById('ht-start')?.value.trim() || (isAccom ? '101' : 'Table 1');
   const count = parseInt(document.getElementById('ht-count')?.value) || 1;
-  const capacity = parseInt(document.getElementById('ht-cap')?.value) || 4;
   const toInsert = [];
   // Parse starting number
   const numMatch = start.match(/(\d+)$/);
   const prefix = numMatch ? start.slice(0, start.length - numMatch[1].length) : start + ' ';
   const startNum = numMatch ? parseInt(numMatch[1]) : 1;
-  for (let i = 0; i < count; i++) {
-    toInsert.push({
-      shop_id: S.shop.id, section_id: sectionId,
-      table_number: numMatch ? `${prefix}${startNum+i}` : (count===1 ? start : `${prefix}${startNum+i}`),
-      capacity
-    });
+  if (isAccom) {
+    const roomType = document.getElementById('ht-roomtype')?.value || 'Standard';
+    const price = parseFloat(document.getElementById('ht-price')?.value) || null;
+    for (let i = 0; i < count; i++) {
+      const roomNum = numMatch ? `${prefix}${startNum+i}` : (count===1 ? start : `${prefix}${startNum+i}`);
+      toInsert.push({
+        shop_id: S.shop.id, section_id: sectionId,
+        table_number: roomNum,
+        capacity: 1,
+        room_type: roomType,
+        price_per_night: price
+      });
+    }
+  } else {
+    const capacity = parseInt(document.getElementById('ht-cap')?.value) || 4;
+    for (let i = 0; i < count; i++) {
+      toInsert.push({
+        shop_id: S.shop.id, section_id: sectionId,
+        table_number: numMatch ? `${prefix}${startNum+i}` : (count===1 ? start : `${prefix}${startNum+i}`),
+        capacity
+      });
+    }
   }
   const r = await fetch(`${SUPABASE_URL}/rest/v1/hospitality_tables`, {
     method:'POST', headers:{...apiHeaders(),'Content-Type':'application/json','Prefer':'return=minimal'},
     body: JSON.stringify(toInsert)
   });
-  if (!r.ok) { showToast('Failed to add tables', true); return; }
-  showToast(`✅ ${count} table${count>1?'s':''} added with QR codes`);
+  if (!r.ok) { showToast(`Failed to add ${isAccom?'rooms':'tables'}`, true); return; }
+  showToast(`✅ ${count} ${isAccom?'room':'table'}${count>1?'s':''} added with QR codes`);
   popSheet(); popSheet();
-  await openHospTables(sectionId, '');
+  await openHospTables(sectionId, '', sectionType);
 }
-async function deleteHospTable(id, sectionId) {
-  if (!confirm('Delete this table and its QR code?')) return;
+async function deleteHospTable(id, sectionId, sectionType) {
+  const label = sectionType === 'accommodation' ? 'room' : 'table';
+  if (!confirm(`Delete this ${label} and its QR code?`)) return;
   await fetch(`${SUPABASE_URL}/rest/v1/hospitality_tables?id=eq.${id}`, {method:'DELETE',headers:apiHeaders()});
-  showToast('🗑 Table deleted');
-  await _loadHospTables(sectionId);
+  showToast(`🗑 ${label.charAt(0).toUpperCase()+label.slice(1)} deleted`);
+  await _loadHospTables(sectionId, sectionType);
 }
 function showHospQR(tableId, tableName, qrToken) {
   const orderUrl = `${location.origin}/hospitality-order.html?t=${qrToken}`;
@@ -8037,45 +8205,103 @@ async function cancelHospOrder(orderId) {
 
 // ── Staff shifts ─────────────────────────────────────────────
 async function openHospShifts() {
+  // Show a 4-week calendar; tapping a date opens that day's shifts + add
+  const today = new Date();
+  const todayStr = today.toLocaleDateString('en-CA', {timeZone:'Africa/Nairobi'});
+  // Build 28-day grid starting Monday of current week
+  const dayOfWeek = (today.getDay() + 6) % 7; // Mon=0
+  const weekStart = new Date(today); weekStart.setDate(today.getDate() - dayOfWeek);
+  const days = [];
+  for (let i = 0; i < 28; i++) {
+    const d = new Date(weekStart); d.setDate(weekStart.getDate() + i);
+    days.push(d.toLocaleDateString('en-CA', {timeZone:'Africa/Nairobi'}));
+  }
   pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>📅 Staff Schedule</h2></div>
     <div class="sh-body" id="hosp-shift-body"><div class="loader"><div class="spin"></div></div></div>`);
   const [shifts, sections, members] = await Promise.all([
-    apiGet(`hospitality_shifts?shop_id=eq.${S.shop.id}&shift_date=gte.${todayStart().slice(0,10)}&order=shift_date,start_time&select=*`),
+    apiGet(`hospitality_shifts?shop_id=eq.${S.shop.id}&shift_date=gte.${days[0]}&shift_date=lte.${days[27]}&order=shift_date,start_time&select=*`),
     apiGet(`hospitality_sections?shop_id=eq.${S.shop.id}&order=sort_order`),
     apiGet(`shop_members?shop_id=eq.${S.shop.id}&select=*,users:user_id(full_name,email)`),
   ]);
   const el = document.getElementById('hosp-shift-body');
   if (!el) return;
-  const memberMap = {};
-  (members||[]).forEach(m => { memberMap[m.user_id] = m.users?.full_name || m.users?.email || 'Staff'; });
+  // Store for date-click handlers
+  window._hospShiftCtx = { sections, members };
+  const shiftDates = new Set((shifts||[]).map(s => s.shift_date));
   const byDate = {};
   (shifts||[]).forEach(s => { (byDate[s.shift_date] = byDate[s.shift_date]||[]).push(s); });
-  const roleIco = { waiter:'🍽️', chef:'👨‍🍳', bartender:'🍺', receptionist:'🛎️', manager:'👔', 'cleaning crew':'🧹', gardener:'🌿', security:'🔒' };
-  let h = '';
-  if (!Object.keys(byDate).length) {
-    h = `<div class="empty"><div class="empty-ico">📅</div><p>No upcoming shifts scheduled.</p></div>`;
-  } else {
-    Object.keys(byDate).sort().forEach(date => {
-      h += `<div class="sec-ttl" style="margin:0 0 8px">${date}</div><div class="clist">`;
-      byDate[date].forEach(s => {
-        h += `<div class="dbi">
+  const dayNames = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  // Group days by week row
+  const weeks = [];
+  for (let w = 0; w < 4; w++) weeks.push(days.slice(w*7, w*7+7));
+  // Render month header when month changes
+  let lastMonth = -1;
+  let cal = `
+    <style>
+      .hcal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:16px}
+      .hcal-dow{text-align:center;font-size:10px;font-weight:700;color:var(--txt3);padding:2px 0}
+      .hcal-day{aspect-ratio:1;border-radius:10px;display:flex;flex-direction:column;align-items:center;
+        justify-content:center;cursor:pointer;font-size:13px;font-weight:600;border:1.5px solid transparent;
+        transition:all .15s;background:var(--surf2);color:var(--txt2);position:relative}
+      .hcal-day.today{border-color:var(--acc);color:var(--acc);background:var(--acc-d)}
+      .hcal-day.has-shift::after{content:'';width:6px;height:6px;background:var(--grn);border-radius:50%;
+        position:absolute;bottom:4px}
+      .hcal-day:active{transform:scale(.93)}
+      .hcal-month{font-size:12px;font-weight:700;color:var(--txt3);margin:8px 0 4px;text-transform:uppercase;letter-spacing:.05em}
+    </style>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px">
+      ${dayNames.map(d=>`<div class="hcal-dow">${d}</div>`).join('')}
+    </div>`;
+  weeks.forEach(week => {
+    const wMonth = new Date(week[0]).getMonth();
+    if (wMonth !== lastMonth) {
+      const d = new Date(week[0]); lastMonth = wMonth;
+      cal += `<div class="hcal-month">${monthNames[d.getMonth()]} ${d.getFullYear()}</div>`;
+    }
+    cal += `<div class="hcal-grid">`;
+    week.forEach(dateStr => {
+      const d = new Date(dateStr + 'T00:00:00');
+      const isToday = dateStr === todayStr;
+      const hasShift = shiftDates.has(dateStr);
+      const cnt = (byDate[dateStr]||[]).length;
+      cal += `<div class="hcal-day${isToday?' today':''}${hasShift?' has-shift':''}" onclick="openHospDayShifts('${dateStr}')">
+        ${d.getDate()}${cnt ? `<span style="font-size:9px;font-weight:700;color:var(--grn);line-height:1">${cnt}🧑</span>` : ''}
+      </div>`;
+    });
+    cal += `</div>`;
+  });
+  cal += `<p style="font-size:12px;color:var(--txt3);text-align:center;margin-top:8px">Tap a date to view or add shifts</p>`;
+  el.innerHTML = cal;
+}
+
+async function openHospDayShifts(dateStr) {
+  const {sections, members} = window._hospShiftCtx || {};
+  pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>${new Date(dateStr+'T00:00:00').toLocaleDateString('en-KE',{weekday:'long',day:'numeric',month:'short'})}</h2></div>
+    <div class="sh-body" id="hosp-day-body"><div class="loader"><div class="spin"></div></div></div>`);
+  const shifts = await apiGet(`hospitality_shifts?shop_id=eq.${S.shop.id}&shift_date=eq.${dateStr}&order=start_time&select=*`) || [];
+  const el = document.getElementById('hosp-day-body');
+  if (!el) return;
+  const memberMap = {};
+  (members||[]).forEach(m => { memberMap[m.user_id] = m.users?.full_name || m.users?.email || 'Staff'; });
+  const roleIco = { waiter:'🍽️', chef:'👨‍🍳', bartender:'🍺', receptionist:'🛎️', manager:'👔', cashier:'🧾', 'cleaning crew':'🧹', gardener:'🌿', security:'🔒', bartender:'🍺', other:'👤' };
+  let h = shifts.length
+    ? `<div class="clist">${shifts.map(s=>`
+        <div class="dbi">
           <div class="db-av" style="background:var(--surf2)">${roleIco[s.role]||'👤'}</div>
           <div class="db-inf">
             <div class="db-nm">${esc(memberMap[s.user_id]||'Unknown')}</div>
             <div class="db-mt">${s.role} · ${s.start_time.slice(0,5)}–${s.end_time.slice(0,5)}</div>
           </div>
           <button onclick="deleteHospShift('${s.id}')" style="background:none;border:none;font-size:18px;cursor:pointer">🗑</button>
-        </div>`;
-      });
-      h += `</div>`;
-    });
-  }
+        </div>`).join('')}</div>`
+    : `<div class="empty" style="padding:40px 0"><div class="empty-ico">📅</div><p>No shifts on this day yet.</p></div>`;
   el.innerHTML = h;
-  addFab('+ Add Shift', () => addHospShiftSheet(sections, members));
+  addFab('+ Add Shift', () => addHospShiftSheet(sections, members, dateStr));
 }
-function addHospShiftSheet(sections, members) {
-  const today = new Date().toISOString().slice(0,10);
-  const roleIco = { waiter:'🍽️', chef:'👨‍🍳', bartender:'🍺', receptionist:'🛎️', manager:'👔', 'cleaning crew':'🧹', gardener:'🌿', security:'🔒' };
+function addHospShiftSheet(sections, members, prefillDate) {
+  const today = prefillDate || new Date().toLocaleDateString('en-CA', {timeZone:'Africa/Nairobi'});
+  const roleIco = { waiter:'🍽️', chef:'👨‍🍳', bartender:'🍺', receptionist:'🛎️', manager:'👔', cashier:'🧾', 'cleaning crew':'🧹', gardener:'🌿', security:'🔒', other:'👤' };
   const roles = Object.keys(roleIco);
   pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>Add Shift</h2></div>
     <div class="sh-body">
@@ -8098,11 +8324,12 @@ function addHospShiftSheet(sections, members) {
     </div>`);
 }
 async function saveHospShift() {
+  const dateVal = document.getElementById('hsh-date')?.value;
   const body = {
     shop_id: S.shop.id,
     user_id: document.getElementById('hsh-user')?.value,
     role: document.getElementById('hsh-role')?.value,
-    shift_date: document.getElementById('hsh-date')?.value,
+    shift_date: dateVal,
     start_time: document.getElementById('hsh-start')?.value,
     end_time: document.getElementById('hsh-end')?.value,
     section_id: document.getElementById('hsh-sec')?.value || null,
@@ -8112,13 +8339,15 @@ async function saveHospShift() {
   if (r.error) { showToast('Save failed: ' + r.error.message, true); return; }
   showToast('✅ Shift added');
   popSheet();
-  await openHospShifts();
+  await openHospDayShifts(dateVal);
 }
 async function deleteHospShift(id) {
   if (!confirm('Remove this shift?')) return;
+  const shifts = await apiGet(`hospitality_shifts?id=eq.${id}&select=shift_date`);
+  const dateStr = shifts?.[0]?.shift_date;
   await fetch(`${SUPABASE_URL}/rest/v1/hospitality_shifts?id=eq.${id}`,{method:'DELETE',headers:apiHeaders()});
   showToast('🗑 Removed');
-  await openHospShifts();
+  if (dateStr) await openHospDayShifts(dateStr);
 }
 
 // ── Analytics dashboard ──────────────────────────────────────
@@ -8126,46 +8355,96 @@ async function openHospDashboard() {
   pushSheet(`<div class="sh-hand"></div><div class="sh-hdr"><h2>📊 Reports</h2></div>
     <div class="sh-body" id="hosp-dash-body"><div class="loader"><div class="spin"></div></div></div>`);
   const weekAgo = new Date(Date.now()-7*86400000).toISOString();
-  const [orders, items, reviews] = await Promise.all([
+  // Fetch paid orders first, then items for those orders
+  const [paidOrders, reviews, members] = await Promise.all([
     apiGet(`hospitality_orders?shop_id=eq.${S.shop.id}&created_at=gte.${weekAgo}&payment_status=eq.paid&select=*`),
-    apiGet(`hospitality_order_items?order_id=in.(${
-      ((await apiGet(`hospitality_orders?shop_id=eq.${S.shop.id}&created_at=gte.${weekAgo}&payment_status=eq.paid&select=id`))||[]).map(o=>o.id).join(',') || 'null'
-    })&select=*`),
     apiGet(`hospitality_reviews?shop_id=eq.${S.shop.id}&created_at=gte.${weekAgo}&select=*`),
+    apiGet(`shop_members?shop_id=eq.${S.shop.id}&select=user_id,role,users:user_id(full_name,email)`),
   ]);
+  const orders = paidOrders || [];
+  const orderIds = orders.map(o=>o.id);
+  const items = orderIds.length
+    ? (await apiGet(`hospitality_order_items?order_id=in.(${orderIds.join(',')})&select=*`) || [])
+    : [];
   const el = document.getElementById('hosp-dash-body');
   if (!el) return;
-  const totalRev = (orders||[]).reduce((s,o)=>s+Number(o.total_amount||0),0);
-  const totalCOGS = (items||[]).reduce((s,i)=>s+Number(i.cost_price||0)*Number(i.quantity||1),0);
+  const totalRev = orders.reduce((s,o)=>s+Number(o.total_amount||0),0);
+  const totalCOGS = items.reduce((s,i)=>s+Number(i.cost_price||0)*Number(i.quantity||1),0);
   const grossProfit = totalRev - totalCOGS;
   const avgPlace = reviews?.length ? (reviews.reduce((s,r)=>s+(r.place_rating||0),0)/reviews.length).toFixed(1) : '—';
   const avgFood  = reviews?.length ? (reviews.reduce((s,r)=>s+(r.food_rating||0),0)/reviews.length).toFixed(1) : '—';
   const avgStaff = reviews?.length ? (reviews.reduce((s,r)=>s+(r.staff_rating||0),0)/reviews.length).toFixed(1) : '—';
-  // Top items by quantity
+  // ALL items by order count
   const itemCounts = {};
-  (items||[]).forEach(i => { itemCounts[i.name] = (itemCounts[i.name]||0) + (i.quantity||1); });
-  const topItems = Object.entries(itemCounts).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const itemRevenue = {};
+  items.forEach(i => {
+    const k = i.name||'Unknown';
+    itemCounts[k] = (itemCounts[k]||0) + (Number(i.quantity)||1);
+    itemRevenue[k] = (itemRevenue[k]||0) + (Number(i.unit_price||0)*Number(i.quantity||1));
+  });
+  const allItems = Object.entries(itemCounts).sort((a,b)=>b[1]-a[1]);
+  // Waiter stats — from orders where waiter_id is set
+  const memberMap = {};
+  (members||[]).forEach(m => { memberMap[m.user_id] = m.users?.full_name || m.users?.email || 'Staff'; });
+  const waiterMeals = {};
+  const waiterSales = {};
+  orders.forEach(o => {
+    if (o.waiter_id) {
+      const nm = memberMap[o.waiter_id] || 'Unknown';
+      waiterSales[nm] = (waiterSales[nm]||0) + Number(o.total_amount||0);
+    }
+  });
+  // Count meals per waiter from items
+  items.forEach(i => {
+    const order = orders.find(o=>o.id===i.order_id);
+    if (order?.waiter_id) {
+      const nm = memberMap[order.waiter_id] || 'Unknown';
+      waiterMeals[nm] = (waiterMeals[nm]||0) + Number(i.quantity||1);
+    }
+  });
+  const waiterList = Object.entries(waiterSales).sort((a,b)=>b[1]-a[1]);
   el.innerHTML = `
     <div class="sec-ttl" style="margin:0 0 10px">Last 7 Days</div>
     <div class="stats" style="margin-bottom:16px">
       <div class="scard"><div class="scard-lbl">Revenue</div><div class="scard-val">${kshort(totalRev)}</div><div class="scard-sub">KES</div></div>
       <div class="scard"><div class="scard-lbl">Gross Profit</div><div class="scard-val">${kshort(grossProfit)}</div><div class="scard-sub">${totalRev?Math.round(grossProfit/totalRev*100):0}% margin</div></div>
-      <div class="scard"><div class="scard-lbl">Orders</div><div class="scard-val">${(orders||[]).length}</div><div class="scard-sub">paid</div></div>
+      <div class="scard"><div class="scard-lbl">Orders</div><div class="scard-val">${orders.length}</div><div class="scard-sub">paid</div></div>
+      <div class="scard"><div class="scard-lbl">Avg. Order</div><div class="scard-val">${kshort(orders.length?totalRev/orders.length:0)}</div><div class="scard-sub">KES</div></div>
     </div>
+    ${waiterList.length ? `
+    <div class="sec-ttl" style="margin:0 0 10px">👨‍🍳 Staff Performance</div>
+    <div class="clist" style="margin-bottom:16px">
+      ${waiterList.map(([name,sales])=>`<div class="dbi">
+        <div class="db-av" style="background:var(--surf2)">🍽️</div>
+        <div class="db-inf">
+          <div class="db-nm">${esc(name)}</div>
+          <div class="db-mt">${waiterMeals[name]||0} meals served</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-weight:700;color:var(--grn)">${kshort(sales)}</div>
+          <div style="font-size:11px;color:var(--txt3)">KES</div>
+        </div>
+      </div>`).join('')}
+    </div>` : ''}
     <div class="sec-ttl" style="margin:0 0 10px">⭐ Customer Ratings</div>
     <div class="clist" style="margin-bottom:16px">
       <div class="dbi"><div class="db-av">🏠</div><div class="db-inf"><div class="db-nm">Place</div></div><div style="font-weight:700">${avgPlace}/5</div></div>
-      <div class="dbi"><div class="db-av">🍽️</div><div class="db-inf"><div class="db-nm">Food</div></div><div style="font-weight:700">${avgFood}/5</div></div>
+      <div class="dbi"><div class="db-av">🍽️</div><div class="db-inf"><div class="db-nm">Food &amp; Drinks</div></div><div style="font-weight:700">${avgFood}/5</div></div>
       <div class="dbi"><div class="db-av">👤</div><div class="db-inf"><div class="db-nm">Staff</div></div><div style="font-weight:700">${avgStaff}/5</div></div>
+      <div class="dbi"><div class="db-av">📝</div><div class="db-inf"><div class="db-nm">Reviews</div></div><div style="font-weight:700">${(reviews||[]).length}</div></div>
     </div>
-    ${topItems.length ? `<div class="sec-ttl" style="margin:0 0 10px">🔥 Top Items</div>
+    ${allItems.length ? `
+    <div class="sec-ttl" style="margin:0 0 10px">📋 All Menu Items</div>
     <div class="clist">
-      ${topItems.map(([name,count],i)=>`<div class="dbi">
-        <div class="db-av" style="font-weight:700;color:var(--acc)">${i+1}</div>
-        <div class="db-inf"><div class="db-nm">${esc(name)}</div></div>
-        <div style="font-weight:700">${count} sold</div>
+      ${allItems.map(([name,count],i)=>`<div class="dbi">
+        <div class="db-av" style="font-weight:700;font-size:12px;color:${i<3?'var(--acc)':'var(--txt3)'}">${i+1}</div>
+        <div class="db-inf">
+          <div class="db-nm">${esc(name)}</div>
+          <div class="db-mt">Revenue: ${kes(itemRevenue[name]||0)}</div>
+        </div>
+        <div style="font-weight:700">${count}×</div>
       </div>`).join('')}
-    </div>` : ''}`;
+    </div>` : `<div class="empty" style="padding:30px 0"><div class="empty-ico">📊</div><p>No paid orders yet.<br>Reports appear after first sale.</p></div>`}`;
 }
 
 </script>
