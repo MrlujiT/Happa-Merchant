@@ -356,6 +356,17 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
     <div class="loader"><div class="spin"></div><div class="loader-msg">Loading your shop…</div></div>
   </div>
 
+  <!-- ── SHOP PICKER ── -->
+  <div class="page" id="page-shop-picker">
+    <div class="auth-wrap" style="max-width:440px">
+      <div class="auth-logo"><img src="/happa-logo.jpg" alt="Happa"></div>
+      <div class="auth-title">Your Shops</div>
+      <div class="auth-sub" style="margin-bottom:20px">Select a shop to open</div>
+      <div id="shop-picker-list" style="display:flex;flex-direction:column;gap:10px;width:100%"></div>
+      <button class="btn-p" onclick="doLogout()" style="margin-top:20px;background:var(--surf2);color:var(--txt2);border:1.5px solid var(--bdr)">Sign Out</button>
+    </div>
+  </div>
+
   <!-- ── NO SHOP PAGE ── -->
   <div class="page" id="page-noshop">
     <div class="auth-wrap">
@@ -766,11 +777,24 @@ function showErr(el, msg) {
 }
 
 /* ═══════════════════════════════
+   SHOP PICKER
+═══════════════════════════════ */
+function pickShop(idx) {
+  const mem = S._allMems[idx];
+  S._selectedShopId = mem.shop_id;
+  loadUserContext();
+}
+function switchShop() {
+  S._selectedShopId = null;
+  loadUserContext();
+}
+
+/* ═══════════════════════════════
    LOAD USER CONTEXT
 ═══════════════════════════════ */
 async function loadUserContext() {
   showPage('loading');
-  const mems = await apiGet(`shop_members?select=*,shops(*)&user_id=eq.${S.user.id}&limit=1`);
+  const mems = await apiGet(`shop_members?select=*,shops(*)&user_id=eq.${S.user.id}&order=joined_at.desc`);
 
   if (!mems?.length) {
     // New invited user — check if they have invite metadata and complete setup
@@ -803,8 +827,28 @@ async function loadUserContext() {
     showPage('noshop'); return;
   }
 
-  S.member = mems[0];
-  S.shop   = mems[0].shops;
+  // If multiple shops, show picker (unless one was pre-selected)
+  if (mems.length > 1 && !S._selectedShopId) {
+    const roleLabel = { owner:'👑 Owner', manager:'🏷️ Manager', cashier:'🧾 Cashier', 'co-host':'🤝 Co-host', trainer:'🏋️ Trainer', housekeeper:'🧹 Housekeeper' };
+    const typeEmoji2 = t => ({ goods:'🛒', trade:'🛒', airbnb:'🏠', fit:'🏋️', hospitality:'🍽️', services:'✂️' }[t] || '🏪');
+    document.getElementById('shop-picker-list').innerHTML = mems.map((m,i) => `
+      <button onclick="pickShop(${i})" style="display:flex;align-items:center;gap:14px;padding:16px;background:var(--surf2);border:1.5px solid var(--bdr);border-radius:14px;cursor:pointer;text-align:left;width:100%;font-family:inherit">
+        <span style="font-size:28px">${typeEmoji2(m.shops?.business_type)}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:16px;font-weight:700;color:var(--txt)">${esc(m.shops?.name||'Shop')}</div>
+          <div style="font-size:13px;color:var(--txt2)">${roleLabel[m.role]||m.role} ${m.shops?.location?'· '+m.shops.location:''}</div>
+        </div>
+        <span style="font-size:20px;color:var(--txt3)">›</span>
+      </button>`).join('');
+    S._allMems = mems;
+    showPage('shop-picker');
+    return;
+  }
+
+  const memIdx = S._selectedShopId ? mems.findIndex(m=>m.shop_id===S._selectedShopId) : 0;
+  S.member = mems[Math.max(0,memIdx)];
+  S.shop   = S.member.shops;
+  S._selectedShopId = null;
 
   // Check if shop is paused
   if (S.shop.paused) { showPausedPage(S.shop.pause_reason); return; }
@@ -5244,6 +5288,12 @@ function renderMore(el) {
           <div class="more-inf"><div class="more-nm">Delete My Account</div><div class="more-mt">Request removal of your data</div></div>
           <span style="color:var(--txt3)">›</span>
         </div>
+        ${S._allMems?.length > 1 ? `
+        <div class="more-item" onclick="switchShop()">
+          <div class="more-ico" style="background:#2a4a2a">🔀</div>
+          <div class="more-inf"><div class="more-nm">Switch Shop</div><div class="more-mt">You have ${S._allMems.length} shops</div></div>
+          <span style="color:var(--txt3)">›</span>
+        </div>` : ''}
         <div class="more-item" onclick="showConf('Sign Out','Sign out of your account?',doLogout)">
           <div class="more-ico" style="background:var(--red-d)">🚪</div>
           <div class="more-inf"><div class="more-nm">Sign Out</div><div class="more-mt">${S.user?.email}</div></div>
